@@ -45,6 +45,10 @@ applyReadMode(settings.get('readMode'));
 
 function applyReadMode(on: boolean): void {
   editorEl.classList.toggle('pmd-read-mode', on);
+  editorEl.classList.toggle(
+    'pmd-rm-no-emphasis-borders',
+    on && settings.get('hideEmphasisBordersInReadMode'),
+  );
   readModeBtn.classList.toggle('pmd-active', on);
   if (view) view.setProps({ editable: () => !on });
 }

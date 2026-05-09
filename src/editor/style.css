@@ -552,6 +552,24 @@ body.pmd-nav-resize-active {
   display: none;
 }
 
+/* Strip the emphasis border in read mode WHEN the emphasis span has
+   no visible (highlighted) child. Without this, emphasis spans that
+   wrap only `pmd-rm-hide` content render as empty bordered boxes
+   scattered through the body. Spans that wrap highlighted text keep
+   their box.
+   Requires `:has()` (Chrome 105+, Firefox 121+, Safari 15.4+). */
+.pmd-read-mode .pmd-emphasis:not(:has(.pmd-rm-keep)) {
+  border: none;
+  padding: 0;
+}
+
+/* Optional setting: strip ALL emphasis borders in read mode. Activated
+   when the editor root carries `pmd-rm-no-emphasis-borders`. */
+.pmd-read-mode.pmd-rm-no-emphasis-borders .pmd-emphasis {
+  border: none;
+  padding: 0;
+}
+
 /* Active state for the read-mode button (matches the level-N buttons). */
 #read-mode-btn.pmd-active {
   background: #2563eb;

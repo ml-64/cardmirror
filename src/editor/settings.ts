@@ -22,6 +22,10 @@ export interface Settings {
    *  blocks editing). Persisted across sessions because some users may
    *  want it to be the default state. */
   readMode: boolean;
+  /** When true, strip ALL emphasis-mark borders in read mode (not just
+   *  the ones around hidden text). Some users prefer the cleanest look
+   *  in read mode regardless of what's emphasized. */
+  hideEmphasisBordersInReadMode: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -29,6 +33,7 @@ const DEFAULTS: Settings = {
   navMaxLevel: 3,
   showCitePreview: true,
   readMode: false,
+  hideEmphasisBordersInReadMode: false,
 };
 
 /**
@@ -49,6 +54,13 @@ export const SETTING_METADATA: SettingMeta[] = [
     label: 'Cite preview on hover',
     description:
       'Show the cite-formatted text from a card on the right side of its nav-pane entry when you hover. Some users find this useful; others find it busy.',
+    kind: 'toggle',
+  },
+  {
+    key: 'hideEmphasisBordersInReadMode',
+    label: 'Hide all emphasis borders in read mode',
+    description:
+      'By default, emphasis borders are removed only when the emphasized text is hidden (so empty boxes don’t appear next to highlighted content). Turn this on to strip every emphasis border in read mode, including around highlighted text.',
     kind: 'toggle',
   },
 ];
@@ -133,6 +145,7 @@ function sanitize(s: Settings): Settings {
     navMaxLevel: clamp(Math.round(s.navMaxLevel), 1, 4),
     showCitePreview: !!s.showCitePreview,
     readMode: !!s.readMode,
+    hideEmphasisBordersInReadMode: !!s.hideEmphasisBordersInReadMode,
   };
 }
 

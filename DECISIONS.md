@@ -194,8 +194,8 @@ attached to a tag belong inside the same card.
 
 Importer also updated: after consuming the tag, the card-grouping pass
 absorbs any number of undertags before looking for cite/analytic/body.
-Standalone undertags (between cards) are still legal at doc / scratchpad
-/ block-level positions, just not orphaned within a card sequence.
+Standalone undertags (between cards) are still legal at doc-level
+positions, just not orphaned within a card sequence.
 
 ## 2026-05-08: Paragraph-default rPr inheritance with named-style guard
 
@@ -219,3 +219,69 @@ font_color, etc.) merge normally.
 
 Round-trip on real docs confirmed: all 126 tests pass with the merge
 fix in place.
+
+## 2026-05-09: Retired the `scratchpad` node
+
+Originally introduced as a "schema escape hatch" for messy or
+unstructured regions when the schema was a strict tree
+(`pocket → hat → block → card`). After the 2026-05-08 refactor making
+heading-level nodes flat paragraphs, the doc's `BLOCK_CONTENT` became
+permissive enough to accept loose paragraphs, headings, cards, and
+analytic_units in any order at any position. A `<div class="pmd-scratchpad">`
+wrapper with the same content model added no structural value — every
+real use case (bridge text between cards, "Patch Notes" notes, loose
+paragraphs under a Block heading) is already handled by plain
+`paragraph` blocks at doc level.
+
+Considered repurposing it for nav-pane suppression (headings inside a
+scratchpad would be skipped from the outline) but the project owner
+doesn't want that behavior — existing docs use heading-styled scratch
+content (the "Patch Notes" pattern) and *do* want it visible in the
+nav.
+
+Changes:
+- Removed `scratchpad` from `nodes.ts` and from `BLOCK_CONTENT`.
+- Importer's three scratchpad fallback paths (failed analytic_unit
+  construction, failed card construction, failed top-level doc) now
+  emit children directly into the doc, coercing tags/analytics into
+  their required wrappers via `coerceToDocChild` (renamed from
+  `coerceToScratchpadChild`).
+- Exporter no longer treats `scratchpad` as a transparent container.
+- Editor starter doc, CSS, and tests updated.
+
+All 137 tests pass.
+
+## 2026-05-09: Paragraph absorption rule for loose paragraphs after a card
+
+Settles one of the §14 editing-semantics open questions. The rule: a
+top-level `paragraph` whose immediate previous sibling is a `card` or
+`analytic_unit` is auto-absorbed into that container as a `card_body`.
+A heading (Pocket / Hat / Block) breaks the absorption zone, so the
+escape mechanism for "I want loose paragraphs after this card" is to
+insert a heading first.
+
+Why not encode this in the schema: ProseMirror content expressions are
+context-free, so they can't say "paragraph is illegal after a card but
+legal after a heading." Two alternatives both fail in different ways:
+- Drop `paragraph` from the doc content entirely → kills the legitimate
+  Block → paragraph → Tag pattern (loose bridge text between a section
+  heading and its cards).
+- Wrap headings in a `section` container that owns its loose paragraphs
+  → much bigger refactor of the doc shape, gains little.
+
+Implementation: `src/editor/absorb-plugin.ts`, an `appendTransaction`
+plugin that runs after every doc-changing transaction. Walks doc-level
+children once, rebuilds any card / analytic_unit that needs to grow,
+and replaces doc content with the new fragment. Returns null (no
+transaction) when the doc already complies, so steady-state edits are
+free.
+
+The rule matches what the importer already produces — `Importer`'s
+card-grouping pass greedily absorbs Normal paragraphs after a tag as
+`card_body` until the next heading. The plugin is the runtime
+counterpart that prevents users from constructing the same broken state
+mid-edit.
+
+Starter doc updated: the demo "loose paragraph" was moved to between
+the Block heading and the first card, so it sits in a position the
+absorption rule preserves rather than auto-absorbing on first edit.

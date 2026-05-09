@@ -56,7 +56,6 @@ const TRANSPARENT_CONTAINERS = new Set([
   'doc',
   'card',
   'analytic_unit',
-  'scratchpad',
 ]);
 
 class DocxExporter {

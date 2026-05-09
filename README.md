@@ -83,8 +83,7 @@ tag:        Heading 4 (only inside card)
 cite_paragraph, card_body: body paragraphs inside cards
 analytic:   outline-4 paragraph (Analytic style; can be standalone or in-card)
 undertag:   Undertag-styled paragraph
-paragraph:  generic body paragraph
-scratchpad: permissive escape hatch (can nest)
+paragraph:  unstyled body text (first-class — can sit between any nodes)
 ```
 
 Marks: `cite_mark`, `underline_mark`, `emphasis_mark`, `undertag_mark`,

@@ -6,7 +6,7 @@ describe('schema', () => {
     expect(schema).toBeDefined();
     for (const name of [
       'doc', 'pocket', 'hat', 'block', 'tag', 'analytic', 'undertag',
-      'cite_paragraph', 'card', 'card_body', 'paragraph', 'scratchpad',
+      'cite_paragraph', 'card', 'card_body', 'paragraph',
     ]) {
       expect(schema.nodes[name], `node "${name}" should be defined`).toBeDefined();
     }
@@ -101,40 +101,28 @@ describe('node construction', () => {
     }).toThrow();
   });
 
-  it('allows a doc with only a scratchpad (escape hatch)', () => {
+  it('allows a doc with only a loose paragraph', () => {
     const docNode = schema.nodes['doc']!.createChecked(null, [
-      schema.nodes['scratchpad']!.create(null, [
-        schema.nodes['paragraph']!.create(null, schema.text('Loose text in scratchpad')),
-      ]),
+      schema.nodes['paragraph']!.create(null, schema.text('Just some loose text')),
     ]);
-    expect(docNode.firstChild!.type.name).toBe('scratchpad');
+    expect(docNode.firstChild!.type.name).toBe('paragraph');
   });
 
-  it('allows nested scratchpads (per ARCHITECTURE.md §4)', () => {
-    const inner = schema.nodes['scratchpad']!.create(null, [
-      schema.nodes['paragraph']!.create(null, schema.text('Inner scratchpad text')),
-    ]);
-    const outer = schema.nodes['scratchpad']!.createChecked(null, [inner]);
-    expect(outer.firstChild!.type.name).toBe('scratchpad');
-  });
-
-  it('allows scratchpads alongside cards (speech-doc bridge text pattern)', () => {
+  it('allows loose paragraphs alongside cards (speech-doc bridge text pattern)', () => {
     // Real use case: a Block heading followed by a card, then unstyled
-    // bridge text in a scratchpad, then another card.
+    // bridge text as a plain paragraph, then another card.
     const docNode = schema.nodes['doc']!.createChecked(null, [
       schema.nodes['block']!.create({ id: newHeadingId() }, schema.text('Block')),
       schema.nodes['card']!.create(null, [
         schema.nodes['tag']!.create({ id: newHeadingId() }, schema.text('Card 1')),
       ]),
-      schema.nodes['scratchpad']!.create(null, [
-        schema.nodes['paragraph']!.create(null, schema.text('Bridge text')),
-      ]),
+      schema.nodes['paragraph']!.create(null, schema.text('Bridge text')),
       schema.nodes['card']!.create(null, [
         schema.nodes['tag']!.create({ id: newHeadingId() }, schema.text('Card 2')),
       ]),
     ]);
     expect(docNode.childCount).toBe(4);
-    expect(docNode.child(2).type.name).toBe('scratchpad');
+    expect(docNode.child(2).type.name).toBe('paragraph');
   });
 
   it('allows a doc starting with a Block (no Pocket required, per real CP doc)', () => {

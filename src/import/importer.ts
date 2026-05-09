@@ -345,11 +345,12 @@ function assembleDoc(paragraphs: ParaInfo[]): PMNode {
         const unitNode = schema.nodes['analytic_unit']!.createChecked(null, unitChildren);
         docNodes.push(unitNode);
       } catch (_e) {
-        const scratch = schema.nodes['scratchpad']!.createChecked(
-          null,
-          unitChildren.map((n) => coerceToScratchpadChild(n)),
-        );
-        docNodes.push(scratch);
+        // Analytic_unit construction failed — emit children directly at
+        // doc level, coercing tags/analytics into wrappers since they
+        // can't appear at doc level on their own.
+        for (const child of unitChildren) {
+          docNodes.push(coerceToDocChild(child));
+        }
       }
       i = j;
       continue;
@@ -407,13 +408,12 @@ function assembleDoc(paragraphs: ParaInfo[]): PMNode {
         const cardNode = schema.nodes['card']!.createChecked(null, cardChildren);
         docNodes.push(cardNode);
       } catch (_e) {
-        // Schema rejected the card construction — fall back to scratchpad.
-        // Should be rare since our content expression is permissive.
-        const scratch = schema.nodes['scratchpad']!.createChecked(
-          null,
-          cardChildren.map((n) => coerceToScratchpadChild(n)),
-        );
-        docNodes.push(scratch);
+        // Card construction failed — emit children directly at doc
+        // level, coercing tags/analytics into wrappers. Should be rare
+        // since the doc content expression is permissive.
+        for (const child of cardChildren) {
+          docNodes.push(coerceToDocChild(child));
+        }
       }
       i = j;
     } else {
@@ -425,15 +425,15 @@ function assembleDoc(paragraphs: ParaInfo[]): PMNode {
   }
 
   // Wrap in doc node. If schema rejects (which would be surprising given
-  // our permissive content expression), fall back to a single scratchpad.
+  // our permissive content expression), coerce stray tags/analytics
+  // into legal doc-level children and try again.
   try {
     return schema.nodes['doc']!.createChecked(null, docNodes);
   } catch (_e) {
-    const scratch = schema.nodes['scratchpad']!.createChecked(
+    return schema.nodes['doc']!.createChecked(
       null,
-      docNodes.map((n) => coerceToScratchpadChild(n)),
+      docNodes.map((n) => coerceToDocChild(n)),
     );
-    return schema.nodes['doc']!.createChecked(null, [scratch]);
   }
 }
 
@@ -454,9 +454,10 @@ function paragraphToNode(para: ParaInfo): PMNode | null {
   }
 }
 
-function coerceToScratchpadChild(node: PMNode): PMNode {
-  // If it's already valid in scratchpad's content expression, return as-is.
-  // Tags / analytics can't appear at scratchpad-level; wrap appropriately.
+function coerceToDocChild(node: PMNode): PMNode {
+  // Tags and analytics aren't legal at doc level on their own; wrap them
+  // in their required parent (card / analytic_unit) so a fallback doc
+  // construction still validates.
   if (node.type.name === 'tag') {
     return schema.nodes['card']!.createChecked(null, [node]);
   }

@@ -258,14 +258,13 @@ effectively a *sequence of pocket-like sections*, not "the document."
 ### "Patch Notes" is the project owner's personal cutting-board convention
 
 All three example docs lead with a `Heading3` titled "Patch Notes" used
-as a version-log / scratchpad. **This is the project owner's personal
+as a version-log / cutting board. **This is the project owner's personal
 convention, not a community-wide debate practice** — don't generalize
-from it. We should not auto-classify "Patch Notes" headings as
-scratchpads on import for arbitrary users; the cutting-board mechanism
-should be designation-driven (manual or via auto-quarantine of
-schema-invalid regions). In `Aff - Merp!.docx` the project owner's
-"Patch Notes" block additionally skips an outline level (Heading1 →
-Heading3 with no Heading2).
+from it. We should not auto-classify "Patch Notes" headings as anything
+special on import for arbitrary users; the schema admits the loose
+paragraphs they contain as ordinary block-level content. In
+`Aff - Merp!.docx` the project owner's "Patch Notes" block additionally
+skips an outline level (Heading1 → Heading3 with no Heading2).
 
 ### Pocket-level structure is optional
 
@@ -274,12 +273,12 @@ paragraphs. It opens at `Heading3` ("Patch Notes") and has only two
 `Heading2` sections. **Schema implication**: don't require Pocket at the
 root.
 
-### Outline-level skips happen, especially in scratchpad regions
+### Outline-level skips happen, especially around cutting-board regions
 
 The "Patch Notes" → first real card transition routinely jumps levels.
-Real docs are not guaranteed to have contiguous heading levels. Schema
-either allows skips or wraps the offending region in a permissive
-container.
+Real docs are not guaranteed to have contiguous heading levels. Our
+schema accepts skips directly — heading nodes are flat paragraphs whose
+hierarchy is implicit in document order, not enforced by containment.
 
 ### Paragraph-mark formatting in `<w:pPr>/<w:rPr>` does NOT propagate to runs
 

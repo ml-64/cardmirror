@@ -40,14 +40,13 @@ export function ensureId(attrs: Record<string, unknown> | null): { id: string } 
 }
 
 /**
- * Block-level content that's legal inside a scratchpad and at the doc
- * root. Note: `tag` and `analytic` are *not* in this list — tags only
- * appear as the required first child of a `card`, analytics only appear
- * inside an `analytic_unit` (or as a cite-position alternative inside
- * a card).
+ * Block-level content legal at the doc root. Note: `tag` and `analytic`
+ * are *not* in this list — tags only appear as the required first child
+ * of a `card`, analytics only appear inside an `analytic_unit` (or as a
+ * cite-position alternative inside a card).
  */
 const BLOCK_CONTENT =
-  '(scratchpad | pocket | hat | block | card | analytic_unit | paragraph | undertag | cite_paragraph | card_body)*';
+  '(pocket | hat | block | card | analytic_unit | paragraph | undertag | cite_paragraph | card_body)*';
 
 export const nodes: { [name: string]: NodeSpec } = {
   /** Top-level container. Sequence of block-level content. */
@@ -187,16 +186,5 @@ export const nodes: { [name: string]: NodeSpec } = {
     content: 'inline*',
     parseDOM: [{ tag: 'p' }],
     toDOM: () => ['p', 0],
-  },
-
-  /**
-   * Scratchpad — schema escape hatch. Permissive content. Can nest.
-   * Allowed wherever block-level content is legal (top-level, inside
-   * other scratchpads).
-   */
-  scratchpad: {
-    content: BLOCK_CONTENT,
-    parseDOM: [{ tag: 'div.pmd-scratchpad' }],
-    toDOM: () => ['div', { class: 'pmd-scratchpad' }, 0],
   },
 };

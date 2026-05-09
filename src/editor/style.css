@@ -292,14 +292,6 @@ code {
   font-size: 12pt;
 }
 
-/* Scratchpad — slightly different background for visibility. */
-.pmd-scratchpad {
-  background: #fffaf0;
-  border-left: 3px solid #f0c060;
-  padding: 0.25rem 0.75rem;
-  margin: 0.5rem 0;
-}
-
 /* ---------------------------------------------- Marks
    Character-style marks add visual cues (underline, color, border)
    *on top of* the parent paragraph's typography. Size, weight, style,
@@ -567,7 +559,7 @@ body.pmd-nav-resize-active {
    - cite_paragraph — only text with cite_mark visible.
    - card_body — only text with highlight visible; multiple body
      paragraphs in the same card flow inline (no line breaks).
-   - undertag, generic paragraph, scratchpad — hidden.
+   - undertag, generic paragraph — hidden.
 
    Approach: pure CSS. We use `font-size: 0 !important` on the body /
    cite paragraphs and their entire descendant tree to wipe out all

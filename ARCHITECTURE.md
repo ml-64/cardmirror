@@ -94,17 +94,17 @@ equivalence. Word docx files are not byte-stable across saves anyway
 Working sketch — to be refined as we build. The structural skeleton:
 
 ```
-doc:        (scratchpad | pocket | hat | block | analytic | card | paragraph)+
-pocket:     (scratchpad | hat | paragraph)+
-hat:        (scratchpad | block | paragraph)+
-block:      (scratchpad | card | analytic | paragraph)+
-card:       tag (cite | analytic)* card_body*
-analytic:   inline*       (block-level when standalone)
-tag:        inline+
-cite:       inline+
-card_body:  inline+
-paragraph:  inline*        (unstyled body text — implicit Normal)
-scratchpad: <permissive: any of the above, in any order>
+doc:           sequence of block-level kinds (flat)
+pocket:        Heading 1 paragraph (inline content, stable id)
+hat:           Heading 2 paragraph (inline content, stable id)
+block:         Heading 3 paragraph (inline content, stable id)
+card:          tag undertag* (cite_paragraph | analytic)? card_body*
+analytic_unit: analytic undertag* card_body*
+tag:           inline+      (only inside card)
+analytic:      inline+      (inside analytic_unit, or in-card cite slot)
+undertag:      inline+
+cite_paragraph, card_body: inline body paragraphs inside cards
+paragraph:     inline*      (unstyled body text — implicit Normal)
 ```
 
 Notes:
@@ -113,29 +113,25 @@ Notes:
   contain multiple "files" separated by empty Heading1 paragraphs (e.g.
   `DA - Reconciliation.docx` carries both DA and CP). The schema embraces
   this rather than fighting it.
+- **Heading-level nodes are flat**, not tree containers. Hierarchy
+  (which cards sit under which Block, which Block under which Hat, etc.)
+  is implicit in document order + outline level — not enforced by
+  schema containment. The nav panel walks the flat sequence and groups
+  by outline level to derive the tree view. See `DECISIONS.md`
+  2026-05-08 "Schema design — heading-level nodes are flat paragraphs."
 - **Pocket is optional at root.** `CP - Bifurcation PIC vs Fed Workers.docx`
   has zero Heading1 paragraphs. Top-level entry can be Hat, Block, or
-  Scratchpad.
-- **Scratchpad is the escape hatch for messy reality.** Its content
-  expression is permissive. **Scratchpads can nest** — they are
-  legal anywhere a block-level node is legal (top-level, inside
-  Pocket, inside Hat, inside Block). This handles cases like a
-  speech doc with a Block heading where the speaker has typed
-  unstyled bridge text between cards: that text is just a
-  scratchpad inside the block. Two designation paths:
-  - **Manual**: user explicitly creates a scratchpad (button, slash
-    command, special heading).
-  - **Auto-quarantine on import**: regions that fail strict-schema
-    validation get wrapped in an implicit scratchpad rather than rejected.
-  We deliberately do **not** auto-classify by heading title (e.g.
-  "Patch Notes", "Cutting Board"). The project owner uses such
+  a plain paragraph.
+- **Plain `paragraph` block** is a first-class block-level type for
+  unstyled body text. Real docs frequently contain unstyled paragraphs
+  interspersed with structured content (especially in speech docs);
+  the schema admits them directly at any position. This subsumes the
+  earlier "scratchpad" escape hatch — a region of loose paragraphs and
+  headings *is* the natural shape, not an exception that needs special
+  wrapping. We deliberately do **not** auto-classify by heading title
+  (e.g. "Patch Notes", "Cutting Board"). The project owner uses such
   conventions personally but they're not community-wide; baking them
   into import logic would mis-handle other users' files.
-- **Plain `paragraph` block** is a first-class block-level type for
-  unstyled body text. Real docs frequently contain unstyled
-  paragraphs interspersed with structured content (especially in
-  speech docs); the schema admits them directly rather than
-  requiring scratchpad wrapping for every loose paragraph.
 - **Marks** for inline emphasis: `cite_mark`, `underline_mark`,
   `emphasis_mark`, `undertag_mark`, plus direct-formatting marks
   `highlight(color)`, `font_size(pt)`, `bold`, `italic`, `font_color`,
@@ -399,8 +395,8 @@ files. The conventional assembly pattern is:
 2. The speaker drags entries around in the final speech doc to
    establish reading order.
 3. The speaker types unstyled bridge text between cards as they
-   build their flow. This unstyled text rides as `paragraph` or
-   nested `scratchpad` content inside the block (per §4).
+   build their flow. This unstyled text rides as `paragraph` content
+   between the cards (per §4).
 4. At delivery time, read mode's invisibility filter (§9) hides
    the bridge text and non-highlighted material; the speaker reads
    what's left.
@@ -748,13 +744,30 @@ proposal) before the F-key style commands ship.
 - User deletes all text inside a tag — does the empty tag persist (with the card)? Auto-collapse the card? Convert to body paragraph?
 - User deletes all text inside a Pocket/Hat/Block — does an empty heading persist?
 
-**Scratchpad:**
-
-- Do all the above rules change inside a scratchpad? The scratchpad is the schema escape hatch — Word's loose behavior may be the right answer everywhere inside it, even if we tighten things up in the regular doc body.
-
 ### 14.3 Decided rules
 
-(none yet — entries will land here as `[decided]` with a back-reference to `DECISIONS.md`)
+#### Paragraph absorption after card / analytic_unit `[decided]`
+
+A `paragraph` at doc level whose immediate previous sibling is a `card`
+or `analytic_unit` is auto-absorbed as a `card_body` appended to that
+container's content. To bound a region of loose paragraphs after a
+card, insert a heading (Pocket / Hat / Block) — anything non-paragraph
+breaks the absorption zone.
+
+Cases preserved (no absorption):
+
+- Heading → paragraph → tag (legitimate bridge text between a section
+  heading and the cards beneath it).
+- Doc start → paragraph (top-of-doc preface).
+- Heading → paragraph → heading (loose paragraph between sections).
+
+Implemented as `src/editor/absorb-plugin.ts`, an `appendTransaction`
+plugin that runs after every doc-changing transaction. Matches the
+behavior the importer already produces (every Normal paragraph after a
+tag is grouped into the card as `card_body` until the next heading).
+
+Rationale: see `DECISIONS.md` 2026-05-09 "Paragraph absorption rule for
+loose paragraphs after a card."
 
 ## 15. Companion-tool integration boundaries
 

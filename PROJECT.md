@@ -64,9 +64,11 @@ referenced files.
   contain multiple "files" separated by empty Heading1s; some single
   "files" omit Heading1 entirely. The schema embraces this. —
   `ARCHITECTURE.md` §4.
-- **Scratchpad as escape hatch** for messy reality, with auto-quarantine
-  on import for regions that fail strict validation. —
-  `ARCHITECTURE.md` §4.
+- **Loose paragraphs are first-class.** Unstyled body text lives as a
+  plain `paragraph` block at any position — no special "scratchpad"
+  wrapping needed. Schema is permissive enough that messy regions
+  (bridge text, "Patch Notes" notes, etc.) just look like sequences of
+  headings and paragraphs. — `ARCHITECTURE.md` §4.
 - **Three-layer rendering**: schema (structure) ↔ display config (per-user
   preferences, never touch docs) ↔ direct formatting (normal editing op,
   ships with the doc). Decouples "how I want to see Tags" from "how Tags

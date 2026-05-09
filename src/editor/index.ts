@@ -19,6 +19,7 @@ import { NavigationPanel } from './nav-panel.js';
 import { openSettings } from './settings-ui.js';
 import { settings } from './settings.js';
 import { readModePlugin } from './read-mode-plugin.js';
+import { absorbPlugin } from './absorb-plugin.js';
 import { openWordCount } from './word-count-ui.js';
 import { countReadAloudWords, formatReadTime, formatNumber } from './word-count.js';
 
@@ -115,6 +116,7 @@ function makeStarterDoc(): PMNode {
     ]),
     schema.nodes['hat']!.create({ id: newHeadingId() }, schema.text('Example structures')),
     schema.nodes['block']!.create({ id: newHeadingId() }, schema.text('A block containing two cards')),
+    schema.nodes['paragraph']!.create(null, schema.text('Loose paragraphs are first-class — they can sit between a heading and the cards beneath it. Paragraphs typed after a card auto-absorb as card_body; insert a heading to bound a region of loose text.')),
     schema.nodes['card']!.create(null, [
       schema.nodes['tag']!.create({ id: newHeadingId() }, schema.text('Climate action delays catastrophic — IPCC')),
       // Undertags belong to the tag — they sit inside the card, not after it.
@@ -148,9 +150,6 @@ function makeStarterDoc(): PMNode {
         schema.text('Body paragraphs after the analytic are absorbed into the unit, so the whole thing drags as one. Hover to see the gray bar — same boundary indicator as cards.'),
       ]),
     ]),
-    schema.nodes['scratchpad']!.create(null, [
-      schema.nodes['paragraph']!.create(null, schema.text('Scratchpad text — schema escape hatch.')),
-    ]),
   ]);
 }
 
@@ -164,6 +163,7 @@ function mountView(doc: PMNode): void {
       keymap({ 'Mod-z': undo, 'Mod-y': redo, 'Mod-Shift-z': redo }),
       keymap(baseKeymap),
       readModePlugin,
+      absorbPlugin,
     ],
   });
   view = new EditorView(editorEl, {

@@ -32,7 +32,6 @@ interface NodeCounts {
   analytic: number;
   undertag: number;
   paragraph: number;
-  scratchpad: number;
   totalParagraphs: number;
   totalTextLength: number;
 }
@@ -46,7 +45,6 @@ function countNodes(doc: PMNode): NodeCounts {
     analytic: 0,
     undertag: 0,
     paragraph: 0,
-    scratchpad: 0,
     totalParagraphs: 0,
     totalTextLength: 0,
   };

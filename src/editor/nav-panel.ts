@@ -13,6 +13,7 @@
 
 import type { EditorView } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
+import { NodeSelection, TextSelection } from 'prosemirror-state';
 import { settings } from './settings.js';
 
 interface HeadingEntry {
@@ -283,6 +284,10 @@ export class NavigationPanel {
       }
 
       li.addEventListener('click', () => this.jumpTo(entry));
+      li.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        this.openContextMenu(e.clientX, e.clientY, entry);
+      });
 
       this.listEl.appendChild(li);
 
@@ -326,6 +331,130 @@ export class NavigationPanel {
     }
   }
 
+  // ---------------------------------------------- Context menu ----
+
+  private openContextMenu(x: number, y: number, entry: HeadingEntry): void {
+    closeAnyOpenContextMenu();
+
+    const menu = document.createElement('div');
+    menu.className = 'pmd-nav-context-menu';
+
+    const items: ContextMenuItem[] = [
+      {
+        kind: 'item',
+        label: 'Select heading and contents',
+        action: () => this.selectHeadingAndContents(entry),
+      },
+      { kind: 'separator' },
+      ...[1, 2, 3, 4].map((lvl): ContextMenuItem => ({
+        kind: 'item',
+        label: `Show heading level ${lvl}`,
+        checked: lvl === this.maxLevel,
+        action: () => this.setMaxLevel(lvl),
+      })),
+    ];
+
+    for (const item of items) {
+      if (item.kind === 'separator') {
+        const sep = document.createElement('div');
+        sep.className = 'pmd-nav-context-separator';
+        menu.appendChild(sep);
+        continue;
+      }
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pmd-nav-context-item';
+      if (item.checked) btn.classList.add('pmd-nav-context-item-checked');
+      btn.textContent = item.label;
+      btn.addEventListener('click', () => {
+        item.action();
+        closeAnyOpenContextMenu();
+      });
+      menu.appendChild(btn);
+    }
+
+    document.body.appendChild(menu);
+
+    // Position the menu, clamping to viewport.
+    const rect = menu.getBoundingClientRect();
+    const maxX = window.innerWidth - rect.width - 4;
+    const maxY = window.innerHeight - rect.height - 4;
+    menu.style.left = `${Math.min(x, Math.max(0, maxX))}px`;
+    menu.style.top = `${Math.min(y, Math.max(0, maxY))}px`;
+
+    openContextMenuEl = menu;
+    setTimeout(() => {
+      window.addEventListener('mousedown', maybeCloseContextMenu, { capture: true });
+      window.addEventListener('keydown', maybeCloseContextMenu, { capture: true });
+    });
+  }
+
+  /**
+   * Make a ProseMirror selection covering the heading and everything
+   * "below" it in the outline:
+   *
+   * - Tag (always inside a card) → NodeSelection on the parent card.
+   * - Analytic inside an analytic_unit → NodeSelection on the unit.
+   * - Analytic inside a card (cite-position) → NodeSelection on the card.
+   * - Pocket / Hat / Block (top-level paragraphs) → TextSelection from
+   *   the heading to just before the next heading at the same or
+   *   shallower level (or end of doc).
+   */
+  private selectHeadingAndContents(entry: HeadingEntry): void {
+    if (!this.view) return;
+    const doc = this.view.state.doc;
+
+    const $pos = doc.resolve(entry.pos);
+    const node = doc.nodeAt(entry.pos);
+    if (!node) return;
+
+    let from: number;
+    let to: number;
+    let useNodeSelection = false;
+
+    const parentName = $pos.parent.type.name;
+    if (entry.type === 'tag') {
+      // Tag's parent is a card. Select the entire card.
+      from = $pos.before();
+      const card = doc.nodeAt(from);
+      if (!card) return;
+      to = from + card.nodeSize;
+      useNodeSelection = true;
+    } else if (entry.type === 'analytic' && (parentName === 'analytic_unit' || parentName === 'card')) {
+      // Wrap whatever container the analytic lives in.
+      from = $pos.before();
+      const wrapper = doc.nodeAt(from);
+      if (!wrapper) return;
+      to = from + wrapper.nodeSize;
+      useNodeSelection = true;
+    } else {
+      // Pocket / Hat / Block: span from this heading to just before the
+      // next equal-or-shallower heading (or end of doc).
+      from = entry.pos;
+      to = doc.content.size;
+      const targetLevel = entry.level;
+      doc.nodesBetween(entry.pos + node.nodeSize, doc.content.size, (n, pos) => {
+        if (to !== doc.content.size) return false;
+        const t = n.type.name;
+        if (t in TYPE_TO_LEVEL && (TYPE_TO_LEVEL[t]!) <= targetLevel) {
+          to = pos;
+          return false;
+        }
+        return true;
+      });
+    }
+
+    const tr = this.view.state.tr;
+    if (useNodeSelection) {
+      tr.setSelection(NodeSelection.create(doc, from));
+    } else {
+      tr.setSelection(TextSelection.create(doc, from, to));
+    }
+    tr.scrollIntoView();
+    this.view.dispatch(tr);
+    this.view.focus();
+  }
+
   /**
    * Scroll the corresponding heading element into view *without* moving
    * the cursor or focusing the editor. Headings carry a `data-id` attr
@@ -351,6 +480,39 @@ export class NavigationPanel {
     if (el && (el as Element).scrollIntoView) {
       (el as Element).scrollIntoView({ behavior: 'auto', block: 'start' });
     }
+  }
+}
+
+// ---------------------------------------------- Context menu plumbing
+
+interface ContextMenuItemBase {
+  kind: 'item';
+  label: string;
+  action: () => void;
+  checked?: boolean;
+}
+interface ContextMenuSeparator { kind: 'separator' }
+type ContextMenuItem = ContextMenuItemBase | ContextMenuSeparator;
+
+let openContextMenuEl: HTMLElement | null = null;
+
+function closeAnyOpenContextMenu(): void {
+  if (openContextMenuEl) {
+    openContextMenuEl.remove();
+    openContextMenuEl = null;
+    window.removeEventListener('mousedown', maybeCloseContextMenu, { capture: true });
+    window.removeEventListener('keydown', maybeCloseContextMenu, { capture: true });
+  }
+}
+
+function maybeCloseContextMenu(e: MouseEvent | KeyboardEvent): void {
+  if (e instanceof KeyboardEvent) {
+    if (e.key === 'Escape') closeAnyOpenContextMenu();
+    return;
+  }
+  if (!openContextMenuEl) return;
+  if (!openContextMenuEl.contains(e.target as Node)) {
+    closeAnyOpenContextMenu();
   }
 }
 

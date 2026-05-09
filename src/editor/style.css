@@ -473,6 +473,54 @@ body.pmd-nav-resize-active {
 .pmd-nav-type-analytic .pmd-nav-label       { color: #1F3864; }
 .pmd-nav-type-analytic:hover .pmd-nav-label { color: #1F3864; }
 
+/* ---------------------------------------------- Context menu */
+
+.pmd-nav-context-menu {
+  position: fixed;
+  background: #fff;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  padding: 0.25rem 0;
+  min-width: 200px;
+  font-family: 'Calibri', 'Helvetica Neue', sans-serif;
+  font-size: 0.85rem;
+  z-index: 50;
+  user-select: none;
+}
+
+.pmd-nav-context-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 0.35rem 1.5rem 0.35rem 1.75rem;
+  font-family: inherit;
+  font-size: inherit;
+  color: #222;
+  cursor: pointer;
+  position: relative;
+}
+
+.pmd-nav-context-item:hover {
+  background: #ebebeb;
+}
+
+.pmd-nav-context-item-checked::before {
+  content: '✓';
+  position: absolute;
+  left: 0.5rem;
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.pmd-nav-context-separator {
+  height: 1px;
+  background: #e0e0e0;
+  margin: 0.25rem 0;
+}
+
 /* ---------------------------------------------- Settings modal */
 
 .pmd-settings-overlay {

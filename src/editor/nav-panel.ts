@@ -77,6 +77,10 @@ export class NavigationPanel {
   private autoExpanded: Set<string> = new Set();
   private autoExpandTimer: ReturnType<typeof setTimeout> | null = null;
   private autoExpandTarget: string | null = null;
+  /** Per-id pending re-collapse timers — armed when the pointer
+   *  leaves an auto-expanded entry's subtree, cleared if it returns
+   *  before the timer fires. Mirrors the auto-expand 400ms hover. */
+  private pendingRestoreTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private boundOnDragMove = (e: PointerEvent) => this.onDragMove(e);
   private boundOnDragUp = (e: PointerEvent) => this.onDragUp(e);
   private boundOnDragKey = (e: KeyboardEvent) => this.onDragKey(e);
@@ -674,6 +678,7 @@ export class NavigationPanel {
       needsRerender = true;
     }
     this.autoExpanded.clear();
+    this.cancelAllPendingRestore();
 
     // Drop indicators are cleaned up by the surface subscriptions
     // reacting to the 'end' event; we just clean up our pickup pill.
@@ -798,51 +803,86 @@ export class NavigationPanel {
   }
 
   /**
-   * Re-collapse any auto-expanded entries the pointer has left. An
-   * auto-expanded entry is "left" when the pointer's current entry is
-   * (a) some other entry that's outside the auto-expanded entry's
-   * outline subtree, or (b) outside the nav pane entirely (we treat
-   * that conservatively — keep expanded so the user can come back).
+   * Maintain per-id pending re-collapse timers for auto-expanded
+   * entries the pointer has left. An entry is "left" when the
+   * pointer's current entry is some other entry outside that entry's
+   * outline subtree. While outside, a 400ms timer counts down; if the
+   * pointer comes back into the subtree before the timer fires, the
+   * timer is cancelled — no flicker for quick passes through
+   * neighboring areas. If the pointer is over a non-entry slot (e.g.
+   * a drop indicator) or off the nav entirely, neither schedule nor
+   * cancel — leave the existing pending state alone.
    */
   private maybeRestoreAutoExpanded(currentEntry: HeadingEntry | null): void {
     if (this.autoExpanded.size === 0) return;
     if (!this.currentDoc) return;
-    if (!currentEntry) return; // pointer not over an entry — leave state alone
+    if (!currentEntry) return;
 
     const allEntries = collectHeadings(this.currentDoc);
-    const idsToRestore: string[] = [];
 
     for (const expandedId of this.autoExpanded) {
       const expandedIdx = allEntries.findIndex((e) => e.id === expandedId);
       if (expandedIdx < 0) {
-        // Entry no longer exists (doc edited).
-        idsToRestore.push(expandedId);
+        // Entry no longer exists (doc edited under us). Restore now.
+        this.cancelPendingRestore(expandedId);
+        this.executeRestore(expandedId);
         continue;
       }
       const expandedEntry = allEntries[expandedIdx]!;
-      if (currentEntry.id === expandedId) continue; // pointer on the parent itself
-      // Walk forward from the expanded entry; if we find currentEntry
-      // before hitting a same-or-shallower-level entry, it's inside.
-      let inside = false;
-      for (let i = expandedIdx + 1; i < allEntries.length; i++) {
-        const e = allEntries[i]!;
-        if (e.level <= expandedEntry.level) break;
-        if (e.id === currentEntry.id) {
-          inside = true;
-          break;
+      let inside = currentEntry.id === expandedId;
+      if (!inside) {
+        for (let i = expandedIdx + 1; i < allEntries.length; i++) {
+          const e = allEntries[i]!;
+          if (e.level <= expandedEntry.level) break;
+          if (e.id === currentEntry.id) {
+            inside = true;
+            break;
+          }
         }
       }
-      if (!inside) idsToRestore.push(expandedId);
+      if (inside) {
+        this.cancelPendingRestore(expandedId);
+      } else {
+        this.schedulePendingRestore(expandedId);
+      }
     }
+  }
 
-    if (idsToRestore.length === 0) return;
-    for (const id of idsToRestore) {
-      this.autoExpanded.delete(id);
-      this.collapsed.add(id);
+  private schedulePendingRestore(id: string): void {
+    if (this.pendingRestoreTimers.has(id)) return; // already pending
+    const timer = setTimeout(() => {
+      this.pendingRestoreTimers.delete(id);
+      this.executeRestore(id);
+    }, 400);
+    this.pendingRestoreTimers.set(id, timer);
+  }
+
+  private cancelPendingRestore(id: string): void {
+    const timer = this.pendingRestoreTimers.get(id);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      this.pendingRestoreTimers.delete(id);
     }
-    this.render(this.currentDoc);
-    const session = dragController.getSession();
-    if (session) this.renderDropIndicators(session.items[0]!.level);
+  }
+
+  private cancelAllPendingRestore(): void {
+    for (const timer of this.pendingRestoreTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.pendingRestoreTimers.clear();
+  }
+
+  /** Re-collapse a single auto-expanded entry. Safe to call when the
+   *  entry isn't actually in autoExpanded anymore (no-op). */
+  private executeRestore(id: string): void {
+    if (!this.autoExpanded.has(id)) return;
+    this.autoExpanded.delete(id);
+    this.collapsed.add(id);
+    if (this.currentDoc) {
+      this.render(this.currentDoc);
+      const session = dragController.getSession();
+      if (session) this.renderDropIndicators(session.items[0]!.level);
+    }
   }
 
   private cancelAutoExpand(): void {

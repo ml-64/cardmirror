@@ -250,14 +250,19 @@ body {
   font-weight: bold;
 }
 
-/* Cite — lives in its own .ribbon-cite-panel section. Bold mirrors
-   Verbatim's Cite character style; the citeUnderlined display flag
-   adds an underline when enabled. */
+/* Cite panel previews — each button styled as the mark it applies.
+   Cite: bold (mirrors Verbatim's Cite character style); the
+   citeUnderlined display flag also adds an underline.
+   Underline: text-decoration underline. */
 #ribbon .ribbon-cite-panel.style-preview .formatting-panel-cite {
   font-weight: bold;
 }
 
 .pmd-cite-underlined #ribbon .ribbon-cite-panel.style-preview .formatting-panel-cite {
+  text-decoration: underline;
+}
+
+#ribbon .ribbon-cite-panel.style-preview .formatting-panel-underline {
   text-decoration: underline;
 }
 

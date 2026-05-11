@@ -147,11 +147,22 @@ Notes:
   conventions personally but they're not community-wide; baking them
   into import logic would mis-handle other users' files.
 - **Marks** for inline emphasis: `cite_mark`, `underline_mark`,
-  `emphasis_mark`, `undertag_mark`, plus direct-formatting marks
-  `highlight(color)`, `font_size(pt)`, `bold`, `italic`, `font_color`,
-  `shading(color)`, and `link(href)` for hyperlinks (URLs are the
-  common case; intra-doc links to bookmarked headings are supported
-  for completeness — see §12 on heading IDs).
+  `underline_direct`, `emphasis_mark`, `undertag_mark`,
+  `analytic_mark`, plus direct-formatting marks `highlight(color)`,
+  `font_size(pt)`, `bold`, `italic`, `font_color`, `shading(color)`,
+  and `link(href)` for hyperlinks (URLs are the common case; intra-
+  doc links to bookmarked headings are supported for completeness —
+  see §12 on heading IDs).
+
+  `underline_mark` is the named "Underline" character style — used
+  in body textblocks. `underline_direct` is plain direct underline
+  (no rStyle on export) — used in structural textblocks (tag,
+  analytic, pocket, hat, block, undertag). The named-style-
+  normalizer plugin (and the importer's post-build pass) keep the
+  context invariant: `underline_direct` never lands in a body slot;
+  `underline_mark` never lands in a structural slot. Visually
+  identical; the distinction matters for OOXML round-trip and for
+  Verbatim's semantic classification.
 - **Stable heading IDs.** Every heading-level node (`pocket`, `hat`,
   `block`, `tag`, `analytic` when it owns a paragraph) carries an
   `attrs.id` UUID, generated when the heading is created and preserved
@@ -953,6 +964,20 @@ through one overrides surface):
   the selection but skips structural blocks (tag, analytic, pocket,
   hat, block, undertag); a span across a tag-bracketed body region
   only marks the body portions. No-op on collapsed selections.
+- **F9 / Mod-U — toggle Underline.** Two backing marks reflect
+  Verbatim's named-style vs direct distinction:
+  `underline_mark` (the "Underline" character style — used in body
+  textblocks) and `underline_direct` (direct-formatting underline,
+  no rStyle on export — used in structural textblocks: tag, analytic,
+  pocket, hat, block, undertag). Toggle off only when every selected
+  character is already underlined (either mark counts); partial state
+  adds underline to the not-yet-underlined characters. Empty
+  selection: toggle the run the cursor is on (the text node it sits
+  inside); at a boundary between two distinct runs, no-op. Adding
+  `underline_mark` to body text strips any conflicting `cite_mark` /
+  `emphasis_mark` in the range — body text holds at most one of
+  cite / underline / emphasis. Mod-U is a registered alias of F9
+  for the future settings UI; only F9 surfaces in the ribbon chrome.
 - **Alt-F8 — Copy previous cite.** Reframed from Verbatim's
   `CopyPreviousCite`. Source: cite_paragraphs whose end is before the
   cursor in the cursor's enclosing card; falls back to the most
@@ -971,10 +996,10 @@ buttons preview the styles they apply (bold / underline / color / box,
 following per-style typography flags). Tooltips display the active
 keyboard binding using the platform's modifier glyphs.
 
-**Empty Verbatim ribbon slots:** Verbatim's F9 (Underline), F10
-(Emphasis), F11 (Highlight Yellow), F12 (Clear Formatting) and the
-Shrink / Condense / Cleanup families aren't shipped yet. The same
-registry surface will hold them when they land.
+**Empty Verbatim ribbon slots:** Verbatim's F10 (Emphasis), F11
+(Highlight Yellow), F12 (Clear Formatting) and the Shrink / Condense /
+Cleanup families aren't shipped yet. The same registry surface will
+hold them when they land.
 
 ## 16. Stylepox handling
 

@@ -35,18 +35,38 @@ export const marks: { [name: string]: MarkSpec } = {
 
   cite_mark: {
     ...namedStyleMark(),
+    // Mutually exclusive with the other named-style "evidence" marks
+    // — at most one of {cite, underline, emphasis} on any character.
+    excludes: 'underline_mark emphasis_mark',
     parseDOM: [{ tag: 'span.pmd-cite' }],
     toDOM: () => ['span', { class: 'pmd-cite' }, 0],
   },
 
   underline_mark: {
     ...namedStyleMark(),
+    excludes: 'cite_mark emphasis_mark',
     parseDOM: [{ tag: 'span.pmd-underline' }],
     toDOM: () => ['span', { class: 'pmd-underline' }, 0],
   },
 
+  /**
+   * Direct underline (no named style). Used in structural textblocks
+   * (tag / analytic / pocket / hat / block / undertag) where applying
+   * the named-style "Underline" would semantically mis-classify the
+   * text. Round-trips to a bare `<w:u w:val="single"/>` with no
+   * `<w:rStyle/>`. The named-style-normalizer plugin keeps the
+   * body-vs-structural invariant (no underline_direct in body, no
+   * underline_mark in structural).
+   */
+  underline_direct: {
+    inclusive: true,
+    parseDOM: [{ tag: 'u' }],
+    toDOM: () => ['u', 0],
+  },
+
   emphasis_mark: {
     ...namedStyleMark(),
+    excludes: 'cite_mark underline_mark',
     parseDOM: [{ tag: 'span.pmd-emphasis' }],
     toDOM: () => ['span', { class: 'pmd-emphasis' }, 0],
   },

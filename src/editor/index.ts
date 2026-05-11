@@ -29,6 +29,7 @@ import {
 import { readModePlugin, PMD_READ_MODE_TOGGLE } from './read-mode-plugin.js';
 import { absorbPlugin } from './absorb-plugin.js';
 import { citeClassifierPlugin } from './cite-classifier-plugin.js';
+import { namedStyleNormalizerPlugin } from './named-style-normalizer-plugin.js';
 import { fontSizeClassPlugin } from './font-size-class-plugin.js';
 import { editorDragSurface } from './drag-editor-surface.js';
 import {
@@ -44,7 +45,7 @@ import {
   buildRibbonKeymap,
   getRibbonCommand,
   formatKeyForDisplay,
-  DEFAULT_RIBBON_KEYS,
+  primaryKeyFor,
   RIBBON_COMMAND_LABELS,
   type StructuralRibbonCommandId,
 } from './ribbon-commands.js';
@@ -85,7 +86,7 @@ zoomResetBtn.addEventListener('click', () => setZoom(100));
 // same commands as the F4–F7 / Mod-F7 keymap. Display mode and visual
 // preview are both driven by settings (formattingPanelMode and
 // formattingPanelPreview).
-type FormattingPanelId = StructuralRibbonCommandId | 'applyCite';
+type FormattingPanelId = StructuralRibbonCommandId | 'applyCite' | 'applyUnderline';
 const FORMATTING_PANEL_BUTTONS: Record<FormattingPanelId, string> = {
   setPocket: 'style-pocket-btn',
   setHat: 'style-hat-btn',
@@ -94,6 +95,7 @@ const FORMATTING_PANEL_BUTTONS: Record<FormattingPanelId, string> = {
   setAnalytic: 'style-analytic-btn',
   setUndertag: 'style-undertag-btn',
   applyCite: 'cite-btn',
+  applyUnderline: 'underline-btn',
 };
 const FORMATTING_PANEL_SHORT_LABEL: Record<FormattingPanelId, string> = {
   setPocket: 'Pocket',
@@ -103,6 +105,7 @@ const FORMATTING_PANEL_SHORT_LABEL: Record<FormattingPanelId, string> = {
   setAnalytic: 'Analytic',
   setUndertag: 'Undertag',
   applyCite: 'Cite',
+  applyUnderline: 'Underline',
 };
 const formattingPanelEl = document.getElementById('formatting-panel') as HTMLElement | null;
 const citePanelEl = document.getElementById('cite-panel') as HTMLElement | null;
@@ -135,7 +138,7 @@ function applyFormattingPanel(mode: FormattingPanelMode, preview: boolean): void
     citePanelEl.classList.toggle('style-preview', preview);
   }
   for (const { id, btn } of formattingPanelBtnRefs) {
-    const keyDisplay = formatKeyForDisplay(DEFAULT_RIBBON_KEYS[id]);
+    const keyDisplay = formatKeyForDisplay(primaryKeyFor(id));
     const shortLabel = FORMATTING_PANEL_SHORT_LABEL[id];
     const fullLabel = RIBBON_COMMAND_LABELS[id];
     // ' · ' matches the separator used in the status-bar read-time
@@ -296,12 +299,12 @@ function makeStarterDoc(): PMNode {
       schema.text('Drop a .docx in the input above to load it. The schema renders here as the canonical Verbatim layout (Pocket = box, Hat = centered double underline, Block = centered single underline, Tag = inline-bold).'),
     ]),
     schema.nodes['hat']!.create({ id: newHeadingId() }, schema.text('Example structures')),
-    schema.nodes['block']!.create({ id: newHeadingId() }, schema.text('A block containing two cards')),
+    schema.nodes['block']!.create({ id: newHeadingId() }, schema.text('A block containing a card and an analytic')),
     schema.nodes['paragraph']!.create(null, schema.text('Loose paragraphs are first-class — they can sit between a heading and the cards beneath it. Paragraphs typed after a card auto-absorb as card_body; insert a heading to bound a region of loose text.')),
     schema.nodes['card']!.create(null, [
       schema.nodes['tag']!.create({ id: newHeadingId() }, schema.text('Climate action delays catastrophic — IPCC')),
       // Undertags belong to the tag — they sit inside the card, not after it.
-      schema.nodes['undertag']!.create(null, schema.text('Sub-tag note that explains the tag (green italic).')),
+      schema.nodes['undertag']!.create(null, schema.text('Sub-tag note that explains the tag.')),
       schema.nodes['cite_paragraph']!.create(null, [
         schema.text('IPCC AR6 ', [schema.marks['cite_mark']!.create()]),
         schema.text('2023, '),
@@ -325,7 +328,7 @@ function makeStarterDoc(): PMNode {
     schema.nodes['analytic_unit']!.create(null, [
       schema.nodes['analytic']!.create(
         { id: newHeadingId() },
-        schema.text('A standalone analytic between cards (dark blue).'),
+        schema.text('A standalone analytic between cards.'),
       ),
       schema.nodes['card_body']!.create(null, [
         schema.text('Body paragraphs after the analytic are absorbed into the unit, so the whole thing drags as one. Hover to see the gray bar — same boundary indicator as cards.'),
@@ -369,6 +372,7 @@ function mountView(doc: PMNode): void {
       readModePlugin,
       absorbPlugin,
       citeClassifierPlugin,
+      namedStyleNormalizerPlugin,
       fontSizeClassPlugin,
     ],
   });

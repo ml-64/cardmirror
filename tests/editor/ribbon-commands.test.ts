@@ -567,11 +567,14 @@ describe('setAnalytic (Mod-F7)', () => {
 // ---- Keymap binding registry ----
 
 describe('buildRibbonKeymap', () => {
-  it('produces the default bindings when called with no overrides', () => {
+  it('produces the default bindings (including aliases) when called with no overrides', () => {
     const km = buildRibbonKeymap();
     for (const id of RIBBON_COMMAND_IDS) {
-      const key = DEFAULT_RIBBON_KEYS[id];
-      expect(km[key]).toBeTypeOf('function');
+      const spec = DEFAULT_RIBBON_KEYS[id];
+      const keys = Array.isArray(spec) ? spec : [spec];
+      for (const key of keys) {
+        expect(km[key]).toBeTypeOf('function');
+      }
     }
   });
 
@@ -586,6 +589,12 @@ describe('buildRibbonKeymap', () => {
     const km = buildRibbonKeymap({ setTag: '' });
     expect(km['F7']).toBeUndefined();
     expect(km['F4']).toBeTypeOf('function');
+  });
+
+  it('binds aliases for multi-key commands (e.g. applyUnderline → F9 + Mod-u)', () => {
+    const km = buildRibbonKeymap();
+    expect(km['F9']).toBeTypeOf('function');
+    expect(km['Mod-u']).toBeTypeOf('function');
   });
 });
 
@@ -1229,5 +1238,209 @@ describe('applyCite (F8)', () => {
       base.tr.setSelection(TextSelection.create(base.doc, from, to)),
     );
     expect(apply(state, applyCite())).toBeNull();
+  });
+});
+
+// ---- applyUnderline (F9 / Mod-U) ----
+
+import { applyUnderline } from '../../src/editor/ribbon-commands.js';
+
+function hasMark(node: import('prosemirror-model').Node, search: string, markName: string): boolean {
+  let found = false;
+  let matched = false;
+  node.descendants((n) => {
+    if (!n.isText) return;
+    if ((n.text ?? '').includes(search)) {
+      matched = true;
+      if (n.marks.some((m) => m.type.name === markName)) found = true;
+    }
+  });
+  return matched && found;
+}
+
+function everyHasMark(node: import('prosemirror-model').Node, search: string, markName: string): boolean {
+  let matched = false;
+  let allHave = true;
+  node.descendants((n) => {
+    if (!n.isText) return;
+    if ((n.text ?? '').includes(search)) {
+      matched = true;
+      if (!n.marks.some((m) => m.type.name === markName)) allHave = false;
+    }
+  });
+  return matched && allHave;
+}
+
+describe('applyUnderline (F9 / Mod-U)', () => {
+  it('non-empty selection in card_body: applies underline_mark (named style)', () => {
+    const doc = makeDoc([
+      cardWithChildren(tag('T'), cardBody('hello world')),
+    ]);
+    let from = -1;
+    doc.descendants((n, p) => {
+      if (n.isText && n.text === 'hello world') from = p;
+      return true;
+    });
+    const base = EditorState.create({ doc });
+    const state = base.apply(
+      base.tr.setSelection(TextSelection.create(base.doc, from, from + 11)),
+    );
+    const next = apply(state, applyUnderline());
+    expect(next).not.toBeNull();
+    expect(everyHasMark(next!.doc, 'hello world', 'underline_mark')).toBe(true);
+  });
+
+  it('non-empty selection in a tag: applies underline_direct (not the named style)', () => {
+    const doc = makeDoc([cardWithChildren(tag('TheTag'))]);
+    let from = -1;
+    doc.descendants((n, p) => {
+      if (n.isText && n.text === 'TheTag') from = p;
+      return true;
+    });
+    const base = EditorState.create({ doc });
+    const state = base.apply(
+      base.tr.setSelection(TextSelection.create(base.doc, from, from + 6)),
+    );
+    const next = apply(state, applyUnderline());
+    expect(next).not.toBeNull();
+    expect(everyHasMark(next!.doc, 'TheTag', 'underline_direct')).toBe(true);
+    expect(hasMark(next!.doc, 'TheTag', 'underline_mark')).toBe(false);
+  });
+
+  it('selection across body + tag + body: bodies get underline_mark, tag gets underline_direct', () => {
+    const doc = makeDoc([
+      cardWithChildren(tag('T1'), cardBody('body1')),
+      cardWithChildren(tag('T2'), cardBody('body2')),
+    ]);
+    let from = -1;
+    let to = -1;
+    doc.descendants((n, p) => {
+      if (n.isText) {
+        if (from === -1 && n.text === 'body1') from = p;
+        if (n.text === 'body2') to = p + n.nodeSize;
+      }
+      return true;
+    });
+    const base = EditorState.create({ doc });
+    const state = base.apply(
+      base.tr.setSelection(TextSelection.create(base.doc, from, to)),
+    );
+    const next = apply(state, applyUnderline());
+    expect(everyHasMark(next!.doc, 'body1', 'underline_mark')).toBe(true);
+    expect(everyHasMark(next!.doc, 'body2', 'underline_mark')).toBe(true);
+    expect(everyHasMark(next!.doc, 'T2', 'underline_direct')).toBe(true);
+    // No underline_mark on the tag (would violate body-vs-structural).
+    expect(hasMark(next!.doc, 'T2', 'underline_mark')).toBe(false);
+  });
+
+  it('toggle off only when ALL selected chars are underlined', () => {
+    const doc = makeDoc([
+      cardWithChildren(
+        tag('T'),
+        schema.nodes['card_body']!.create(null, [
+          schema.text('plain '),
+          schema.text('underlined', [schema.marks['underline_mark']!.create()]),
+        ]),
+      ),
+    ]);
+    // Select all of "plain underlined" — mixed state, should ADD underline (not toggle off).
+    let bodyStart = -1;
+    doc.descendants((n, p) => {
+      if (n.type.name === 'card_body' && bodyStart === -1) bodyStart = p + 1;
+      return true;
+    });
+    const base = EditorState.create({ doc });
+    const state = base.apply(
+      base.tr.setSelection(TextSelection.create(base.doc, bodyStart, bodyStart + 'plain underlined'.length)),
+    );
+    const next = apply(state, applyUnderline());
+    expect(everyHasMark(next!.doc, 'plain ', 'underline_mark')).toBe(true);
+    expect(everyHasMark(next!.doc, 'underlined', 'underline_mark')).toBe(true);
+  });
+
+  it('toggle off when ALL selected chars are underlined (uniform state)', () => {
+    const doc = makeDoc([
+      cardWithChildren(
+        tag('T'),
+        schema.nodes['card_body']!.create(null, schema.text('hello', [schema.marks['underline_mark']!.create()])),
+      ),
+    ]);
+    let from = -1;
+    doc.descendants((n, p) => {
+      if (n.isText && n.text === 'hello') from = p;
+      return true;
+    });
+    const base = EditorState.create({ doc });
+    const state = base.apply(
+      base.tr.setSelection(TextSelection.create(base.doc, from, from + 5)),
+    );
+    const next = apply(state, applyUnderline());
+    expect(hasMark(next!.doc, 'hello', 'underline_mark')).toBe(false);
+    expect(hasMark(next!.doc, 'hello', 'underline_direct')).toBe(false);
+  });
+
+  it('applying to cite-marked body text strips cite, replaces with underline', () => {
+    const doc = makeDoc([
+      cardWithChildren(
+        tag('T'),
+        schema.nodes['cite_paragraph']!.create(null, schema.text('Stein 24', [schema.marks['cite_mark']!.create()])),
+      ),
+    ]);
+    let from = -1;
+    doc.descendants((n, p) => {
+      if (n.isText && n.text === 'Stein 24') from = p;
+      return true;
+    });
+    const base = EditorState.create({ doc });
+    const state = base.apply(
+      base.tr.setSelection(TextSelection.create(base.doc, from, from + 8)),
+    );
+    const next = apply(state, applyUnderline());
+    expect(hasMark(next!.doc, 'Stein 24', 'cite_mark')).toBe(false);
+    expect(everyHasMark(next!.doc, 'Stein 24', 'underline_mark')).toBe(true);
+  });
+
+  it('empty selection on a run inside a card_body: toggles underline_mark on the run', () => {
+    const doc = makeDoc([
+      cardWithChildren(tag('T'), cardBody('hello')),
+    ]);
+    // Cursor at middle of "hello".
+    let pos = -1;
+    doc.descendants((n, p) => {
+      if (n.isText && n.text === 'hello') pos = p + 2; // inside the run
+      return true;
+    });
+    const base = EditorState.create({ doc });
+    const state = base.apply(base.tr.setSelection(TextSelection.create(base.doc, pos)));
+    const next = apply(state, applyUnderline());
+    expect(everyHasMark(next!.doc, 'hello', 'underline_mark')).toBe(true);
+  });
+
+  it('empty selection at boundary between two runs: no-op', () => {
+    const doc = makeDoc([
+      cardWithChildren(
+        tag('T'),
+        schema.nodes['card_body']!.create(null, [
+          schema.text('plain'),
+          schema.text('bold', [schema.marks['bold']!.create()]),
+        ]),
+      ),
+    ]);
+    // Cursor at the boundary between "plain" and "bold".
+    let pos = -1;
+    doc.descendants((n, p) => {
+      if (n.isText && n.text === 'plain') pos = p + n.nodeSize;
+      return true;
+    });
+    const base = EditorState.create({ doc });
+    const state = base.apply(base.tr.setSelection(TextSelection.create(base.doc, pos)));
+    expect(apply(state, applyUnderline())).toBeNull();
+  });
+
+  it('empty selection in an empty paragraph: no-op', () => {
+    const doc = makeDoc([paragraph('')]);
+    const base = EditorState.create({ doc });
+    const state = base.apply(base.tr.setSelection(TextSelection.create(base.doc, 1)));
+    expect(apply(state, applyUnderline())).toBeNull();
   });
 });

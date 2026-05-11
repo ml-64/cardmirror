@@ -493,6 +493,141 @@ export function applyCite(): Command {
   };
 }
 
+/**
+ * F9 / Mod-U — toggle Verbatim's "Underline" style on the selection.
+ *
+ * Two marks back this: `underline_mark` (named-style, used in body
+ * textblocks — paragraph / card_body / cite_paragraph) and
+ * `underline_direct` (direct formatting, used in structural
+ * textblocks — tag / analytic / pocket / hat / block / undertag).
+ * "Underlined" for toggle purposes means either mark is present.
+ *
+ * Empty selection: if the cursor is on a single run (a text node
+ * adjacent to the cursor, with no rival text node on the other
+ * side), toggle that run. At a boundary between two distinct runs,
+ * or with no adjacent text (empty paragraph, between blocks), no-op.
+ *
+ * Non-empty selection: walk the selection's text nodes. If every
+ * character is already underlined, strip both underline marks
+ * across the range. Otherwise, add the appropriate mark per parent
+ * textblock type to characters that aren't yet underlined — body
+ * gets `underline_mark` (auto-strips conflicting cite_mark and
+ * emphasis_mark in that range, per the "body text has one of cite /
+ * underline / emphasis" policy), structural gets `underline_direct`
+ * (doesn't conflict with anything).
+ */
+export function applyUnderline(): Command {
+  return (state, dispatch) => {
+    const { from, to, empty } = state.selection;
+    const namedMark = schema.marks['underline_mark']!;
+    const directMark = schema.marks['underline_direct']!;
+    const conflictTypes = new Set([
+      schema.marks['cite_mark']!.name,
+      schema.marks['emphasis_mark']!.name,
+    ]);
+
+    let runStart = from;
+    let runEnd = to;
+    if (empty) {
+      const $from = state.selection.$from;
+      if ($from.textOffset > 0) {
+        // Cursor is strictly inside a single text node — that's the run.
+        const text = $from.parent.maybeChild($from.index());
+        if (!text || !text.isText) return false;
+        runStart = $from.pos - $from.textOffset;
+        runEnd = runStart + text.nodeSize;
+      } else {
+        // Cursor at a child boundary inside the parent textblock.
+        const before = $from.nodeBefore;
+        const after = $from.nodeAfter;
+        const beforeIsText = !!before && before.isText;
+        const afterIsText = !!after && after.isText;
+        if (beforeIsText && afterIsText) return false; // boundary between two distinct runs
+        const onRun: PMNode | null = beforeIsText
+          ? before
+          : afterIsText
+          ? after
+          : null;
+        if (!onRun) return false;
+        if (beforeIsText) {
+          runEnd = $from.pos;
+          runStart = runEnd - onRun.nodeSize;
+        } else {
+          runStart = $from.pos;
+          runEnd = runStart + onRun.nodeSize;
+        }
+      }
+    }
+
+    // Are all characters in [runStart, runEnd] already underlined?
+    let everyUnderlined = true;
+    let anyText = false;
+    state.doc.nodesBetween(runStart, runEnd, (node) => {
+      if (!node.isText) return true;
+      anyText = true;
+      const u = node.marks.some(
+        (m) => m.type === namedMark || m.type === directMark,
+      );
+      if (!u) everyUnderlined = false;
+      return true;
+    });
+    if (!anyText) return false;
+
+    if (!dispatch) return true;
+
+    const tr = state.tr;
+    if (everyUnderlined) {
+      // Toggle off: strip both underline marks across the range.
+      tr.removeMark(runStart, runEnd, namedMark);
+      tr.removeMark(runStart, runEnd, directMark);
+    } else {
+      // Toggle on: add the appropriate mark per parent textblock,
+      // skipping characters that already have one of the underline
+      // marks. Walk by textblock so we know which variant to use.
+      const segments: { from: number; to: number; structural: boolean }[] = [];
+      state.doc.nodesBetween(runStart, runEnd, (node, pos) => {
+        if (!node.isTextblock) return true;
+        const tbStart = pos + 1;
+        const tbEnd = pos + node.nodeSize - 1;
+        const f = Math.max(tbStart, runStart);
+        const t = Math.min(tbEnd, runEnd);
+        if (f < t) {
+          segments.push({
+            from: f,
+            to: t,
+            structural: STRUCTURAL_TEXTBLOCKS_FOR_UNDERLINE.has(node.type.name),
+          });
+        }
+        return false;
+      });
+      for (const seg of segments) {
+        const markType = seg.structural ? directMark : namedMark;
+        if (!seg.structural) {
+          // Body: strip the conflicting named-style marks (cite,
+          // emphasis) so the policy "at most one of cite / underline
+          // / emphasis on a body character" stays true.
+          for (const t of conflictTypes) {
+            tr.removeMark(seg.from, seg.to, schema.marks[t]!);
+          }
+        }
+        // Strip whichever underline variant the wrong-context one is,
+        // then add the right one — ensures even mixed ranges end up
+        // with the correct mark for their parent.
+        const otherMark = seg.structural ? namedMark : directMark;
+        tr.removeMark(seg.from, seg.to, otherMark);
+        tr.addMark(seg.from, seg.to, markType.create());
+      }
+    }
+
+    dispatch(tr);
+    return true;
+  };
+}
+
+const STRUCTURAL_TEXTBLOCKS_FOR_UNDERLINE = new Set([
+  'tag', 'analytic', 'pocket', 'hat', 'block', 'undertag',
+]);
+
 export function copyPreviousCite(): Command {
   return (state, dispatch) => {
     // Collapse a non-empty selection to its start position.
@@ -833,6 +968,7 @@ export type RibbonCommandId =
   | 'toggleBold'
   | 'toggleItalic'
   | 'applyCite'
+  | 'applyUnderline'
   | 'copyPreviousCite';
 
 export const STRUCTURAL_RIBBON_COMMAND_IDS: StructuralRibbonCommandId[] = [
@@ -849,6 +985,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'toggleBold',
   'toggleItalic',
   'applyCite',
+  'applyUnderline',
   'copyPreviousCite',
 ];
 
@@ -862,15 +999,19 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   toggleBold: 'Bold',
   toggleItalic: 'Italic',
   applyCite: 'Apply Cite style',
+  applyUnderline: 'Toggle Underline',
   copyPreviousCite: 'Copy previous cite',
 };
 
 /**
- * Default key bindings — match Verbatim's F4–F7 and Word's Mod-B /
- * Mod-I for inline formatting. prosemirror-keymap 'Mod-' resolves to
- * Cmd on Mac, Ctrl elsewhere.
+ * Default key bindings. The value is a single key or an array of
+ * keys; all bindings invoke the same command. The first entry is the
+ * "primary" binding used for ribbon-button tooltips; the rest are
+ * aliases (visible in the future rebinding UI). Verbatim's hotkeys
+ * win where they exist; Word's Mod-B / Mod-I / Mod-U pipe in as
+ * aliases for inline marks.
  */
-export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string> = {
+export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   setPocket: 'F4',
   setHat: 'F5',
   setBlock: 'F6',
@@ -880,6 +1021,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string> = {
   toggleBold: 'Mod-b',
   toggleItalic: 'Mod-i',
   applyCite: 'F8',
+  applyUnderline: ['F9', 'Mod-u'],
   copyPreviousCite: 'Alt-F8',
 };
 
@@ -893,23 +1035,47 @@ const COMMAND_FACTORIES: Record<RibbonCommandId, () => Command> = {
   toggleBold: () => toggleMark(schema.marks['bold']!),
   toggleItalic: () => toggleMark(schema.marks['italic']!),
   applyCite: () => applyCite(),
+  applyUnderline: () => applyUnderline(),
   copyPreviousCite: () => copyPreviousCite(),
 };
 
+/** Normalize a default-key value (string | string[]) to an array. */
+function keysArray(spec: string | string[]): string[] {
+  return Array.isArray(spec) ? spec : [spec];
+}
+
 /**
- * Produce a `keymap()`-ready binding object. Overrides replace the
- * default key for a given command; an empty string unbinds that
- * command. When a settings panel is added, it can pass user-stored
- * overrides here.
+ * Primary key for a command — the binding shown to the user (tooltips
+ * etc.). Aliases (further entries in the array) exist for the user's
+ * muscle memory but aren't surfaced in the chrome.
+ */
+export function primaryKeyFor(
+  id: RibbonCommandId,
+  overrides: Partial<Record<RibbonCommandId, string | string[]>> = {},
+): string {
+  const spec = overrides[id] ?? DEFAULT_RIBBON_KEYS[id];
+  const keys = keysArray(spec);
+  return keys[0] ?? '';
+}
+
+/**
+ * Produce a `keymap()`-ready binding object. Each command's keys
+ * (primary + aliases) all bind to the same Command. Overrides replace
+ * the default array for a given command; passing an empty string or
+ * empty array unbinds it. When a settings panel is added, it can
+ * pass user-stored overrides here.
  */
 export function buildRibbonKeymap(
-  overrides: Partial<Record<RibbonCommandId, string>> = {},
+  overrides: Partial<Record<RibbonCommandId, string | string[]>> = {},
 ): Record<string, Command> {
   const out: Record<string, Command> = {};
   for (const id of RIBBON_COMMAND_IDS) {
-    const key = overrides[id] ?? DEFAULT_RIBBON_KEYS[id];
-    if (!key) continue;
-    out[key] = COMMAND_FACTORIES[id]();
+    const spec = overrides[id] ?? DEFAULT_RIBBON_KEYS[id];
+    const cmd = COMMAND_FACTORIES[id]();
+    for (const key of keysArray(spec)) {
+      if (!key) continue;
+      out[key] = cmd;
+    }
   }
   return out;
 }

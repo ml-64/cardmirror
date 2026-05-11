@@ -274,9 +274,13 @@ class DocxExporter {
       props.push(emptyEl('w:szCs', { 'w:val': hp }));
     }
 
-    if (marks.some((m) => m.type.name === 'underline_mark')) {
-      // Dual-encoding per NOTES-verbatim.md §5 gotcha #1:
-      // emit both rStyle="StyleUnderline" (already above) AND <w:u w:val="single"/>.
+    if (
+      marks.some((m) => m.type.name === 'underline_mark' || m.type.name === 'underline_direct')
+    ) {
+      // underline_mark: dual-encoding per NOTES-verbatim.md §5 gotcha
+      //   #1 — rStyle="StyleUnderline" (already emitted above) AND
+      //   <w:u w:val="single"/>.
+      // underline_direct: just <w:u w:val="single"/>, no rStyle.
       props.push(emptyEl('w:u', { 'w:val': 'single' }));
     }
 

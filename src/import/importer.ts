@@ -22,6 +22,7 @@
 import type { Mark, Node as PMNode, NodeType } from 'prosemirror-model';
 import { schema } from '../schema/index.js';
 import { idFromBookmarkName, newHeadingId } from '../schema/ids.js';
+import { normalizeUnderlineMarks } from '../editor/named-style-normalizer-plugin.js';
 import { bytesToBase64 } from '../ooxml/base64.js';
 import {
   attrs as attrsOf,
@@ -92,7 +93,7 @@ export function importDoc(
     // <w:sectPr>, <w:tbl>, etc. — skip for v0.
   }
 
-  return assembleDoc(paragraphs);
+  return normalizeUnderlineMarks(assembleDoc(paragraphs));
 }
 
 function parseRels(relsXml: string): RelMap {
@@ -305,6 +306,11 @@ interface ParsedRPr {
 function parseRPr(rPr: XmlNode): ParsedRPr {
   const marks: Mark[] = [];
   const props = childrenOf(rPr, 'w:rPr');
+  // Direct <w:u/> is deferred — we decide between underline_mark and
+  // underline_direct after seeing whether rStyle="StyleUnderline" is
+  // also present in this rPr (order between rStyle and w:u is not
+  // guaranteed by OOXML).
+  let sawDirectU = false;
 
   for (const prop of props) {
     const tag = Object.keys(prop).find((k) => k !== ':@');
@@ -336,9 +342,7 @@ function parseRPr(rPr: XmlNode): ParsedRPr {
       case 'w:u': {
         const val = a['w:val'];
         if (val && val !== 'none' && val !== '0') {
-          if (!marks.some((m) => m.type.name === 'underline_mark')) {
-            marks.push(schema.marks['underline_mark']!.create());
-          }
+          sawDirectU = true;
         }
         break;
       }
@@ -384,6 +388,15 @@ function parseRPr(rPr: XmlNode): ParsedRPr {
       }
       // Other rPr props (lang, vertAlign, etc.) — drop.
     }
+  }
+
+  if (sawDirectU && !marks.some((m) => m.type.name === 'underline_mark')) {
+    // <w:u/> without rStyle="StyleUnderline" → direct underline. The
+    // named-style-normalizer plugin promotes this to underline_mark
+    // if it lands in a body-like textblock; structural textblocks
+    // (tag / analytic / pocket / hat / block / undertag) keep
+    // underline_direct.
+    marks.push(schema.marks['underline_direct']!.create());
   }
 
   return { marks };

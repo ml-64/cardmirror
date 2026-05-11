@@ -586,6 +586,63 @@ post-cursor half has no cite_mark demotes that half to card_body;
 where it does, both halves are cite_paragraph. No special-casing
 needed.
 
+## 2026-05-10: F9 / Mod-U — Underline as a body/structural-aware mark pair
+
+Verbatim's "Underline" is a *named* character style (rStyle=
+"StyleUnderline") plus direct `<w:u/>`. Real Verbatim docs use it on
+evidence text inside card bodies. Applying it to a tag or a heading
+mis-classifies that text as "underlined evidence" — wrong both
+semantically and for round-trip cleanup paths.
+
+The schema now carries two marks:
+
+- `underline_mark` — the named style. Exports as
+  `rStyle="StyleUnderline"` + `<w:u/>`. Used in body textblocks
+  (paragraph, card_body, cite_paragraph).
+- `underline_direct` — plain direct formatting. Exports as `<w:u/>`
+  only (no rStyle). Used in structural textblocks (tag, analytic,
+  pocket, hat, block, undertag).
+
+Both render visually identical. The split is enforced two ways:
+
+1. `applyUnderline` (F9 + Mod-U registered as an alias) picks the
+   appropriate mark by the cursor's parent textblock type, and
+   strips the other variant from the affected range so mixed
+   selections still come out canonical. Adding `underline_mark` in
+   a body also strips conflicting `cite_mark` / `emphasis_mark`
+   in the range — body text holds at most one of the three named-
+   style "evidence" marks.
+2. `named-style-normalizer-plugin` runs on every dispatched
+   transaction (and as a pure helper at import time) to enforce the
+   invariant against any other code path that might violate it
+   (paste, future commands, etc.).
+
+The importer parses direct `<w:u/>` without rStyle as
+`underline_direct` initially, then runs `normalizeUnderlineMarks`
+to lift body-context direct underlines to the named-style mark.
+rStyle="StyleUnderline" produces `underline_mark` directly. Real
+Verbatim docs (which use the dual representation) always import as
+`underline_mark`; the only ones that round-trip as `underline_direct`
+are docs with structural-block direct underlines (rare but legitimate)
+or non-Verbatim docs where a user pressed Ctrl+U without the
+Underline style (the importer canonicalizes those into
+`underline_mark` so they conform to the Verbatim convention on
+re-export).
+
+Mod-U is registered as a binding alias of F9 — same command, two
+keys. To keep things uncluttered, only the primary binding (F9)
+shows up in tooltips / ribbon chrome; aliases will surface in the
+future "Keyboard shortcuts" settings UI. `DEFAULT_RIBBON_KEYS` now
+admits `string | string[]` per command, and `buildRibbonKeymap`
+binds every key in the array to the command.
+
+Schema-level `excludes` between the three named-style marks was
+considered and rejected: it breaks importing legacy Verbatim docs
+that legitimately carry both rStyle="StyleUnderline" and
+rStyle="Cite" on the same run (`createChecked` would reject), and
+the command-level strip is precise (only fires on user action) and
+audit-friendly. The runtime invariant is policy, not schema.
+
 The undertag analog of the same question is also resolved without
 new code:
 

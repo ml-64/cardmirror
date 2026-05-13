@@ -274,6 +274,10 @@ export interface Settings {
    * re-apply direct formatting after).
    */
   clearFormattingOnNamedStyleToggleOff: boolean;
+  /** When true, "Create Reference" (Card menu) emits its body text
+   *  in Gray-50% (#808080) instead of black. Heading line stays
+   *  black either way. */
+  forReferenceUseGray50: boolean;
 }
 
 export type HeadingMode = 'strict' | 'respect' | 'demolish';
@@ -314,6 +318,7 @@ const DEFAULTS: Settings = {
   headingMode: 'respect',
   condenseOnPaste: false,
   clearFormattingOnNamedStyleToggleOff: true,
+  forReferenceUseGray50: false,
 };
 
 /** Public read-only view of the built-in defaults — handy for any UI
@@ -438,6 +443,13 @@ export const SETTING_METADATA: SettingMeta[] = [
     label: 'F9 toggle-off also clears direct formatting',
     description:
       'When on, pressing F9 to toggle underlining off also strips direct formatting in the range. When off, only the underline style mark is removed; direct formatting applied to the underlined text is preserved.',
+    kind: 'toggle',
+  },
+  {
+    key: 'forReferenceUseGray50',
+    label: 'Create Reference uses Gray-50% text',
+    description:
+      'When on, the body text of a "Create Reference" excerpt is rendered in Gray-50% (#808080) instead of black. The heading line stays black either way.',
     kind: 'toggle',
   },
   {
@@ -584,6 +596,10 @@ function sanitize(s: Settings): Settings {
       s.clearFormattingOnNamedStyleToggleOff === undefined
         ? DEFAULTS.clearFormattingOnNamedStyleToggleOff
         : !!s.clearFormattingOnNamedStyleToggleOff,
+    forReferenceUseGray50:
+      s.forReferenceUseGray50 === undefined
+        ? DEFAULTS.forReferenceUseGray50
+        : !!s.forReferenceUseGray50,
   };
 }
 

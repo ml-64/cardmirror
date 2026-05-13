@@ -1942,6 +1942,27 @@ body.pmd-nav-resize-active {
   text-align: right !important;
 }
 
+/* Ephemeral toast tooltip near the cursor. Used by Create Reference
+   to confirm the clipboard copy. */
+.pmd-toast {
+  position: fixed;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  pointer-events: none;
+  user-select: none;
+  opacity: 1;
+  transition: opacity 200ms;
+  white-space: nowrap;
+}
+
+.pmd-toast-fade {
+  opacity: 0;
+}
+
 /* Doc / Card dropdown stack — Verbatim parity. Sits between the
    font-size controls and the doc-ops toggles. Two-row grid like
    the other stacked button pairs so the chrome rows align. */

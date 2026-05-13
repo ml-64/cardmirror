@@ -19,6 +19,8 @@ import { NavigationPanel } from './nav-panel.js';
 import { openSettings } from './settings-ui.js';
 import { openReference } from './reference-ui.js';
 import { openDocMenu } from './doc-menu-ui.js';
+import { createReference } from './create-reference.js';
+import { showToast } from './toast.js';
 import {
   settings,
   DISPLAY_SIZE_KEYS,
@@ -178,6 +180,23 @@ if (cardMenuBtn) {
           {
             label: 'Background to Highlight',
             run: (v) => shadingToHighlight()(v.state, v.dispatch.bind(v)),
+          },
+        ],
+      },
+      {
+        title: 'Excerpt',
+        items: [
+          {
+            label: 'Create Reference',
+            run: (v) => {
+              void createReference(
+                v.state,
+                effectivePtForNode,
+                settings.get('forReferenceUseGray50'),
+              ).then((ok) => {
+                if (ok) showToast('Copied!');
+              });
+            },
           },
         ],
       },

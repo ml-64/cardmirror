@@ -131,8 +131,11 @@ export function computeHeadingRange(
  * "Stein 23" (where the user cited "Stein" and "23" but not the space
  * between them) renders as "Stein 23" in the preview, not "Stein23".
  * Non-whitespace unmarked text breaks the bridge.
+ *
+ * Exported so other surfaces (e.g., the "Create Reference" command)
+ * can produce the exact same cite string the nav pane shows.
  */
-function collectCiteText(node: PMNode): string {
+export function collectCiteText(node: PMNode): string {
   type Run = { text: string; isCite: boolean };
   const runs: Run[] = [];
   node.descendants((descendant) => {

@@ -1468,13 +1468,30 @@ defined entirely in `similar-selection-plugin.ts`.
 ### Matching fingerprint
 
 For a cursor position, the fingerprint is `(parent textblock type,
-full mark set of the text node "at" the cursor)`. Mark equality is by
-type AND attrs — so `font_size: 16` and `font_size: 22` are distinct
-matches. Importantly: **the empty mark set is a valid fingerprint**.
-Cursor on a `card_body` run with no direct formatting matches *only*
-other plain `card_body` runs, not every `card_body` in the doc. Per
-the user spec: "if the style is card_body and the direct formatting
-is none, we're matching NONE, not matching all direct formatting."
+non-font_size marks, chip-resolved effective pt)`. Mark equality is by
+type AND attrs. Importantly: **the empty mark set is a valid
+fingerprint**. Cursor on a `card_body` run with no direct formatting
+matches *only* other plain `card_body` runs at the same effective pt,
+not every `card_body` in the doc. Per the user spec: "if the style is
+card_body and the direct formatting is none, we're matching NONE, not
+matching all direct formatting."
+
+**Font size uses the chip's resolver, not the raw `font_size` mark.**
+The chip's `effectivePtForNode` walks: explicit `font_size` mark →
+named-style mark default (cite/underline/emphasis/undertag/analytic)
+→ parent block default (pocket/hat/block/tag/normal). The fingerprint
+excludes `font_size` from the mark-equality check and compares the
+resolved pt instead — so a bare tag run (13pt from tag style) matches
+another tag run carrying `font_size: 26` (halfPoints, = 13pt). Both
+read 13pt in the chip, so they're "similar" to the user even though
+one mark set is empty and the other isn't. A tag run with
+`font_size: 52` (= 26pt) doesn't match, because its chip pt differs.
+
+The plugin is wired up via `buildSimilarSelectionPlugin(effectivePt)`
+(factory) so the resolver is bound at construction time; both the
+top-level commands and the plugin's own apply (which fires matching
+when the scoped flow's cursor lands in the scope) use the same
+resolver.
 
 The "text node at the cursor" preference order is `$pos.nodeBefore`
 first (matches Word's typing-continues-previous-run convention), then

@@ -8,11 +8,67 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import type { Node as PMNode } from 'prosemirror-model';
 import { schema, newHeadingId } from '../../src/schema/index.js';
-import { computeSimilarMatches } from '../../src/editor/similar-selection-plugin.js';
+import {
+  computeSimilarMatches,
+  type EffectivePtResolver,
+} from '../../src/editor/similar-selection-plugin.js';
 
-function tag(text: string, id = newHeadingId()) {
-  return schema.nodes['tag']!.create({ id }, schema.text(text));
+/**
+ * Test-side effective-pt resolver. Mirrors the production
+ * `effectivePtForNode` in `index.ts` but with hardcoded defaults so
+ * the test doesn't depend on the live settings store. Order: explicit
+ * `font_size` mark > named-style mark default > paragraph-type
+ * default > normal (11pt).
+ */
+const TEST_DEFAULTS = {
+  normal: 11,
+  pocket: 26,
+  hat: 22,
+  block: 16,
+  tag: 13,
+  analytic: 13,
+  cite: 13,
+  underline: 11,
+  emphasis: 11,
+  undertag: 12,
+} as const;
+
+const effectivePt: EffectivePtResolver = (node, parent) => {
+  if (!node || !node.isText) return paragraphDefault(parent);
+  const fs = node.marks.find((m) => m.type.name === 'font_size');
+  if (fs) return Number(fs.attrs['halfPoints'] ?? 22) / 2;
+  for (const m of node.marks) {
+    switch (m.type.name) {
+      case 'cite_mark': return TEST_DEFAULTS.cite;
+      case 'underline_mark': return TEST_DEFAULTS.underline;
+      case 'emphasis_mark': return TEST_DEFAULTS.emphasis;
+      case 'undertag_mark': return TEST_DEFAULTS.undertag;
+      case 'analytic_mark': return TEST_DEFAULTS.analytic;
+    }
+  }
+  return paragraphDefault(parent);
+};
+
+function paragraphDefault(parent: PMNode): number {
+  switch (parent.type.name) {
+    case 'pocket': return TEST_DEFAULTS.pocket;
+    case 'hat': return TEST_DEFAULTS.hat;
+    case 'block': return TEST_DEFAULTS.block;
+    case 'tag': return TEST_DEFAULTS.tag;
+    case 'analytic': return TEST_DEFAULTS.analytic;
+    case 'undertag': return TEST_DEFAULTS.undertag;
+    default: return TEST_DEFAULTS.normal;
+  }
+}
+
+function tag(
+  text: string,
+  marks: ReturnType<typeof schema.marks['bold']['create']>[] = [],
+  id = newHeadingId(),
+) {
+  return schema.nodes['tag']!.create({ id }, schema.text(text, marks));
 }
 function cardBody(text: string, marks: ReturnType<typeof schema.marks['bold']['create']>[] = []) {
   return schema.nodes['card_body']!.create(
@@ -43,7 +99,7 @@ describe('computeSimilarMatches', () => {
     //   doc 0 / card 1 / tag 2 / text starts at 2.
     // Easier: walk to find the first tag's text-start.
     const cursorPos = findTextStart(doc, 'TagOne');
-    const matches = computeSimilarMatches(doc, cursorPos, null);
+    const matches = computeSimilarMatches(doc, cursorPos, null, effectivePt);
     expect(matches.length).toBe(3);
     expect(textAtRanges(doc, matches).sort()).toEqual([
       'TagOne',
@@ -59,14 +115,14 @@ describe('computeSimilarMatches', () => {
       card(tag('T3'), cardBody('Plain body 3')),
     );
     const plainPos = findTextStart(doc, 'Plain body 1');
-    const plainMatches = computeSimilarMatches(doc, plainPos, null);
+    const plainMatches = computeSimilarMatches(doc, plainPos, null, effectivePt);
     expect(textAtRanges(doc, plainMatches).sort()).toEqual([
       'Plain body 1',
       'Plain body 3',
     ]);
 
     const boldPos = findTextStart(doc, 'Bold body 2');
-    const boldMatches = computeSimilarMatches(doc, boldPos, null);
+    const boldMatches = computeSimilarMatches(doc, boldPos, null, effectivePt);
     expect(textAtRanges(doc, boldMatches)).toEqual(['Bold body 2']);
   });
 
@@ -80,7 +136,7 @@ describe('computeSimilarMatches', () => {
       ),
     );
     const small = findTextStart(doc, '8pt run');
-    const smallMatches = computeSimilarMatches(doc, small, null);
+    const smallMatches = computeSimilarMatches(doc, small, null, effectivePt);
     expect(textAtRanges(doc, smallMatches).sort()).toEqual([
       '8pt run',
       'Another 8pt',
@@ -95,7 +151,7 @@ describe('computeSimilarMatches', () => {
       ),
     );
     const tagPos = findTextStart(doc, 'A tag', 0); // first occurrence = the tag
-    const matches = computeSimilarMatches(doc, tagPos, null);
+    const matches = computeSimilarMatches(doc, tagPos, null, effectivePt);
     expect(textAtRanges(doc, matches)).toEqual(['A tag']);
   });
 
@@ -111,7 +167,7 @@ describe('computeSimilarMatches', () => {
       ),
     );
     const pos = findTextStart(doc, 'bold-italic');
-    const matches = computeSimilarMatches(doc, pos, null);
+    const matches = computeSimilarMatches(doc, pos, null, effectivePt);
     // PM normalizes marks: both runs end up with marks in the same
     // order, so they match each other.
     expect(textAtRanges(doc, matches).sort()).toEqual([
@@ -130,10 +186,12 @@ describe('computeSimilarMatches', () => {
     // Scope = approximately the first two cards. Find a boundary
     // that includes Tag1+Tag2 but not Tag3.
     const tag3Pos = findTextStart(doc, 'Tag3');
-    const matches = computeSimilarMatches(doc, cursorPos, {
-      from: 0,
-      to: tag3Pos - 1, // before Tag3's container
-    });
+    const matches = computeSimilarMatches(
+      doc,
+      cursorPos,
+      { from: 0, to: tag3Pos - 1 }, // before Tag3's container
+      effectivePt,
+    );
     const found = textAtRanges(doc, matches).sort();
     expect(found).toContain('Tag1');
     expect(found).toContain('Tag2');
@@ -145,7 +203,49 @@ describe('computeSimilarMatches', () => {
       card(tag('Tag'), cardBody('body')),
     );
     // Position 0 is the doc start — not inside any textblock.
-    expect(computeSimilarMatches(doc, 0, null)).toEqual([]);
+    expect(computeSimilarMatches(doc, 0, null, effectivePt)).toEqual([]);
+  });
+
+  // Chip-resolved font-size: cursor on a bare tag run resolves to
+  // 13pt (the tag style default). Another tag run with an explicit
+  // `font_size: 26` (halfPoints, = 13pt) reads visually identical in
+  // the chip and should match — even though one mark set is empty
+  // and the other has a font_size mark. A tag run at 26pt (=fs(52))
+  // should NOT match. A card_body run at 13pt (different parent
+  // type) should NOT match either.
+  it('matches by effective (chip-resolved) font size, not raw font_size mark', () => {
+    const doc = docOf(
+      card(tag('Bare tag run'), cardBody('Body 13pt', [fs(26)])),       // 13pt tag, 13pt body (wrong parent)
+      card(tag('Equal-with-explicit', [fs(26)])),                       // 13pt tag — explicit but equal → match
+      card(tag('Another bare tag')),                                    // 13pt tag → match
+      card(tag('Big tag', [fs(52)])),                                   // 26pt tag → no match
+    );
+    const cursorPos = findTextStart(doc, 'Bare tag run');
+    const matches = computeSimilarMatches(doc, cursorPos, null, effectivePt);
+    const found = textAtRanges(doc, matches).sort();
+    expect(found).toEqual([
+      'Another bare tag',
+      'Bare tag run',
+      'Equal-with-explicit',
+    ]);
+  });
+
+  it('matches bare run with explicit-but-equal font_size when chip pt matches', () => {
+    // Two card_body runs that read 11pt in the chip: one is bare
+    // (inherits Normal=11), one has explicit font_size: 22 (=11pt).
+    // They should match each other.
+    const doc = docOf(
+      card(
+        tag('T'),
+        cardBody('Bare 11pt'),
+        cardBody('Explicit 11pt', [fs(22)]),
+        cardBody('Explicit 8pt', [fs(16)]),
+      ),
+    );
+    const cursorPos = findTextStart(doc, 'Bare 11pt');
+    const matches = computeSimilarMatches(doc, cursorPos, null, effectivePt);
+    const found = textAtRanges(doc, matches).sort();
+    expect(found).toEqual(['Bare 11pt', 'Explicit 11pt']);
   });
 });
 

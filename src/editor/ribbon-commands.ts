@@ -2524,7 +2524,7 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
         return true;
       };
     case 'selectSimilar':
-      return selectSimilar();
+      return selectSimilar(ctx.effectivePtForNode);
     case 'selectSimilarScoped':
       return selectSimilarScoped();
   }

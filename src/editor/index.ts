@@ -35,7 +35,7 @@ import { absorbPlugin } from './absorb-plugin.js';
 import { citeClassifierPlugin } from './cite-classifier-plugin.js';
 import { namedStyleNormalizerPlugin } from './named-style-normalizer-plugin.js';
 import { fontSizeClassPlugin } from './font-size-class-plugin.js';
-import { similarSelectionPlugin } from './similar-selection-plugin.js';
+import { buildSimilarSelectionPlugin } from './similar-selection-plugin.js';
 import { buildPastePlugin, togglePlainPaste } from './paste-plugin.js';
 import { editorDragSurface } from './drag-editor-surface.js';
 import {
@@ -931,7 +931,7 @@ function buildEditorPlugins(): Plugin[] {
     citeClassifierPlugin,
     namedStyleNormalizerPlugin,
     fontSizeClassPlugin,
-    similarSelectionPlugin,
+    buildSimilarSelectionPlugin(effectivePtForNode),
     buildPastePlugin({
       condenseOnPaste: () => settings.get('condenseOnPaste'),
       paragraphIntegrity: () => settings.get('paragraphIntegrity'),

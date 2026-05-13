@@ -55,111 +55,152 @@ export const similarSelectionKey = new PluginKey<SimilarSelectionState>(
   'similar-selection',
 );
 
-export const similarSelectionPlugin = new Plugin<SimilarSelectionState>({
-  key: similarSelectionKey,
-  state: {
-    init: () => ({ matches: [], scope: null, mode: 'idle' }),
-    apply(tr, prev): SimilarSelectionState {
-      const meta = tr.getMeta(META_KEY) as Meta | undefined;
+/**
+ * Build the plugin. The factory takes the chip's effective-pt
+ * resolver so the matching the plugin does internally (scoped
+ * flow's `awaiting-cursor` → trigger transition) uses the same
+ * size logic the standalone commands use. Defaulting the param to
+ * a "raw font_size mark only" resolver keeps simple test cases
+ * easy to construct.
+ */
+export function buildSimilarSelectionPlugin(
+  effectivePt: EffectivePtResolver = defaultEffectivePt,
+): Plugin<SimilarSelectionState> {
+  return new Plugin<SimilarSelectionState>({
+    key: similarSelectionKey,
+    state: {
+      init: () => ({ matches: [], scope: null, mode: 'idle' }),
+      apply(tr, prev): SimilarSelectionState {
+        const meta = tr.getMeta(META_KEY) as Meta | undefined;
 
-      if (meta?.type === 'clear') {
-        return { matches: [], scope: null, mode: 'idle' };
-      }
-      if (meta?.type === 'setScope') {
-        return { matches: [], scope: meta.scope, mode: 'awaiting-cursor' };
-      }
-      if (meta?.type === 'setMatches') {
-        return { matches: meta.matches, scope: null, mode: 'idle' };
-      }
-
-      // Any doc edit dissipates the shadow selection.
-      if (tr.docChanged) {
-        if (prev.matches.length > 0 || prev.scope) {
+        if (meta?.type === 'clear') {
           return { matches: [], scope: null, mode: 'idle' };
         }
-        return prev;
-      }
+        if (meta?.type === 'setScope') {
+          return { matches: [], scope: meta.scope, mode: 'awaiting-cursor' };
+        }
+        if (meta?.type === 'setMatches') {
+          return { matches: meta.matches, scope: null, mode: 'idle' };
+        }
 
-      if (tr.selectionSet) {
-        // Scoped flow: the next collapsed-cursor inside the scope
-        // triggers matching. A cursor outside cancels.
-        if (prev.mode === 'awaiting-cursor' && prev.scope) {
-          const sel = tr.selection;
-          if (sel.empty) {
-            const pos = sel.from;
-            if (pos < prev.scope.from || pos > prev.scope.to) {
-              return { matches: [], scope: null, mode: 'idle' };
-            }
-            const matches = computeSimilarMatches(tr.doc, pos, prev.scope);
-            return { matches, scope: prev.scope, mode: 'idle' };
+        // Any doc edit dissipates the shadow selection.
+        if (tr.docChanged) {
+          if (prev.matches.length > 0 || prev.scope) {
+            return { matches: [], scope: null, mode: 'idle' };
           }
-          // User may still be reshaping their scope-internal selection.
           return prev;
         }
 
-        // Matches were active and selection moved: clear unless the
-        // new cursor landed inside an existing match. (The command's
-        // own setMatches tr is handled above via meta and won't reach
-        // this branch.)
-        if (prev.matches.length > 0) {
-          const sel = tr.selection;
-          const insideMatch =
-            sel.empty &&
-            prev.matches.some((m) => sel.from >= m.from && sel.from <= m.to);
-          if (!insideMatch) {
-            return { matches: [], scope: null, mode: 'idle' };
+        if (tr.selectionSet) {
+          // Scoped flow: the next collapsed-cursor inside the scope
+          // triggers matching. A cursor outside cancels.
+          if (prev.mode === 'awaiting-cursor' && prev.scope) {
+            const sel = tr.selection;
+            if (sel.empty) {
+              const pos = sel.from;
+              if (pos < prev.scope.from || pos > prev.scope.to) {
+                return { matches: [], scope: null, mode: 'idle' };
+              }
+              const matches = computeSimilarMatches(
+                tr.doc,
+                pos,
+                prev.scope,
+                effectivePt,
+              );
+              return { matches, scope: prev.scope, mode: 'idle' };
+            }
+            // User may still be reshaping their scope-internal selection.
+            return prev;
+          }
+
+          // Matches were active and selection moved: clear unless the
+          // new cursor landed inside an existing match. (The command's
+          // own setMatches tr is handled above via meta and won't reach
+          // this branch.)
+          if (prev.matches.length > 0) {
+            const sel = tr.selection;
+            const insideMatch =
+              sel.empty &&
+              prev.matches.some((m) => sel.from >= m.from && sel.from <= m.to);
+            if (!insideMatch) {
+              return { matches: [], scope: null, mode: 'idle' };
+            }
           }
         }
-      }
 
-      return prev;
+        return prev;
+      },
     },
-  },
-  props: {
-    decorations(state) {
-      const ps = similarSelectionKey.getState(state);
-      if (!ps) return null;
-      const decs: Decoration[] = [];
-      if (ps.scope) {
-        decs.push(
-          Decoration.inline(ps.scope.from, ps.scope.to, {
-            class: 'pmd-similar-scope',
-          }),
-        );
-      }
-      for (const m of ps.matches) {
-        decs.push(
-          Decoration.inline(m.from, m.to, { class: 'pmd-similar-match' }),
-        );
-      }
-      if (decs.length === 0) return null;
-      return DecorationSet.create(state.doc, decs);
+    props: {
+      decorations(state) {
+        const ps = similarSelectionKey.getState(state);
+        if (!ps) return null;
+        const decs: Decoration[] = [];
+        if (ps.scope) {
+          decs.push(
+            Decoration.inline(ps.scope.from, ps.scope.to, {
+              class: 'pmd-similar-scope',
+            }),
+          );
+        }
+        for (const m of ps.matches) {
+          decs.push(
+            Decoration.inline(m.from, m.to, { class: 'pmd-similar-match' }),
+          );
+        }
+        if (decs.length === 0) return null;
+        return DecorationSet.create(state.doc, decs);
+      },
+      handleKeyDown(view, e) {
+        if (e.key !== 'Escape') return false;
+        const ps = similarSelectionKey.getState(view.state);
+        if (!ps) return false;
+        if (
+          ps.matches.length === 0 &&
+          !ps.scope &&
+          ps.mode === 'idle'
+        ) {
+          return false;
+        }
+        view.dispatch(view.state.tr.setMeta(META_KEY, { type: 'clear' }));
+        return true;
+      },
     },
-    handleKeyDown(view, e) {
-      if (e.key !== 'Escape') return false;
-      const ps = similarSelectionKey.getState(view.state);
-      if (!ps) return false;
-      if (
-        ps.matches.length === 0 &&
-        !ps.scope &&
-        ps.mode === 'idle'
-      ) {
-        return false;
-      }
-      view.dispatch(view.state.tr.setMeta(META_KEY, { type: 'clear' }));
-      return true;
-    },
-  },
-});
+  });
+}
 
-/** Marks of the text node "at" `pos`, plus the parent block type
- *  name. Preference order: the node immediately before the cursor
- *  (matches Word's typing-continues-previous-run convention), then
- *  the node after. Returns null when there's no surrounding text. */
+/** Naive fallback: reads `font_size` marks; falls through to 11. */
+function defaultEffectivePt(node: PMNode | null, _parent: PMNode): number {
+  if (!node || !node.isText) return 11;
+  const fs = node.marks.find((m) => m.type.name === 'font_size');
+  if (fs) return Number(fs.attrs['halfPoints'] ?? 22) / 2;
+  return 11;
+}
+
+/** Resolver for a run's effective font-size in pt. Same shape as
+ *  `RibbonContext.effectivePtForNode` — the real editor passes the
+ *  chip resolver here so two runs with the *same visual* size match
+ *  even when one has an explicit `font_size` mark and the other
+ *  inherits from its named-style or paragraph default. */
+export type EffectivePtResolver = (
+  node: PMNode | null,
+  parent: PMNode,
+) => number;
+
+/** Marks of the text node "at" `pos`, the parent block type, AND the
+ *  chip-resolved effective font-size. Preference order for the node:
+ *  the run immediately before the cursor (Word's typing-continues-
+ *  previous-run convention), then the run after. Returns null when
+ *  there's no surrounding text. */
 function fingerprintAt(
   doc: PMNode,
   pos: number,
-): { parentTypeName: string; marks: readonly Mark[] } | null {
+  effectivePt: EffectivePtResolver,
+): {
+  parentTypeName: string;
+  marks: readonly Mark[];
+  effectivePt: number;
+} | null {
   const $pos = doc.resolve(pos);
   const parent = $pos.parent;
   if (!parent.isTextblock) return null;
@@ -172,7 +213,28 @@ function fingerprintAt(
       ? after
       : null;
   if (!node) return null;
-  return { parentTypeName: parent.type.name, marks: node.marks };
+  return {
+    parentTypeName: parent.type.name,
+    // Drop `font_size` from the comparable mark set — the effective
+    // pt below covers it. Otherwise an explicit `font_size: 22` run
+    // wouldn't match a bare run inheriting 11 from its named style
+    // even when both display at 11 in the chip.
+    marks: stripFontSize(node.marks),
+    effectivePt: effectivePt(node, parent),
+  };
+}
+
+function stripFontSize(marks: readonly Mark[]): readonly Mark[] {
+  if (marks.length === 0) return marks;
+  let any = false;
+  for (const m of marks) {
+    if (m.type.name === 'font_size') {
+      any = true;
+      break;
+    }
+  }
+  if (!any) return marks;
+  return marks.filter((m) => m.type.name !== 'font_size');
 }
 
 function marksEqual(a: readonly Mark[], b: readonly Mark[]): boolean {
@@ -184,13 +246,17 @@ function marksEqual(a: readonly Mark[], b: readonly Mark[]): boolean {
 }
 
 /** Walk `doc` (or just the `scope` range, if given) and return every
- *  text-node range whose fingerprint matches the one at `cursorPos`. */
+ *  text-node range whose fingerprint matches the one at `cursorPos`.
+ *  The `effectivePt` resolver should be the chip's — so two runs with
+ *  the same visible font-size match even when one has an explicit
+ *  `font_size` mark and the other doesn't. */
 export function computeSimilarMatches(
   doc: PMNode,
   cursorPos: number,
   scope: RangePair | null,
+  effectivePt: EffectivePtResolver,
 ): RangePair[] {
-  const fp = fingerprintAt(doc, cursorPos);
+  const fp = fingerprintAt(doc, cursorPos, effectivePt);
   if (!fp) return [];
   const from = scope?.from ?? 0;
   const to = scope?.to ?? doc.content.size;
@@ -198,7 +264,8 @@ export function computeSimilarMatches(
   doc.nodesBetween(from, to, (node, pos, parent) => {
     if (!node.isText) return true;
     if (!parent || parent.type.name !== fp.parentTypeName) return true;
-    if (!marksEqual(node.marks, fp.marks)) return true;
+    if (!marksEqual(stripFontSize(node.marks), fp.marks)) return true;
+    if (effectivePt(node, parent) !== fp.effectivePt) return true;
     const start = Math.max(from, pos);
     const end = Math.min(to, pos + node.nodeSize);
     if (start < end) out.push({ from: start, to: end });
@@ -210,13 +277,14 @@ export function computeSimilarMatches(
 /** Unscoped Select Similar (Doc menu). No-op on a non-empty
  *  selection per the user spec; otherwise lights up every run in
  *  the doc whose fingerprint matches the cursor's. */
-export function selectSimilar(): Command {
+export function selectSimilar(effectivePt: EffectivePtResolver): Command {
   return (state, dispatch) => {
     if (!state.selection.empty) return false;
     const matches = computeSimilarMatches(
       state.doc,
       state.selection.from,
       null,
+      effectivePt,
     );
     if (matches.length === 0) return false;
     if (!dispatch) return true;
@@ -241,7 +309,8 @@ export function selectSimilar(): Command {
  *
  *  If invoked with an empty selection, the command no-ops (and the
  *  caller — menu / button — can surface "make a selection first"
- *  inline if it wants). */
+ *  inline if it wants). The matching itself happens inside the plugin
+ *  apply, which is wired up with the resolver via `wireSimilarSelection`. */
 export function selectSimilarScoped(): Command {
   return (state, dispatch) => {
     const { from, to, empty } = state.selection;

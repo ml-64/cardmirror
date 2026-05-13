@@ -157,6 +157,8 @@ if (docMenuBtn) {
   docMenuBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     // Sections alphabetical by title — Highlighting then Select.
+    // Each "Standardize" item operates on the current selection if
+    // there is one, doc-wide if not.
     openDocMenu(docMenuBtn, view, [
       {
         title: 'Highlighting',
@@ -166,16 +168,8 @@ if (docMenuBtn) {
             run: () => runRibbon('standardizeHighlight'),
           },
           {
-            label: 'Standardize Highlighting (Selection)',
-            run: () => runRibbon('standardizeHighlightSelection'),
-          },
-          {
-            label: 'Standardize Shading',
+            label: 'Standardize Background Color',
             run: () => runRibbon('standardizeShading'),
-          },
-          {
-            label: 'Standardize Shading (Selection)',
-            run: () => runRibbon('standardizeShadingSelection'),
           },
         ],
       },

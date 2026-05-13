@@ -2231,9 +2231,7 @@ export type RibbonCommandId =
   | 'highlightToShading'
   | 'shadingToHighlight'
   | 'standardizeHighlight'
-  | 'standardizeHighlightSelection'
   | 'standardizeShading'
-  | 'standardizeShadingSelection'
   | 'toggleReadMode'
   | 'wordCountSelection'
   | 'openShortcutsReference'
@@ -2272,9 +2270,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'highlightToShading',
   'shadingToHighlight',
   'standardizeHighlight',
-  'standardizeHighlightSelection',
   'standardizeShading',
-  'standardizeShadingSelection',
   'toggleReadMode',
   'wordCountSelection',
   'openShortcutsReference',
@@ -2310,9 +2306,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   highlightToShading: 'Highlight to Background',
   shadingToHighlight: 'Background to Highlight',
   standardizeHighlight: 'Standardize Highlighting',
-  standardizeHighlightSelection: 'Standardize Highlighting (Selection)',
-  standardizeShading: 'Standardize Shading',
-  standardizeShadingSelection: 'Standardize Shading (Selection)',
+  standardizeShading: 'Standardize Background Color',
   toggleReadMode: 'Toggle read mode',
   wordCountSelection: 'Word count selection',
   openShortcutsReference: 'Open keyboard shortcuts',
@@ -2358,9 +2352,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   highlightToShading: '',
   shadingToHighlight: '',
   standardizeHighlight: '',
-  standardizeHighlightSelection: '',
   standardizeShading: '',
-  standardizeShadingSelection: '',
   toggleReadMode: '',
   wordCountSelection: '',
   openShortcutsReference: '',
@@ -2498,13 +2490,19 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
     case 'shadingToHighlight':
       return shadingToHighlight();
     case 'standardizeHighlight':
-      return uniHighlight(ctx.highlightColor, 'document');
-    case 'standardizeHighlightSelection':
-      return uniHighlight(ctx.highlightColor, 'selection');
+      // Auto-scoped: selection-based when there's a selection, doc-
+      // wide when there isn't. Keeps one menu item for both modes.
+      return (state, dispatch, view) =>
+        uniHighlight(
+          ctx.highlightColor,
+          state.selection.empty ? 'document' : 'selection',
+        )(state, dispatch, view);
     case 'standardizeShading':
-      return uniShade(ctx.shadingColor, 'document');
-    case 'standardizeShadingSelection':
-      return uniShade(ctx.shadingColor, 'selection');
+      return (state, dispatch, view) =>
+        uniShade(
+          ctx.shadingColor,
+          state.selection.empty ? 'document' : 'selection',
+        )(state, dispatch, view);
     case 'toggleReadMode':
       return (_state, dispatch) => {
         if (!dispatch) return true;

@@ -59,9 +59,7 @@ const GROUPS: ShortcutGroup[] = [
     title: 'Highlight tools',
     commands: [
       'standardizeHighlight',
-      'standardizeHighlightSelection',
       'standardizeShading',
-      'standardizeShadingSelection',
       'highlightToShading',
       'shadingToHighlight',
     ],

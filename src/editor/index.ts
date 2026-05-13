@@ -173,17 +173,53 @@ if (cardMenuBtn) {
   cardMenuBtn.addEventListener('mousedown', (e) => e.preventDefault());
   cardMenuBtn.addEventListener('click', (e) => {
     e.stopPropagation();
+    // Sections are kept alphabetical by title — Condense, Excerpt,
+    // Highlighting. The condense items route through `getRibbonCommand`
+    // so they pick up `ribbonContext`'s live settings (paragraphIntegrity,
+    // usePilcrows, headingMode) the same way F3 / Alt-F3 / etc. do.
     openDocMenu(cardMenuBtn, view, [
       {
-        title: 'Highlighting',
+        title: 'Condense',
         items: [
           {
-            label: 'Highlight to Background',
-            run: (v) => highlightToShading()(v.state, v.dispatch.bind(v)),
+            label: 'Condense',
+            run: (v) =>
+              getRibbonCommand('condenseDefault', ribbonContext)(
+                v.state,
+                v.dispatch.bind(v),
+              ),
           },
           {
-            label: 'Background to Highlight',
-            run: (v) => shadingToHighlight()(v.state, v.dispatch.bind(v)),
+            label: 'Condense without paragraph integrity',
+            run: (v) =>
+              getRibbonCommand('condenseNoIntegrity', ribbonContext)(
+                v.state,
+                v.dispatch.bind(v),
+              ),
+          },
+          {
+            label: 'Condense without paragraph integrity (with pilcrows)',
+            run: (v) =>
+              getRibbonCommand(
+                'condenseNoIntegrityWithPilcrows',
+                ribbonContext,
+              )(v.state, v.dispatch.bind(v)),
+          },
+          {
+            label: 'Uncondense',
+            run: (v) =>
+              getRibbonCommand('uncondense', ribbonContext)(
+                v.state,
+                v.dispatch.bind(v),
+              ),
+          },
+          {
+            label: 'Toggle case',
+            run: (v) =>
+              getRibbonCommand('toggleCase', ribbonContext)(
+                v.state,
+                v.dispatch.bind(v),
+              ),
           },
         ],
       },
@@ -201,6 +237,19 @@ if (cardMenuBtn) {
                 if (ok) showToast('Copied!');
               });
             },
+          },
+        ],
+      },
+      {
+        title: 'Highlighting',
+        items: [
+          {
+            label: 'Highlight to Background',
+            run: (v) => highlightToShading()(v.state, v.dispatch.bind(v)),
+          },
+          {
+            label: 'Background to Highlight',
+            run: (v) => shadingToHighlight()(v.state, v.dispatch.bind(v)),
           },
         ],
       },

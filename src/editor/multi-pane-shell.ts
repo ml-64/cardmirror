@@ -25,11 +25,12 @@
 import { EditorState } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { Node as PMNode } from 'prosemirror-model';
-import { schema } from '../schema/index.js';
+import { schema, newHeadingId } from '../schema/index.js';
 import { fromDocxFull } from '../index.js';
 import { settings } from './settings.js';
 import { NavigationPanel } from './nav-panel.js';
 import { EditorDragSurface } from './drag-editor-surface.js';
+import { dragController } from './drag-controller.js';
 import { countReadAloudWords, formatReadTime, formatNumber } from './word-count.js';
 import {
   buildEditorPlugins,
@@ -64,6 +65,14 @@ interface DocRecord {
    *  from the slot's nav section when visibility changes. */
   navEl: HTMLElement;
   dragSurface: EditorDragSurface;
+  /** Debounce handle for `navPanel.update`. Rebuilding the nav on
+   *  every transaction (including selection moves) replaces the
+   *  `<li>` elements between two clicks of a dblclick, so the
+   *  native `dblclick` event never fires. A 200ms debounce matches
+   *  the single-doc `scheduleHeavyUpdate` cadence and keeps the
+   *  li alive long enough for dblclick / chevron / drag pickup to
+   *  resolve. */
+  navUpdateTimer: ReturnType<typeof setTimeout> | null;
 }
 
 class Slot {
@@ -208,6 +217,10 @@ class Slot {
     if (idx < 0) return;
     const closing = this.stack[idx]!;
     this.detachVisible();
+    if (closing.navUpdateTimer !== null) {
+      clearTimeout(closing.navUpdateTimer);
+      closing.navUpdateTimer = null;
+    }
     closing.view.destroy();
     closing.dragSurface.detach();
     this.stack.splice(idx, 1);
@@ -339,6 +352,10 @@ class Slot {
       this.closeVisible();
       return;
     }
+    if (rec.navUpdateTimer !== null) {
+      clearTimeout(rec.navUpdateTimer);
+      rec.navUpdateTimer = null;
+    }
     rec.view.destroy();
     rec.dragSurface.detach();
     this.stack.splice(idx, 1);
@@ -407,7 +424,27 @@ class MultiPaneShell {
       for (const id of SLOT_IDS) this.slots[id].refreshWordCount();
     });
 
+    // Drag-hover focus: while a drag is active, the controller's
+    // hoverTarget tells us which view the drop will land in. When
+    // the user hovers over a pane (even before releasing), focus
+    // that pane so the ribbon / chrome retarget — matches the
+    // user's expectation that hovering a doc brings it into focus.
+    dragController.subscribe((event) => {
+      if (event !== 'move') return;
+      const target = dragController.getHoverTarget();
+      if (!target) return;
+      const slot = this.findSlotByView(target.view);
+      if (slot && this.focusedSlot !== slot) this.focusSlot(slot);
+    });
+
     // First active slot gets focus by default once a doc lands.
+  }
+
+  private findSlotByView(view: EditorView): Slot | null {
+    for (const id of SLOT_IDS) {
+      if (this.slots[id].visible?.view === view) return this.slots[id];
+    }
+    return null;
   }
 
   /** Refresh the data-attribute count on the row, used by CSS to
@@ -543,6 +580,26 @@ class MultiPaneShell {
     const record = buildDocRecord(file.name, doc, slot);
     slot.push(record);
   }
+
+  /** Create an empty doc; prompt for slot. Used by the ribbon's
+   *  "New doc" button. */
+  async createNewDoc(): Promise<void> {
+    const target = await this.promptForSlot('Untitled');
+    if (!target) return;
+    const doc = makeBlankDoc();
+    const slot = this.slots[target];
+    const record = buildDocRecord('Untitled.docx', doc, slot);
+    slot.push(record);
+  }
+}
+
+/** Minimal valid doc — one empty paragraph. Used by `createNewDoc`
+ *  so the freshly-routed slot has something to put a cursor into. */
+function makeBlankDoc(): PMNode {
+  return schema.nodes['doc']!.createChecked(null, [
+    schema.nodes['pocket']!.create({ id: newHeadingId() }, schema.text('Untitled')),
+    schema.nodes['paragraph']!.create(null),
+  ]);
 }
 
 /** Single shell instance — multi-pane is a binary mode, so one is
@@ -584,9 +641,19 @@ function buildDocRecord(filename: string, doc: PMNode, slot: Slot): DocRecord {
       const next = view.state.apply(tx);
       view.updateState(next);
       slot.refreshWordCount();
-      // Re-render nav (if attached) — debounce-free here since
-      // multi-pane is typically used for smaller workspaces.
-      record.navPanel.update(next.doc);
+      // Debounce the nav re-render. Rebuilding it on every
+      // transaction (including selection moves) recreates every
+      // `<li>` between the two clicks of a dblclick, which the
+      // browser then refuses to fire because the element identity
+      // changed. 200ms matches the single-doc `scheduleHeavyUpdate`
+      // cadence.
+      if (record.navUpdateTimer !== null) {
+        clearTimeout(record.navUpdateTimer);
+      }
+      record.navUpdateTimer = setTimeout(() => {
+        record.navUpdateTimer = null;
+        record.navPanel.update(view.state.doc);
+      }, 200);
       // If this pane is the focused one, push state into the shared
       // chrome (so refreshFontSizeDisplay, refreshWordCount in
       // editor/index.ts see the new view state).
@@ -612,6 +679,7 @@ function buildDocRecord(filename: string, doc: PMNode, slot: Slot): DocRecord {
     navPanel,
     navEl,
     dragSurface,
+    navUpdateTimer: null,
   };
   return record;
 }
@@ -624,5 +692,6 @@ export function mountMultiPaneShell(): void {
   shell = new MultiPaneShell();
   enableMultiDocMode({
     onFileOpen: (file) => shell!.onFileOpen(file),
+    onNewDoc: () => shell!.createNewDoc(),
   });
 }

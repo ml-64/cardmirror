@@ -165,9 +165,14 @@ body {
    the export button's top + bottom align with the panels' bottom
    row. 1.45rem row height + 2px inter-row gap = the same rhythm. */
 .ribbon-button-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  /* Was a column flex when this only held Open + Save. Adding "New"
+   * would make a 3-row stack, breaking the 2-row chrome rhythm. Use
+   * a 2-row × N-column grid instead — Open / New on top, Save below. */
+  display: grid;
+  grid-template-rows: repeat(2, auto);
+  grid-auto-flow: column;
+  gap: 2px 3px;
+  align-content: center;
 }
 
 /* Prefix with `#ribbon` so this rule beats the generic
@@ -3526,6 +3531,13 @@ body.pmd-multi-doc #comments-column,
 body.pmd-multi-doc #nav-panel {
   display: none !important;
 }
+body.pmd-multi-doc {
+  /* No page-level scrolling in multi-doc mode — every editor
+   * surface clips inside its own pane. Prevents the rare cases
+   * where a stack dropdown / route overlay / focus ring widens
+   * the document beyond the viewport. */
+  overflow: hidden;
+}
 body.pmd-multi-doc #app {
   /* The hidden single-doc nav panel reserved `var(--nav-width)`
    * of left margin. In multi-doc mode the new nav rail sits
@@ -3694,8 +3706,21 @@ body.pmd-multi-doc #word-count-display {
 .pmd-pane:last-child { border-right: none; }
 .pmd-pane[hidden] { display: none; }
 
+/* Focused pane: blue accent bar on top + tinted chip so the
+ * routing target is obvious at a glance. */
 .pmd-pane-focused {
-  box-shadow: inset 0 2px 0 0 var(--pmd-c-accent, #4a90e2);
+  box-shadow: inset 0 3px 0 0 var(--pmd-c-accent, #4a90e2);
+}
+.pmd-pane-focused .pmd-pane-chip {
+  background: var(--pmd-c-accent, #4a90e2);
+  color: #fff;
+}
+.pmd-pane-focused .pmd-pane-chip-name {
+  color: #fff;
+}
+.pmd-pane-focused .pmd-pane-chip-close,
+.pmd-pane-focused .pmd-pane-chip-stack {
+  color: #fff;
 }
 
 /* Title chip — small, ~22px tall. Way smaller than the original
@@ -3780,11 +3805,16 @@ body.pmd-multi-doc #word-count-display {
 }
 .pmd-pane-chip-dropdown-close:hover { color: var(--pmd-c-danger, #c00); }
 
-/* Editor body — fills the rest of the pane height. */
+/* Editor body — fills the rest of the pane height. Only vertical
+ * scroll; horizontal is clipped so a wider-than-pane element
+ * (e.g., a long heading without word breaks) can't force a
+ * horizontal scrollbar that eats vertical space. */
 .pmd-pane-body {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   position: relative;
 }
 .pmd-pane-editor {
@@ -3803,6 +3833,12 @@ body.pmd-multi-doc #word-count-display {
    * set on documentElement by `applyBodyFont`, so it cascades here
    * even though `.pmd-pane-editor` is not a descendant of #editor. */
   font-family: var(--pmd-body-font, "Calibri", "Helvetica Neue", sans-serif);
+  /* Match the single-doc editor: preserve typed whitespace + tab
+   * stops. Also wrap long words rather than letting them push the
+   * pane wider than 1/3 of the row. */
+  white-space: pre-wrap;
+  tab-size: 4;
+  overflow-wrap: anywhere;
 }
 
 /* Footer with word count + open file button. */

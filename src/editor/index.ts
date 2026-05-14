@@ -79,6 +79,7 @@ const editorEl = document.getElementById('editor')!;
 const navEl = document.getElementById('nav-panel')!;
 const dropzone = document.getElementById('dropzone') as HTMLInputElement;
 const openBtn = document.getElementById('open-btn') as HTMLButtonElement;
+const newBtn = document.getElementById('new-btn') as HTMLButtonElement | null;
 const exportBtn = document.getElementById('export-btn') as HTMLButtonElement;
 const settingsBtn = document.getElementById('settings-btn') as HTMLButtonElement;
 const referenceBtn = document.getElementById('reference-btn') as HTMLButtonElement | null;
@@ -119,15 +120,20 @@ let multiDocActive = false;
 /** When the multi-pane shell is active, this delegates file-open
  *  routing to its prompt-for-slot flow. */
 let multiDocOnFileOpen: ((file: File) => Promise<void> | void) | null = null;
+/** When the multi-pane shell is active, this delegates the
+ *  "New doc" ribbon button to the shell's slot-routing flow. */
+let multiDocOnNewDoc: (() => Promise<void> | void) | null = null;
 
 /** Multi-pane shell hooks. Called by `multi-pane-shell.ts` at boot
  *  to install the override that redirects the single-doc dropzone
  *  + mountView paths into per-pane routing. */
 export function enableMultiDocMode(opts: {
   onFileOpen: (file: File) => Promise<void> | void;
+  onNewDoc?: () => Promise<void> | void;
 }): void {
   multiDocActive = true;
   multiDocOnFileOpen = opts.onFileOpen;
+  multiDocOnNewDoc = opts.onNewDoc ?? null;
   // Hide the single-doc surfaces. The multi-pane shell mounts its
   // own DOM into #app, alongside #editor + #comments-column which
   // we hide here.
@@ -263,6 +269,18 @@ const ribbonContext: RibbonContext = {
 };
 
 openBtn.addEventListener('click', () => dropzone.click());
+if (newBtn) {
+  newBtn.addEventListener('click', () => {
+    // Multi-doc: prompt for slot, then create a blank doc there.
+    if (multiDocActive && multiDocOnNewDoc) {
+      void multiDocOnNewDoc();
+      return;
+    }
+    // Single-doc: replace the current doc with a fresh starter.
+    mountView(makeStarterDoc());
+    currentDocFilename = null;
+  });
+}
 settingsBtn.addEventListener('click', () => openSettings());
 /**
  * Tiny adapter to invoke a `RibbonCommandId` against the active view

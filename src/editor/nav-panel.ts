@@ -258,6 +258,32 @@ export class NavigationPanel {
   }
 
   /** Surface implementation handed to the drag controller. */
+  /** Cached scroll-gate element — used by hit-test to verify the
+   *  cursor is in THIS nav's section, not just somewhere in the
+   *  nav-rail column. See the comment in `hitTestDropIndicators`. */
+  private navScrollGateEl: HTMLElement | null = null;
+
+  /** Walk up from `this.root` to find the nearest scrolling ancestor
+   *  (the multi-doc `.pmd-multi-nav-body`) or fall back to the panel
+   *  itself (single-doc, where the panel is position:fixed and its
+   *  own rect already gates correctly). Cached per instance. */
+  private findNavScrollGate(): HTMLElement {
+    if (this.navScrollGateEl && this.navScrollGateEl.isConnected) {
+      return this.navScrollGateEl;
+    }
+    let cur: HTMLElement | null = this.root;
+    while (cur && cur !== document.body) {
+      const overflow = getComputedStyle(cur).overflowY;
+      if (overflow === 'auto' || overflow === 'scroll') {
+        this.navScrollGateEl = cur;
+        return cur;
+      }
+      cur = cur.parentElement;
+    }
+    this.navScrollGateEl = this.root;
+    return this.root;
+  }
+
   private dragSurfaceImpl: DragSurface = {
     hitTest: (clientX, clientY) => this.hitTestDropIndicators(clientX, clientY),
     highlight: (el) => this.highlightDropIndicator(el),
@@ -271,12 +297,20 @@ export class NavigationPanel {
     if (!session) return null;
     const myView = this.view ?? undefined;
 
-    // Horizontal gate: pointer must be inside the nav panel column.
-    // (Use the panel root rather than each indicator's rect so a
-    // pointer past the bottom indicator — where the indicator might
-    // be very narrow — still registers.)
-    const rootRect = this.root.getBoundingClientRect();
-    if (clientX < rootRect.left - 8 || clientX > rootRect.right + 8) return null;
+    // Hit-test gate: in single-doc the panel is position:fixed, so
+    // its own bounding rect spans the whole nav column and a
+    // horizontal-only check is enough. In multi-doc each section
+    // has its own panel and the panel's rect can extend past its
+    // section (content overflow inside the scrolling section body)
+    // — so a cursor in section 2 would still pass the horizontal
+    // check on section 1's hit-test and "drop through" to whichever
+    // indicator in section 1 happened to share a viewport-y with
+    // the cursor. Gate against the nearest scrolling ancestor's
+    // rect, which clips correctly to each section's visible area in
+    // multi-doc while degenerating to the panel itself in single-doc.
+    const gateRect = this.findNavScrollGate().getBoundingClientRect();
+    if (clientX < gateRect.left - 8 || clientX > gateRect.right + 8) return null;
+    if (clientY < gateRect.top || clientY > gateRect.bottom) return null;
 
     type Cand = { el: HTMLElement; insertPos: number; centerY: number; dy: number };
     const valid: Cand[] = [];

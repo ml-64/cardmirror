@@ -83,15 +83,14 @@ function computeFullSet(doc: PMNode): DecorationSet {
  * top-level container boundaries so partial paragraphs aren't
  * visited mid-traversal.
  *
- * Two-pass per paragraph so we know whether each kept text node
- * ends a "run" — i.e., whether the next text node is hidden or this
- * is the last text node in the paragraph. Only end-of-run kept
- * spans get `pmd-rm-keep-end`, which carries the trailing
- * separator-space. Mid-run kept spans (adjacent kept text nodes
- * with no hidden text between them, e.g. text split into pieces by
- * a sub-mark like bold) don't get the separator, so a single
- * highlight band reads continuously instead of being broken into
- * word-sized segments.
+ * Two-pass per paragraph: for each kept text node we look at the
+ * *next* text child. End-of-run (next node is hidden, or no next
+ * node) gets a widget-decoration separator inserted AT the
+ * boundary. The widget renders outside any mark wrappers — a plain
+ * `<span>` containing a space — so the separator inherits no
+ * emphasis box / highlight background. Mid-run kept spans (e.g.
+ * a single highlighted phrase split into pieces by a bold sub-mark)
+ * get no separator, so the highlight band reads continuously.
  */
 function computeDecorationsInRange(doc: PMNode, from: number, to: number): Decoration[] {
   const decos: Decoration[] = [];
@@ -113,9 +112,24 @@ function computeDecorationsInRange(doc: PMNode, from: number, to: number): Decor
   return decos;
 }
 
-/** Walk one paragraph's direct text children in order. Mark each as
- *  keep / hide; for keeps, set `pmd-rm-keep-end` iff the *next* text
- *  child is hidden or doesn't exist. */
+/** Build the separator widget's DOM. A bare `<span>` containing a
+ *  single space character. Lives as a sibling of the mark wrappers
+ *  rather than a child, so emphasis boxes / highlight backgrounds
+ *  don't bleed into the gap. */
+function makeRunSeparator(): HTMLElement {
+  const span = document.createElement('span');
+  span.className = 'pmd-rm-separator';
+  span.textContent = ' ';
+  // Widgets are inherently non-editable in PM; the explicit attr
+  // here is belt-and-suspenders against any DOM mutation paths
+  // that might otherwise try to step inside it.
+  span.contentEditable = 'false';
+  return span;
+}
+
+/** Walk one paragraph's direct text children in order. For each
+ *  kept text node, decide whether it ends a run; if so, emit a
+ *  widget separator at the boundary. */
 function decorateParagraph(
   para: PMNode,
   paraPos: number,
@@ -132,13 +146,23 @@ function decorateParagraph(
   for (let i = 0; i < items.length; i++) {
     const item = items[i]!;
     if (item.keep) {
-      const next = items[i + 1];
-      const endsRun = !next || !next.keep;
       decos.push(
         Decoration.inline(item.pos, item.pos + item.nodeSize, {
-          class: endsRun ? 'pmd-rm-keep pmd-rm-keep-end' : 'pmd-rm-keep',
+          class: 'pmd-rm-keep',
         }),
       );
+      // End-of-run boundary: drop a sibling-level separator widget
+      // at the position where the next inline content begins.
+      const next = items[i + 1];
+      const endsRun = !next || !next.keep;
+      if (endsRun) {
+        decos.push(
+          Decoration.widget(item.pos + item.nodeSize, makeRunSeparator, {
+            side: 1,
+            ignoreSelection: true,
+          }),
+        );
+      }
     } else {
       decos.push(
         Decoration.inline(item.pos, item.pos + item.nodeSize, {

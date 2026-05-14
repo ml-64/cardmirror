@@ -1465,11 +1465,15 @@ body.pmd-nav-resize-active {
 .pmd-read-mode img[data-pmd-image],
 .pmd-read-mode .pmd-image-placeholder { display: none; }
 
-/* Ensure exactly one space between consecutive visible chunks. Browser
-   whitespace collapsing (white-space: normal default) reduces multiple
-   consecutive spaces to one, so this is safe even when the kept text
-   already has trailing whitespace. */
-.pmd-read-mode .pmd-rm-keep::after {
+/* Separator space ONLY at the end of a "run" of kept text — i.e.,
+   when the next inline is hidden, or this is the last kept inline
+   in the paragraph. The plugin tags those spans with `pmd-rm-keep-
+   end`. Mid-run kept spans (multiple kept text nodes within the
+   same continuous highlight band, e.g. when a sub-mark like bold
+   splits the run into pieces) get plain `pmd-rm-keep` and read as
+   one continuous band — the previous unconditional `::after`
+   rule visually broke single highlights into word-sized chunks. */
+.pmd-read-mode .pmd-rm-keep-end::after {
   content: ' ';
 }
 

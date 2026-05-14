@@ -82,29 +82,69 @@ function computeFullSet(doc: PMNode): DecorationSet {
  * within [from, to]. Callers pass a `from`/`to` already expanded to
  * top-level container boundaries so partial paragraphs aren't
  * visited mid-traversal.
+ *
+ * Two-pass per paragraph so we know whether each kept text node
+ * ends a "run" — i.e., whether the next text node is hidden or this
+ * is the last text node in the paragraph. Only end-of-run kept
+ * spans get `pmd-rm-keep-end`, which carries the trailing
+ * separator-space. Mid-run kept spans (adjacent kept text nodes
+ * with no hidden text between them, e.g. text split into pieces by
+ * a sub-mark like bold) don't get the separator, so a single
+ * highlight band reads continuously instead of being broken into
+ * word-sized segments.
  */
 function computeDecorationsInRange(doc: PMNode, from: number, to: number): Decoration[] {
   const decos: Decoration[] = [];
   doc.nodesBetween(from, to, (node, pos) => {
-    if (!node.isText || !node.text) return;
-
-    const $pos = doc.resolve(pos);
-    const parent = $pos.parent.type.name;
-
-    let keep: boolean;
-    if (parent === 'cite_paragraph') {
-      keep = node.marks.some((m) => m.type.name === 'cite_mark');
-    } else if (parent === 'card_body' || parent === 'paragraph' || parent === 'undertag') {
-      keep = node.marks.some((m) => m.type.name === 'highlight');
-    } else {
-      return;
+    const name = node.type.name;
+    let markName: string | null = null;
+    if (name === 'cite_paragraph') markName = 'cite_mark';
+    else if (name === 'card_body' || name === 'paragraph' || name === 'undertag') {
+      markName = 'highlight';
     }
-
-    decos.push(
-      Decoration.inline(pos, pos + node.nodeSize, {
-        class: keep ? 'pmd-rm-keep' : 'pmd-rm-hide',
-      }),
-    );
+    if (markName) {
+      decorateParagraph(node, pos, markName, decos);
+      // We've already walked this paragraph's inline children; don't
+      // recurse into them again from the outer nodesBetween.
+      return false;
+    }
+    return true;
   });
   return decos;
+}
+
+/** Walk one paragraph's direct text children in order. Mark each as
+ *  keep / hide; for keeps, set `pmd-rm-keep-end` iff the *next* text
+ *  child is hidden or doesn't exist. */
+function decorateParagraph(
+  para: PMNode,
+  paraPos: number,
+  markName: string,
+  decos: Decoration[],
+): void {
+  interface Item { pos: number; nodeSize: number; keep: boolean }
+  const items: Item[] = [];
+  para.forEach((child, offset) => {
+    if (!child.isText || !child.text) return;
+    const keep = child.marks.some((m) => m.type.name === markName);
+    items.push({ pos: paraPos + 1 + offset, nodeSize: child.nodeSize, keep });
+  });
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]!;
+    if (item.keep) {
+      const next = items[i + 1];
+      const endsRun = !next || !next.keep;
+      decos.push(
+        Decoration.inline(item.pos, item.pos + item.nodeSize, {
+          class: endsRun ? 'pmd-rm-keep pmd-rm-keep-end' : 'pmd-rm-keep',
+        }),
+      );
+    } else {
+      decos.push(
+        Decoration.inline(item.pos, item.pos + item.nodeSize, {
+          class: 'pmd-rm-hide',
+        }),
+      );
+    }
+  }
 }

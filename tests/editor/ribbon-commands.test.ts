@@ -3191,4 +3191,86 @@ describe('fixFormattingGaps', () => {
       expect(c.marks.has('highlight')).toBe(true);
     }
   });
+
+  // Mixed bookend cases — the user's "F9 on the blank space" mental
+  // model. The bookends keep their own marks; only the gap chars are
+  // touched.
+  it('bridges mixed underline/emphasis bookends to underline on the gap', () => {
+    const doc = makeDoc(p(
+      underline('foo'),
+      schema.text(' '),
+      emphasis('bar'),
+    ));
+    const state = EditorState.create({ doc, schema });
+    let next: EditorState | null = null;
+    fixFormattingGaps()(state, (tr) => { next = state.apply(tr); });
+    expect(next).not.toBeNull();
+    // 'foo' keeps underline_mark, 'bar' keeps emphasis_mark, and the
+    // space gains underline_mark.
+    const chars = marksByChar(next!.doc);
+    const fooChars = chars.slice(0, 3);
+    const spaceChar = chars[3]!;
+    const barChars = chars.slice(4, 7);
+    for (const c of fooChars) expect(c.marks.has('underline_mark')).toBe(true);
+    for (const c of fooChars) expect(c.marks.has('emphasis_mark')).toBe(false);
+    expect(spaceChar.marks.has('underline_mark')).toBe(true);
+    expect(spaceChar.marks.has('emphasis_mark')).toBe(false);
+    for (const c of barChars) expect(c.marks.has('emphasis_mark')).toBe(true);
+    for (const c of barChars) expect(c.marks.has('underline_mark')).toBe(false);
+  });
+
+  it('bridges mixed emphasis/underline bookends to underline on the gap (reverse order)', () => {
+    const doc = makeDoc(p(
+      emphasis('foo'),
+      schema.text(' '),
+      underline('bar'),
+    ));
+    const state = EditorState.create({ doc, schema });
+    let next: EditorState | null = null;
+    fixFormattingGaps()(state, (tr) => { next = state.apply(tr); });
+    const chars = marksByChar(next!.doc);
+    // Gap is at index 3 (after 'foo').
+    expect(chars[3]!.marks.has('underline_mark')).toBe(true);
+    // Bookends keep their original marks.
+    expect(chars[0]!.marks.has('emphasis_mark')).toBe(true);
+    expect(chars[0]!.marks.has('underline_mark')).toBe(false);
+    expect(chars[4]!.marks.has('underline_mark')).toBe(true);
+    expect(chars[4]!.marks.has('emphasis_mark')).toBe(false);
+  });
+
+  it('does not touch bookends even on same-style bridge (range is gap-only)', () => {
+    // Sanity check that the gap-only range applies even for matching
+    // bookends — addMark on the bookends would be idempotent for same-
+    // attr marks, but for highlight with mismatched colors it would
+    // change the last bookend's color. We bridge only the gap.
+    const doc = makeDoc(p(
+      schema.text('foo', [schema.marks['highlight']!.create({ color: 'yellow' })]),
+      schema.text(' '),
+      schema.text('bar', [schema.marks['highlight']!.create({ color: 'green' })]),
+    ));
+    const state = EditorState.create({ doc, schema });
+    let next: EditorState | null = null;
+    fixFormattingGaps()(state, (tr) => { next = state.apply(tr); });
+    // 'foo' stays yellow, 'bar' stays green, gap gets yellow (first
+    // bookend wins).
+    let fooColor: string | null = null;
+    let gapColor: string | null = null;
+    let barColor: string | null = null;
+    let charIdx = 0;
+    next!.doc.descendants((node) => {
+      if (!node.isText || !node.text) return true;
+      for (const ch of node.text) {
+        const hl = node.marks.find((m) => m.type.name === 'highlight');
+        const color = hl ? String(hl.attrs['color']) : null;
+        if (charIdx < 3) fooColor = color;
+        else if (charIdx === 3) gapColor = color;
+        else if (charIdx < 7) barColor = color;
+        charIdx++;
+      }
+      return false;
+    });
+    expect(fooColor).toBe('yellow');
+    expect(gapColor).toBe('yellow');
+    expect(barColor).toBe('green');
+  });
 });

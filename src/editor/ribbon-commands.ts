@@ -2003,7 +2003,10 @@ export function pasteAsText(): Command {
 /**
  * Verbatim's `FixFormattingGaps` — bridge missing mark coverage
  * across short word-to-word gaps so word-by-word formatting doesn't
- * leave visual breaks.
+ * leave visual breaks. Conceptually: "if there's an underlined word,
+ * a blank space, and an emphasized word in sequence, this acts as if
+ * the user selected the blank space and pressed F9" — the gap fills
+ * in to match the bookends, the bookends themselves are untouched.
  *
  * Selection-sensitive (non-empty selection → that range; empty →
  * whole doc). Walks each textblock in scope independently — bridges
@@ -2015,22 +2018,27 @@ export function pasteAsText(): Command {
  *
  * — a word char, one or more "gap" chars (period / comma / semicolon
  * / colon / question mark / parens / hyphen / exclamation / space),
- * another word char. For each match, the bookends' marks are
- * compared:
+ * another word char. For each match the bridged marks are added to
+ * the CHARS BETWEEN the bookends only (gap-only range — bookends are
+ * never re-marked, so the schema's `excludes` rule on the three
+ * mutually-exclusive named-style marks can't kick in and strip a
+ * bookend's mark).
  *
- *   - underline_mark / emphasis_mark / cite_mark: if both bookends
- *     carry the mark, `addMark` across the whole match range (the
- *     bookends already have it, so this only really affects the
- *     inner gap chars). These three marks are mutually exclusive via
- *     schema `excludes`, so at most one will bridge per match.
- *   - highlight / shading: if both bookends carry the mark, bridge
- *     using the FIRST bookend's color attrs (matching Verbatim's
- *     `c.Item(1).HighlightColorIndex` choice — first wins on color
+ * Bridging rules per mark:
+ *
+ *   - Named-style (underline_mark / emphasis_mark / cite_mark):
+ *     both bookends same → that mark; underline + emphasis (either
+ *     order) → underline (Verbatim's "underline wins on mixed",
+ *     `Formatting.bas:1071-1074`); any other mix → no named-style
+ *     bridge.
+ *   - highlight / shading: both bookends have the mark → bridge
+ *     with the FIRST bookend's color (Verbatim's
+ *     `c.Item(1).HighlightColorIndex` rule — first wins on color
  *     mismatch).
  *
- * Bridging is independent per mark type and idempotent on the
- * bookends, so a span with mixed bridgeable marks (e.g. underline +
- * highlight on the bookends) gets both filled in.
+ * Bridges per mark are independent, so a span with mixed bridgeable
+ * marks (e.g. underline + highlight on the bookends) gets both
+ * filled into the gap simultaneously.
  *
  * No-op (returns false) when no bridgeable gap exists in scope.
  */
@@ -2095,20 +2103,51 @@ export function fixFormattingGaps(): Command {
         const lastNode = charNode[lastIdx];
         if (fromPos == null || toPos == null || !firstNode || !lastNode) continue;
 
+        // Gap-only range: just the chars BETWEEN the bookends, never
+        // the bookends themselves. This both matches the user's
+        // "equivalent to selecting the space and pressing F9" mental
+        // model AND avoids the schema's `excludes` rule kicking in
+        // on a mixed-bookend bridge (otherwise applying underline_mark
+        // across an emphasized last bookend would strip its emphasis).
+        const gapFrom = fromPos + 1;
+        const gapTo = toPos;
+        if (gapFrom >= gapTo) continue;
+
         const fm = firstNode.marks;
         const lm = lastNode.marks;
+        const fmHasUnderline = fm.some((mk) => mk.type === underlineType);
+        const fmHasEmphasis = fm.some((mk) => mk.type === emphasisType);
+        const fmHasCite = fm.some((mk) => mk.type === citeType);
+        const lmHasUnderline = lm.some((mk) => mk.type === underlineType);
+        const lmHasEmphasis = lm.some((mk) => mk.type === emphasisType);
+        const lmHasCite = lm.some((mk) => mk.type === citeType);
+
         const marksToAdd: Mark[] = [];
 
-        // Presence-only marks (mutually exclusive in our schema, so
-        // at most one of these three will ever bridge in a given match).
-        for (const t of [underlineType, emphasisType, citeType]) {
-          if (
-            fm.some((mk) => mk.type === t) &&
-            lm.some((mk) => mk.type === t)
-          ) {
-            marksToAdd.push(t.create());
-          }
+        // Named-style bridge rule (Verbatim parity, plus cite):
+        //   - both same → that mark.
+        //   - underline + emphasis (either direction) → underline.
+        //     Underline "wins" on mixed bookends per Verbatim
+        //     `Formatting.bas:1071-1074` — the milder, more inclusive
+        //     style covers the broader intent (this gap could plausibly
+        //     belong to either argument run, so default to the less-
+        //     restrictive one).
+        //   - any other mix → no named-style bridge.
+        // The three marks are mutually exclusive via the schema's
+        // `excludes`, so the bridged mark sits cleanly in the gap.
+        if (fmHasUnderline && lmHasUnderline) {
+          marksToAdd.push(underlineType.create());
+        } else if (fmHasEmphasis && lmHasEmphasis) {
+          marksToAdd.push(emphasisType.create());
+        } else if (fmHasCite && lmHasCite) {
+          marksToAdd.push(citeType.create());
+        } else if (
+          (fmHasUnderline && lmHasEmphasis) ||
+          (fmHasEmphasis && lmHasUnderline)
+        ) {
+          marksToAdd.push(underlineType.create());
         }
+
         // Color-bearing marks: bridge with FIRST bookend's attrs even
         // if last bookend's color differs (Verbatim's behavior).
         for (const t of [highlightType, shadingType]) {
@@ -2120,7 +2159,7 @@ export function fixFormattingGaps(): Command {
         }
 
         if (marksToAdd.length > 0) {
-          adds.push({ from: fromPos, to: toPos + 1, marks: marksToAdd });
+          adds.push({ from: gapFrom, to: gapTo, marks: marksToAdd });
         }
       }
       return false;

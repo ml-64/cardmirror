@@ -142,7 +142,13 @@ export class CommentsColumn {
     this.activeBy = id ? by : null;
     if (id) this.lastActiveThreadId = id;
     this.refreshStickyDismissListener();
-    this.render();
+    // Cursor-driven calls come from the editor's `dispatchTransaction`
+    // (every keystroke, every cursor move). Debounce the render so
+    // typing in a long doc isn't paying an O(doc) `collectRanges`
+    // walk per keystroke. Click-driven calls come from a user
+    // clicking a thread card; render immediately for snappy feedback.
+    if (by === 'cursor') this.scheduleRender();
+    else this.render();
   }
 
   /** Manual dismiss path — used by the global mousedown listener
@@ -206,7 +212,30 @@ export class CommentsColumn {
    *  default at this point), then `layoutCards` measures each card's
    *  natural height and assigns a `top` aligned with the start of
    *  its anchored range. */
+  /** Debounce handle for `scheduleRender`. */
+  private renderTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Debounced variant of `render()` — used by callers driven by
+   *  `dispatchTransaction` (cursor moves, doc edits) so the O(doc)
+   *  `collectRanges` walk inside render doesn't fire on every
+   *  keystroke. 200ms matches `scheduleHeavyUpdate`'s cadence. Direct
+   *  user actions (toggle, add comment, click a card) call `render`
+   *  immediately for snappy feedback. */
+  scheduleRender(): void {
+    if (this.renderTimer !== null) clearTimeout(this.renderTimer);
+    this.renderTimer = setTimeout(() => {
+      this.renderTimer = null;
+      this.render();
+    }, 200);
+  }
+
   render(): void {
+    // Cancel any pending scheduled render — a direct render() call
+    // supersedes it and we don't want a stale follow-up.
+    if (this.renderTimer !== null) {
+      clearTimeout(this.renderTimer);
+      this.renderTimer = null;
+    }
     const view = this.getView();
     if (!view) {
       this.root.innerHTML = '';

@@ -34,7 +34,7 @@ import {
   type FormattingPanelMode,
 } from './settings.js';
 import { openSaveAs } from './save-as-ui.js';
-import { commentsPlugin, commentsKey, loadThreads, getCommentsState } from './comments-plugin.js';
+import { commentsPlugin, commentsKey, loadThreads, getCommentsState, gcOrphanThreads } from './comments-plugin.js';
 import { CommentsColumn, addCommentToSelection } from './comments-ui.js';
 import { runAiCreateCite } from './ai/cite-creator.js';
 import { readModePlugin, PMD_READ_MODE_TOGGLE } from './read-mode-plugin.js';
@@ -1345,21 +1345,22 @@ function mountView(doc: PMNode, threads: Thread[] = []): void {
       // Cheap; runs on every transaction (selection moves included)
       // so the readout always reflects the cursor's current run.
       refreshFontSizeDisplay();
-      // Walking the doc to rebuild the nav pane and tally read-aloud
-      // word count is the dominant per-keystroke cost on big docs.
-      // Debounce so we only do it after typing pauses.
+      // Doc-walking work (nav rebuild, word count, comments column
+      // refresh, comments-plugin orphan GC) is all O(doc) and the
+      // dominant per-keystroke cost on big docs. Debounce so it only
+      // fires once the user pauses typing for 200ms.
+      if (tx.docChanged) needsCommentsGC = true;
       scheduleHeavyUpdate();
-      // Re-render comments column when the plugin state or doc
-      // (which holds comment_range positions) actually changed.
+      // Comments column refresh on doc / plugin-state change is
+      // debounced via the column's own scheduleRender (matches the
+      // 200ms heavy-update cadence).
       if (commentsColumn && (tx.docChanged || commentsKey.getState(next) !== prevCommentsState)) {
-        commentsColumn.render();
+        commentsColumn.scheduleRender();
       }
-      // Cursor → active-thread tracking. When the editor's cursor
-      // sits inside a comment_range mark, light up that thread in
-      // the side column (anchor it next to the range, expand it).
-      // Selection changes are cheap enough to check unconditionally
-      // — comment_range is a low-frequency mark so the early-out
-      // `marks()` walk usually finds nothing to do.
+      // Cursor → active-thread tracking. `threadIdAtCursor` reads
+      // the cursor's marks (O(1)); `setActiveThread` with the default
+      // 'cursor' flavor schedules a debounced render instead of
+      // running one synchronously.
       if (commentsColumn && (prevState.selection !== next.selection || tx.docChanged)) {
         const id = threadIdAtCursor(next);
         commentsColumn.setActiveThread(id);
@@ -1396,6 +1397,13 @@ function mountView(doc: PMNode, threads: Thread[] = []): void {
 let pendingHeavyUpdate: ReturnType<typeof setTimeout> | null = null;
 const HEAVY_UPDATE_DELAY_MS = 200;
 
+/** Set when a doc-changing transaction has fired since the last
+ *  `scheduleHeavyUpdate` flush. Drives the comments-plugin orphan
+ *  GC walk — that O(doc) walk used to run in `appendTransaction`
+ *  every keystroke; now it runs once per idle period and only when
+ *  the doc actually moved. */
+let needsCommentsGC = false;
+
 function scheduleHeavyUpdate(): void {
   if (pendingHeavyUpdate !== null) clearTimeout(pendingHeavyUpdate);
   pendingHeavyUpdate = setTimeout(() => {
@@ -1403,6 +1411,10 @@ function scheduleHeavyUpdate(): void {
     if (!view) return;
     navPanel.update(view.state.doc);
     refreshWordCount();
+    if (needsCommentsGC) {
+      needsCommentsGC = false;
+      gcOrphanThreads(view);
+    }
   }, HEAVY_UPDATE_DELAY_MS);
 }
 
@@ -1473,6 +1485,12 @@ async function runSaveAsFlow(): Promise<boolean> {
       includeUndertags: choice.includeUndertags,
       readMode: choice.readMode,
     });
+    // Flush any pending comments GC before reading thread state.
+    // GC moved from the per-transaction `appendTransaction` to the
+    // 200ms idle debounce — so it's possible the user hits Save
+    // mid-burst with orphan threads still tracked. Run it sync now
+    // so the export only emits threads with surviving marks.
+    if (view) gcOrphanThreads(view);
     // Pull threads from the comments plugin when the Save-As
     // dialog said to include them; otherwise the exporter strips
     // brackets and skips the parts entirely.

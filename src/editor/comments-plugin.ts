@@ -142,39 +142,42 @@ export const commentsPlugin: Plugin<CommentsState> = new Plugin<CommentsState>({
       }
     },
   },
-  appendTransaction(transactions, _oldState, newState) {
-    // Garbage-collect threads whose `comment_range` mark no longer
-    // exists anywhere in the doc — e.g. when the user deletes the
-    // entire commented range. Only do work when the doc actually
-    // changed (cheap fast path).
-    if (!transactions.some((tr) => tr.docChanged)) return null;
-    const state = commentsKey.getState(newState);
-    if (!state) return null;
-    // Early bail when there are no threads to GC. Avoids a full-doc
-    // walk per keystroke for the (overwhelmingly common) case of a
-    // doc with no comments — including all multi-doc workspaces,
-    // since comments are disabled there.
-    if (state.threads.size === 0) return null;
-    const liveIds = collectLiveThreadIds(newState.doc);
-    const stale: string[] = [];
-    for (const id of state.threads.keys()) {
-      if (!liveIds.has(id)) stale.push(id);
-    }
-    if (stale.length === 0) return null;
-    const tr = newState.tr;
-    // One bookkeeping transaction handles all stale IDs; the meta
-    // payload is a delete-thread per ID, applied sequentially via
-    // multiple setMetas. Easier: a synthetic 'load' with the
-    // surviving threads.
-    const surviving: Thread[] = [];
-    for (const [id, thread] of state.threads) {
-      if (liveIds.has(id)) surviving.push(thread);
-    }
-    tr.setMeta(commentsKey, { type: 'load', threads: surviving });
-    tr.setMeta('addToHistory', false);
-    return tr;
-  },
+  // GC moved out of appendTransaction. The walk is O(doc) and was
+  // running synchronously on every doc-changing transaction; on big
+  // docs with comments, that was a per-keystroke cost. The
+  // dispatchTransaction in editor/index.ts schedules `gcOrphanThreads`
+  // via `scheduleHeavyUpdate` instead (200ms idle debounce). Save As
+  // flushes it synchronously before reading thread state, so exports
+  // don't include orphans even if the user saves mid-burst.
 });
+
+/**
+ * Walk the doc, find threads whose `comment_range` mark no longer
+ * exists anywhere, and dispatch a `load` meta with the surviving
+ * threads so the plugin state stops tracking them. No-op when there
+ * are no threads or no orphans. Exported so editor/index.ts can
+ * trigger it from a debounced idle callback (and from the Save As
+ * flow to flush before export).
+ */
+export function gcOrphanThreads(view: { state: EditorState; dispatch: (tr: Transaction) => void }): void {
+  const state = commentsKey.getState(view.state);
+  if (!state) return;
+  if (state.threads.size === 0) return;
+  const liveIds = collectLiveThreadIds(view.state.doc);
+  const surviving: Thread[] = [];
+  let stale = false;
+  for (const [id, thread] of state.threads) {
+    if (liveIds.has(id)) {
+      surviving.push(thread);
+    } else {
+      stale = true;
+    }
+  }
+  if (!stale) return;
+  const tr = view.state.tr.setMeta(commentsKey, { type: 'load', threads: surviving });
+  tr.setMeta('addToHistory', false);
+  view.dispatch(tr);
+}
 
 function collectLiveThreadIds(doc: PMNode): Set<string> {
   const ids = new Set<string>();

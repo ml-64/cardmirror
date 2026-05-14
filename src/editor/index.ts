@@ -49,6 +49,7 @@ import {
   enterAtTagEnd,
   enterInHeading,
 } from './tag-keymap.js';
+import { indentParagraph, outdentParagraph } from './indent-keymap.js';
 import {
   buildRibbonKeymap,
   getRibbonCommand,
@@ -1018,6 +1019,11 @@ function buildEditorPlugins(): Plugin[] {
     buildSimilarSelectionPlugin(effectivePtForNode),
     tableEditing(),
     columnResizing(),
+    // Tab / Shift-Tab indent — registered AFTER tableEditing so it
+    // never fires while the cursor is inside a cell (cell Tab nav
+    // takes precedence). Outside tables, Tab on a paragraph-spanning
+    // selection indents; on a collapsed cursor inserts '\t'.
+    keymap({ Tab: indentParagraph, 'Shift-Tab': outdentParagraph }),
     buildPastePlugin({
       condenseOnPaste: () => settings.get('condenseOnPaste'),
       paragraphIntegrity: () => settings.get('paragraphIntegrity'),

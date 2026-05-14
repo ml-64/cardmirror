@@ -465,6 +465,80 @@ describe('importer — hyperlinks', () => {
   });
 });
 
+describe('importer — paragraph indent', () => {
+  it('reads w:left from <w:ind/> as the paragraph indent dxa value', () => {
+    const xml = bodyXml(`
+      <w:p>
+        <w:pPr><w:ind w:left="1440"/></w:pPr>
+        <w:r><w:t>indented</w:t></w:r>
+      </w:p>
+    `);
+    const doc = importDoc(xml);
+    const para = doc.firstChild!;
+    expect(para.type.name).toBe('paragraph');
+    expect(para.attrs['indent']).toBe(1440);
+  });
+
+  it('falls back to w:start when w:left is absent', () => {
+    const xml = bodyXml(`
+      <w:p>
+        <w:pPr><w:ind w:start="720"/></w:pPr>
+        <w:r><w:t>start-indented</w:t></w:r>
+      </w:p>
+    `);
+    const doc = importDoc(xml);
+    expect(doc.firstChild!.attrs['indent']).toBe(720);
+  });
+
+  it('treats non-positive or missing indent as 0', () => {
+    const xml = bodyXml(`
+      <w:p>
+        <w:pPr><w:ind w:left="-100"/></w:pPr>
+        <w:r><w:t>x</w:t></w:r>
+      </w:p>
+    `);
+    const doc = importDoc(xml);
+    expect(doc.firstChild!.attrs['indent']).toBe(0);
+  });
+
+  it('round-trips indent through the exporter as <w:ind w:left="…"/>', () => {
+    const xml = bodyXml(`
+      <w:p>
+        <w:pPr><w:ind w:left="1080"/></w:pPr>
+        <w:r><w:t>indented</w:t></w:r>
+      </w:p>
+    `);
+    const original = importDoc(xml);
+    const { documentXml } = exportDoc(original);
+    expect(documentXml).toContain('<w:ind w:left="1080"/>');
+    const reimported = importDoc(documentXml);
+    expect(reimported.firstChild!.attrs['indent']).toBe(1080);
+  });
+
+  it('preserves indent across heading + card_body structures (cards)', () => {
+    const xml = bodyXml(`
+      <w:p>
+        <w:pPr><w:pStyle w:val="Heading4"/><w:ind w:left="360"/></w:pPr>
+        <w:r><w:t>Tag indented</w:t></w:r>
+      </w:p>
+      <w:p>
+        <w:pPr><w:ind w:left="720"/></w:pPr>
+        <w:r><w:t>body indented</w:t></w:r>
+      </w:p>
+    `);
+    const doc = importDoc(xml);
+    const card = doc.firstChild!;
+    expect(card.type.name).toBe('card');
+    expect(card.child(0).type.name).toBe('tag');
+    expect(card.child(0).attrs['indent']).toBe(360);
+    expect(card.child(1).type.name).toBe('card_body');
+    expect(card.child(1).attrs['indent']).toBe(720);
+    const { documentXml } = exportDoc(doc);
+    expect(documentXml).toContain('<w:ind w:left="360"/>');
+    expect(documentXml).toContain('<w:ind w:left="720"/>');
+  });
+});
+
 describe('importer — special hyphen characters', () => {
   it('imports w:noBreakHyphen as U+2011', () => {
     const xml = bodyXml(`

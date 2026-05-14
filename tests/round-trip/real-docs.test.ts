@@ -188,9 +188,33 @@ describe('round-trip: real example docs', () => {
       it('preserves image count through round-trip', () => {
         expect(roundTripCounts.image).toBe(importCounts.image);
       });
+
+      it('preserves paragraph indent values through round-trip', () => {
+        const before = collectIndentBag(imported);
+        const after = collectIndentBag(roundTripped);
+        // Multiset equality: every (nodeType, dxa) pair appears the
+        // same number of times after round-trip as before.
+        expect(after).toEqual(before);
+      });
     });
   }
 });
+
+/** Multiset of `${nodeType}:${indent}` keys for every paragraph-like
+ *  node that has a non-zero indent. We don't compare zero-indent
+ *  paragraphs because that's the default and dominates the count. */
+function collectIndentBag(doc: PMNode): Record<string, number> {
+  const bag: Record<string, number> = {};
+  doc.descendants((node) => {
+    const indent = Number(node.attrs?.['indent'] ?? 0);
+    if (indent > 0) {
+      const key = `${node.type.name}:${indent}`;
+      bag[key] = (bag[key] ?? 0) + 1;
+    }
+    return true;
+  });
+  return bag;
+}
 
 function collectHeadingIds(doc: PMNode): Set<string> {
   const ids = new Set<string>();

@@ -1806,6 +1806,37 @@ inside the protected range. Doubles listed before singles so the
 longer match wins on overlap, matching the rest of the file's
 ordering convention.
 
+## 2026-05-13: Paragraph indent (Tab / Shift-Tab) + round-trip
+
+Every node that serializes to `<w:p>` now carries an `indent` attr
+holding the raw OOXML dxa value (1440 dxa = 1 inch = 96 CSS px).
+`indentAttr` is centralized in `nodes.ts` and merged into all nine
+paragraph-like textblocks (paragraph, pocket, hat, block, tag,
+analytic, undertag, cite_paragraph, card_body). Default 0; rendered
+as inline `padding-left: {dxa/15}px` so the editor's visible left
+indent matches Word's layout.
+
+Importer reads `<w:ind>` from `<w:pPr>`, preferring `w:left` and
+falling back to `w:start` (RTL-aware). Negative or absent values
+become 0. Exporter emits `<w:ind w:left="…"/>` whenever `indent > 0`.
+Round-trip is byte-stable for the value — same multiset of
+`(nodeType, dxa)` pairs after import → export → import.
+
+New `src/editor/indent-keymap.ts`:
+  - Tab: collapsed cursor inserts `\t`. Selection that fully covers
+    the *content* of any paragraph (selection from contentStart to
+    contentEnd inclusive) indents every paragraph the selection
+    touches by one step (720 dxa = 0.5 inch). Partial-paragraph
+    selection within a single paragraph falls through to default
+    text-replace behavior.
+  - Shift-Tab: decrements indent on every touched paragraph that
+    has indent > 0; defers (no-op) otherwise. Works on the cursor's
+    own paragraph for the collapsed case.
+
+Registered as a keymap plugin AFTER `tableEditing()` so cell-Tab
+navigation inside tables runs first; outside tables the indent
+handler takes over.
+
 ## 2026-05-13: Tables inside cards and analytic_units
 
 The schema now allows `table` as a child of `card` and `analytic_unit`

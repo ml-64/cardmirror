@@ -307,6 +307,12 @@ class DocxExporter {
     let pPrInner = '';
     if (pStyle) pPrInner += `<w:pStyle w:val="${pStyle}"/>`;
     if (alignment) pPrInner += `<w:jc w:val="${alignment}"/>`;
+    // Left indent in OOXML dxa; the schema's `indent` attr stores
+    // the raw OOXML value so round-trip is byte-identical.
+    const indent = Number(node.attrs['indent'] ?? 0);
+    if (Number.isFinite(indent) && indent > 0) {
+      pPrInner += `<w:ind w:left="${indent}"/>`;
+    }
     const pPr = pPrInner ? `<w:pPr>${pPrInner}</w:pPr>` : '';
 
     this.parts.push('<w:p>');

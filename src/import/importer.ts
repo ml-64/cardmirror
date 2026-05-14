@@ -46,6 +46,9 @@ interface ParaInfo {
   headingId: string | null;
   /** Original pStyle, for diagnostics. */
   pStyle: string | null;
+  /** Left indent in OOXML dxa from `<w:ind w:left="…"/>` (or
+   *  `w:start`, RTL fallback). 0 when absent. */
+  indent: number;
   /** When set, the assembler emits this PMNode verbatim at this
    *  position in the doc instead of treating it as a paragraph.
    *  Used for `<w:tbl>` → `table` nodes, which are pre-assembled
@@ -119,6 +122,7 @@ export function importDoc(
           inlines: [],
           headingId: null,
           pStyle: null,
+          indent: 0,
           rawNode: tableNode,
         });
       }
@@ -154,10 +158,23 @@ function parseParagraph(pNode: XmlNode, ctx: ImportContext): ParaInfo {
   // linked character style. We deliberately do not parse pPr/rPr.
   const pPr = findChild(pChildren, 'w:pPr');
   let pStyle: string | null = null;
+  let indent = 0;
   if (pPr) {
-    const pStyleEl = findChild(childrenOf(pPr, 'w:pPr'), 'w:pStyle');
+    const pPrChildren = childrenOf(pPr, 'w:pPr');
+    const pStyleEl = findChild(pPrChildren, 'w:pStyle');
     if (pStyleEl) {
       pStyle = attrsOf(pStyleEl)['w:val'] ?? null;
+    }
+    const indEl = findChild(pPrChildren, 'w:ind');
+    if (indEl) {
+      // Prefer `w:left` (LTR); fall back to `w:start` (modern/RTL-aware).
+      // Negative indents (hanging-into-margin) are clamped to 0 — we
+      // don't have visual support for them and OOXML's required-positive
+      // schema makes them rare anyway.
+      const ia = attrsOf(indEl);
+      const v = ia['w:left'] ?? ia['w:start'];
+      const n = v ? parseInt(v, 10) : NaN;
+      if (Number.isFinite(n) && n > 0) indent = n;
     }
   }
 
@@ -184,7 +201,7 @@ function parseParagraph(pNode: XmlNode, ctx: ImportContext): ParaInfo {
 
   const nodeType = resolveNodeType(pStyle, inlines);
 
-  return { nodeType, inlines, headingId, pStyle };
+  return { nodeType, inlines, headingId, pStyle, indent };
 }
 
 /**
@@ -726,7 +743,7 @@ function assembleDoc(paragraphs: ParaInfo[]): PMNode {
     if (para.nodeType === 'analytic') {
       // Start an analytic_unit: analytic + undertag* + card_body*
       const analyticNode = schema.nodes['analytic']!.create(
-        attrsForHeading(para.headingId),
+        withIndent(attrsForHeading(para.headingId), para),
         para.inlines,
       );
       const unitChildren: PMNode[] = [analyticNode];
@@ -734,8 +751,9 @@ function assembleDoc(paragraphs: ParaInfo[]): PMNode {
 
       // Consume undertags directly attached to the analytic.
       while (j < paragraphs.length && paragraphs[j]!.nodeType === 'undertag') {
+        const u = paragraphs[j]!;
         unitChildren.push(
-          schema.nodes['undertag']!.create(null, paragraphs[j]!.inlines),
+          schema.nodes['undertag']!.create(withIndent(null, u), u.inlines),
         );
         j++;
       }
@@ -745,7 +763,7 @@ function assembleDoc(paragraphs: ParaInfo[]): PMNode {
       while (j < paragraphs.length && paragraphs[j]!.nodeType === 'paragraph') {
         const p = paragraphs[j]!;
         const slot = hasCiteMark(p.inlines) ? 'cite_paragraph' : 'card_body';
-        unitChildren.push(schema.nodes[slot]!.create(null, p.inlines));
+        unitChildren.push(schema.nodes[slot]!.create(withIndent(null, p), p.inlines));
         j++;
       }
 
@@ -767,7 +785,7 @@ function assembleDoc(paragraphs: ParaInfo[]): PMNode {
     if (para.nodeType === 'tag') {
       // Start a card: tag + undertag* + (cite_paragraph | analytic)? + card_body*
       const tagNode = schema.nodes['tag']!.create(
-        attrsForHeading(para.headingId),
+        withIndent(attrsForHeading(para.headingId), para),
         para.inlines,
       );
       const cardChildren: PMNode[] = [tagNode];
@@ -775,8 +793,9 @@ function assembleDoc(paragraphs: ParaInfo[]): PMNode {
 
       // Consume undertags directly attached to the tag.
       while (j < paragraphs.length && paragraphs[j]!.nodeType === 'undertag') {
+        const u = paragraphs[j]!;
         cardChildren.push(
-          schema.nodes['undertag']!.create(null, paragraphs[j]!.inlines),
+          schema.nodes['undertag']!.create(withIndent(null, u), u.inlines),
         );
         j++;
       }
@@ -786,7 +805,7 @@ function assembleDoc(paragraphs: ParaInfo[]): PMNode {
       if (j < paragraphs.length && paragraphs[j]!.nodeType === 'analytic') {
         const a = paragraphs[j]!;
         cardChildren.push(
-          schema.nodes['analytic']!.create(attrsForHeading(a.headingId), a.inlines),
+          schema.nodes['analytic']!.create(withIndent(attrsForHeading(a.headingId), a), a.inlines),
         );
         j++;
       }
@@ -799,7 +818,7 @@ function assembleDoc(paragraphs: ParaInfo[]): PMNode {
       while (j < paragraphs.length && paragraphs[j]!.nodeType === 'paragraph') {
         const p = paragraphs[j]!;
         const slot = hasCiteMark(p.inlines) ? 'cite_paragraph' : 'card_body';
-        cardChildren.push(schema.nodes[slot]!.create(null, p.inlines));
+        cardChildren.push(schema.nodes[slot]!.create(withIndent(null, p), p.inlines));
         j++;
       }
 
@@ -849,6 +868,17 @@ function attrsForHeading(id: string | null): { id: string } {
   return { id: id ?? newHeadingId() };
 }
 
+/** Merge an indent (dxa) onto a base attrs object. Returns `null`
+ *  unchanged so call sites can still pass `null` and only opt-in to
+ *  the attr when the paragraph had a `<w:ind>`. */
+function withIndent(
+  base: Record<string, unknown> | null,
+  para: ParaInfo,
+): Record<string, unknown> | null {
+  if (!para.indent || para.indent <= 0) return base;
+  return { ...(base ?? {}), indent: para.indent };
+}
+
 function paragraphToNode(para: ParaInfo): PMNode | null {
   // A "Normal" paragraph at doc level (not under a Tag/Analytic) that
   // contains any cite_mark inline is promoted to cite_paragraph — same
@@ -861,8 +891,12 @@ function paragraphToNode(para: ParaInfo): PMNode | null {
       : para.nodeType;
   const nodeType = schema.nodes[effectiveType] as NodeType | undefined;
   if (!nodeType) return null;
-  const isHeading = ['pocket', 'hat', 'block', 'analytic'].includes(effectiveType);
-  const attrs = isHeading ? attrsForHeading(para.headingId) : null;
+  const isHeading = ['pocket', 'hat', 'block', 'tag', 'analytic'].includes(effectiveType);
+  const baseAttrs = isHeading ? attrsForHeading(para.headingId) : {};
+  const attrs: Record<string, unknown> = { ...baseAttrs };
+  // Indent applies to every paragraph-like textblock — all 9 OOXML
+  // paragraph kinds we model carry the `indent` attr now.
+  if (para.indent > 0) attrs['indent'] = para.indent;
   try {
     return nodeType.createChecked(attrs, para.inlines);
   } catch (_e) {

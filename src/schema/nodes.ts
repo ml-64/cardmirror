@@ -24,12 +24,45 @@
 import type { NodeSpec } from 'prosemirror-model';
 import { newHeadingId } from './ids.js';
 
+/** Paragraph-level left indent in OOXML dxa (twentieths of a point;
+ *  1440 dxa = 1 inch = 96 CSS px, so px = dxa / 15). Default 0.
+ *  Applied to every node that serializes to `<w:p>` so the value
+ *  round-trips through docx untouched. */
+const indentAttr = {
+  indent: {
+    default: 0 as number,
+    validate: (v: unknown) =>
+      typeof v === 'number' && Number.isFinite(v) && v >= 0,
+  },
+};
+
 const headingAttrs = {
   id: {
     default: null as string | null,
     validate: (v: unknown) => (v === null || typeof v === 'string'),
   },
+  ...indentAttr,
 };
+
+/** Convert a paragraph node's `indent` (dxa) to an inline CSS
+ *  declaration, or return empty when unindented. */
+function indentToStyle(indent: unknown): string {
+  const n = Number(indent ?? 0);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  return `padding-left: ${n / 15}px`;
+}
+
+/** Read a paragraph's left indent from its rendered HTML — used
+ *  by parseDOM for round-trip through our own toDOM and for paste
+ *  from sources that wrote padding-left. Returns 0 when absent
+ *  or non-px. */
+function readIndentFromStyle(dom: HTMLElement): number {
+  const v = dom.style.paddingLeft;
+  if (!v) return 0;
+  const m = v.match(/^(\d+(?:\.\d+)?)px$/);
+  if (!m) return 0;
+  return Math.max(0, Math.round(parseFloat(m[1]!) * 15));
+}
 
 /** Generate a fresh ID at construction time if none provided. */
 export function ensureId(attrs: Record<string, unknown> | null): { id: string } {
@@ -214,36 +247,57 @@ export const nodes: { [name: string]: NodeSpec } = {
     content: 'inline*',
     attrs: headingAttrs,
     defining: true,
-    parseDOM: [{ tag: 'h1.pmd-pocket' }],
-    toDOM: (node) => [
-      'h1',
-      { class: 'pmd-pocket', 'data-id': node.attrs['id'] ?? '' },
-      0,
-    ],
+    parseDOM: [{
+      tag: 'h1.pmd-pocket',
+      getAttrs: (dom: HTMLElement) => ({ indent: readIndentFromStyle(dom) }),
+    }],
+    toDOM: (node) => {
+      const attrs: Record<string, string> = {
+        class: 'pmd-pocket',
+        'data-id': String(node.attrs['id'] ?? ''),
+      };
+      const style = indentToStyle(node.attrs['indent']);
+      if (style) attrs['style'] = style;
+      return ['h1', attrs, 0];
+    },
   },
 
   hat: {
     content: 'inline*',
     attrs: headingAttrs,
     defining: true,
-    parseDOM: [{ tag: 'h2.pmd-hat' }],
-    toDOM: (node) => [
-      'h2',
-      { class: 'pmd-hat', 'data-id': node.attrs['id'] ?? '' },
-      0,
-    ],
+    parseDOM: [{
+      tag: 'h2.pmd-hat',
+      getAttrs: (dom: HTMLElement) => ({ indent: readIndentFromStyle(dom) }),
+    }],
+    toDOM: (node) => {
+      const attrs: Record<string, string> = {
+        class: 'pmd-hat',
+        'data-id': String(node.attrs['id'] ?? ''),
+      };
+      const style = indentToStyle(node.attrs['indent']);
+      if (style) attrs['style'] = style;
+      return ['h2', attrs, 0];
+    },
   },
 
   block: {
     content: 'inline*',
     attrs: headingAttrs,
     defining: true,
-    parseDOM: [{ tag: 'h3.pmd-block' }],
-    toDOM: (node) => [
-      'h3',
-      { class: 'pmd-block', 'data-id': node.attrs['id'] ?? '' },
-      0,
-    ],
+    parseDOM: [{
+      tag: 'h3.pmd-block',
+      getAttrs: (dom: HTMLElement) => ({ indent: readIndentFromStyle(dom) }),
+    }],
+    toDOM: (node) => {
+      const attrs: Record<string, string> = {
+        class: 'pmd-block',
+        'data-id': String(node.attrs['id'] ?? ''),
+      };
+      const style = indentToStyle(node.attrs['indent']);
+      if (style) attrs['style'] = style;
+      return ['h3', attrs, 0];
+    },
   },
 
   /**
@@ -282,26 +336,51 @@ export const nodes: { [name: string]: NodeSpec } = {
     content: 'inline*',
     attrs: headingAttrs,
     defining: true,
-    parseDOM: [{ tag: 'h4.pmd-tag' }],
-    toDOM: (node) => [
-      'h4',
-      { class: 'pmd-tag', 'data-id': node.attrs['id'] ?? '' },
-      0,
-    ],
+    parseDOM: [{
+      tag: 'h4.pmd-tag',
+      getAttrs: (dom: HTMLElement) => ({ indent: readIndentFromStyle(dom) }),
+    }],
+    toDOM: (node) => {
+      const attrs: Record<string, string> = {
+        class: 'pmd-tag',
+        'data-id': String(node.attrs['id'] ?? ''),
+      };
+      const style = indentToStyle(node.attrs['indent']);
+      if (style) attrs['style'] = style;
+      return ['h4', attrs, 0];
+    },
   },
 
   /** Cite paragraph. Used inside a card or at the doc level. */
   cite_paragraph: {
     content: 'inline*',
-    parseDOM: [{ tag: 'p.pmd-cite-para' }],
-    toDOM: () => ['p', { class: 'pmd-cite-para' }, 0],
+    attrs: indentAttr,
+    parseDOM: [{
+      tag: 'p.pmd-cite-para',
+      getAttrs: (dom: HTMLElement) => ({ indent: readIndentFromStyle(dom) }),
+    }],
+    toDOM: (node) => {
+      const attrs: Record<string, string> = { class: 'pmd-cite-para' };
+      const style = indentToStyle(node.attrs['indent']);
+      if (style) attrs['style'] = style;
+      return ['p', attrs, 0];
+    },
   },
 
   /** Card body paragraph — implicit Normal style on export. */
   card_body: {
     content: 'inline*',
-    parseDOM: [{ tag: 'p.pmd-card-body' }],
-    toDOM: () => ['p', { class: 'pmd-card-body' }, 0],
+    attrs: indentAttr,
+    parseDOM: [{
+      tag: 'p.pmd-card-body',
+      getAttrs: (dom: HTMLElement) => ({ indent: readIndentFromStyle(dom) }),
+    }],
+    toDOM: (node) => {
+      const attrs: Record<string, string> = { class: 'pmd-card-body' };
+      const style = indentToStyle(node.attrs['indent']);
+      if (style) attrs['style'] = style;
+      return ['p', attrs, 0];
+    },
   },
 
   /**
@@ -314,12 +393,19 @@ export const nodes: { [name: string]: NodeSpec } = {
     content: 'inline*',
     attrs: headingAttrs,
     defining: true,
-    parseDOM: [{ tag: 'p.pmd-analytic' }],
-    toDOM: (node) => [
-      'p',
-      { class: 'pmd-analytic', 'data-id': node.attrs['id'] ?? '' },
-      0,
-    ],
+    parseDOM: [{
+      tag: 'p.pmd-analytic',
+      getAttrs: (dom: HTMLElement) => ({ indent: readIndentFromStyle(dom) }),
+    }],
+    toDOM: (node) => {
+      const attrs: Record<string, string> = {
+        class: 'pmd-analytic',
+        'data-id': String(node.attrs['id'] ?? ''),
+      };
+      const style = indentToStyle(node.attrs['indent']);
+      if (style) attrs['style'] = style;
+      return ['p', attrs, 0];
+    },
   },
 
   /**
@@ -346,8 +432,17 @@ export const nodes: { [name: string]: NodeSpec } = {
   /** Undertag paragraph (linked to UndertagChar). */
   undertag: {
     content: 'inline*',
-    parseDOM: [{ tag: 'p.pmd-undertag' }],
-    toDOM: () => ['p', { class: 'pmd-undertag' }, 0],
+    attrs: indentAttr,
+    parseDOM: [{
+      tag: 'p.pmd-undertag',
+      getAttrs: (dom: HTMLElement) => ({ indent: readIndentFromStyle(dom) }),
+    }],
+    toDOM: (node) => {
+      const attrs: Record<string, string> = { class: 'pmd-undertag' };
+      const style = indentToStyle(node.attrs['indent']);
+      if (style) attrs['style'] = style;
+      return ['p', attrs, 0];
+    },
   },
 
   /** Generic body paragraph — implicit Normal style. Optional
@@ -367,6 +462,7 @@ export const nodes: { [name: string]: NodeSpec } = {
           v === 'right' ||
           v === 'justify',
       },
+      ...indentAttr,
     },
     parseDOM: [
       {
@@ -381,15 +477,20 @@ export const nodes: { [name: string]: NodeSpec } = {
               align === 'justify'
                 ? align
                 : null,
+            indent: readIndentFromStyle(dom),
           };
         },
       },
     ],
     toDOM: (node) => {
       const align = node.attrs['alignment'] as string | null;
-      return align
-        ? ['p', { style: `text-align: ${align}` }, 0]
-        : ['p', 0];
+      const indentStyle = indentToStyle(node.attrs['indent']);
+      const styles: string[] = [];
+      if (align) styles.push(`text-align: ${align}`);
+      if (indentStyle) styles.push(indentStyle);
+      const attrs: Record<string, string> = {};
+      if (styles.length > 0) attrs['style'] = styles.join('; ');
+      return ['p', attrs, 0];
     },
   },
 

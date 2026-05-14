@@ -3613,18 +3613,27 @@ body.pmd-multi-doc #status-bar {
   min-width: 0;
 }
 
-/* Wide-scroll layout — each pane is 45% of the viewport, the row
- * scrolls horizontally with scroll-snap so clicking the visible
- * peek snaps it to the center. (3 active slots only — with 1 or
- * 2 active slots there's nothing to scroll, the flex layout fills.)
- */
+/* Wide-scroll layout — three-pane row scrolls horizontally; the
+ * viewport shows two full panes plus the leading edge of the third
+ * (target ~10% peek per SPEC-multi-pane.md). Clicking the peek
+ * scroll-snaps to it.
+ *
+ * Pane width math: at scroll=0 the visible window is 100% of the
+ * row, the panes lay out at 0, w, 2w. We want pane3 to peek by
+ * 10% of its OWN width, so the visible portion of pane3 is
+ * (100% - 2w) and the constraint is (100% - 2w) / w = 0.10, which
+ * solves to w = 100% / 2.10. Same formula whether the window is
+ * 1200px or 2400px wide. */
 .pmd-multi-row[data-layout="wide"] {
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scroll-behavior: smooth;
 }
+.pmd-multi-row[data-layout="wide"][data-active="3"] {
+  --pmd-pane-width: calc(100% / 2.1);
+}
 .pmd-multi-row[data-layout="wide"][data-active="3"] .pmd-pane {
-  flex: 0 0 45%;
+  flex: 0 0 var(--pmd-pane-width);
   min-width: 0;
   scroll-snap-align: start;
 }

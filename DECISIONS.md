@@ -1806,6 +1806,28 @@ inside the protected range. Doubles listed before singles so the
 longer match wins on overlap, matching the rest of the file's
 ordering convention.
 
+## 2026-05-13: Tables inside cards and analytic_units
+
+The schema now allows `table` as a child of `card` and `analytic_unit`
+alongside the existing `card_body | undertag | cite_paragraph | analytic`
+alternation. (`card`'s content still starts with `tag` — the first-
+child constraint is preserved.) Tables can now be evidence-embedded
+rather than always sitting between cards.
+
+`insertTable()` was a doc-level-only insert (`$from.before(1)`); it
+now walks up depths from the cursor outward, picking the innermost
+container whose schema accepts a `table` child. doc / card /
+analytic_unit accept; card_body and textblocks reject. The table
+lands immediately before the cursor's ancestor at that depth — so
+a cursor in a card_body produces a card-internal table just above
+that body. When `canReplaceWith` returns false at every depth above
+the cursor (e.g. cursor in a tag, the card's required-first-child
+position) the walk decrements to the doc level and the table lands
+outside the card.
+
+OOXML round-trip is unaffected — `<w:tbl>` doesn't carry the
+parent-context semantics our schema layer adds.
+
 ## 2026-05-13: Normal-formatting ribbon panel + Table dropdown
 
 A new ribbon panel sits between the Doc / Card menu panel and the

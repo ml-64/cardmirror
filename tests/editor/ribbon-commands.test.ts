@@ -26,6 +26,7 @@ import {
   buildRibbonKeymap,
   DEFAULT_RIBBON_KEYS,
   RIBBON_COMMAND_IDS,
+  getRibbonCommand,
 } from '../../src/editor/ribbon-commands.js';
 import { buildPlainTextSlice, tryPasteSplitContainer } from '../../src/editor/paste-plugin.js';
 
@@ -3507,5 +3508,65 @@ describe('fixFormattingGaps', () => {
     ));
     const state = EditorState.create({ doc, schema });
     expect(fixFormattingGaps(effectivePt)(state, undefined)).toBe(false);
+  });
+});
+
+describe('insertTable — context-aware depth', () => {
+  function applyInsertTable(state: EditorState): EditorState | null {
+    let next: EditorState | null = null;
+    const ok = getRibbonCommand('insertTable')(state, (tr) => { next = state.apply(tr); });
+    return ok ? next : null;
+  }
+
+  it('inserts at doc level when cursor is in a doc-level paragraph', () => {
+    const doc = makeDoc([paragraph('hello'), paragraph('world')]);
+    const state = cursorIn(doc, (n) => n.isText && n.text === 'hello');
+    const next = applyInsertTable(state);
+    expect(next).not.toBeNull();
+    // First child of the doc should now be the table.
+    expect(next!.doc.firstChild!.type.name).toBe('table');
+  });
+
+  it('inserts inside a card when the cursor is in a card_body', () => {
+    const doc = makeDoc([
+      schema.nodes['card']!.createChecked(null, [tag('T'), cardBody('text')]),
+    ]);
+    const state = cursorIn(doc, (n) => n.isText && n.text === 'text');
+    const next = applyInsertTable(state);
+    expect(next).not.toBeNull();
+    // The card should now have [tag, table, card_body] — table lives
+    // inside the card, just before the card_body that holds the cursor.
+    const card = next!.doc.firstChild!;
+    expect(card.type.name).toBe('card');
+    expect(card.childCount).toBe(3);
+    expect(card.child(0).type.name).toBe('tag');
+    expect(card.child(1).type.name).toBe('table');
+    expect(card.child(2).type.name).toBe('card_body');
+  });
+
+  it('inserts inside an analytic_unit when the cursor is in its body', () => {
+    const doc = makeDoc([
+      analyticUnit(analytic('A'), cardBody('body')),
+    ]);
+    const state = cursorIn(doc, (n) => n.isText && n.text === 'body');
+    const next = applyInsertTable(state);
+    expect(next).not.toBeNull();
+    const au = next!.doc.firstChild!;
+    expect(au.type.name).toBe('analytic_unit');
+    expect(au.child(1).type.name).toBe('table');
+  });
+
+  it('falls back to doc level when cursor is in a tag (card rejects table at idx 0)', () => {
+    const doc = makeDoc([
+      schema.nodes['card']!.createChecked(null, [tag('T'), cardBody('body')]),
+    ]);
+    const state = cursorIn(doc, (n) => n.isText && n.text === 'T');
+    const next = applyInsertTable(state);
+    expect(next).not.toBeNull();
+    // The table is placed before the card, not inside it — because
+    // the card's schema requires `tag` to be its first child, so a
+    // table at index 0 is illegal. The walk decrements to doc level.
+    expect(next!.doc.firstChild!.type.name).toBe('table');
+    expect(next!.doc.child(1).type.name).toBe('card');
   });
 });

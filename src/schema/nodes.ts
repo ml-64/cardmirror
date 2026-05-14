@@ -270,7 +270,7 @@ export const nodes: { [name: string]: NodeSpec } = {
     // cite (or anywhere else inside a card) creates a normal body
     // paragraph — never an undertag. Undertag styling is reserved for
     // text the user explicitly opts into.
-    content: 'tag (card_body | undertag | cite_paragraph | analytic)*',
+    content: 'tag (card_body | undertag | cite_paragraph | analytic | table)*',
     defining: true,
     isolating: true,
     parseDOM: [{ tag: 'div.pmd-card' }],
@@ -336,7 +336,7 @@ export const nodes: { [name: string]: NodeSpec } = {
     // Loosened the same way `card` was — see the card content
     // expression's comment, including the rationale for putting
     // `card_body` first in the alternation.
-    content: 'analytic (card_body | undertag | cite_paragraph)*',
+    content: 'analytic (card_body | undertag | cite_paragraph | table)*',
     defining: true,
     isolating: true,
     parseDOM: [{ tag: 'div.pmd-analytic-unit' }],

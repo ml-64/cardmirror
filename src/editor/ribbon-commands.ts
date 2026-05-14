@@ -3255,8 +3255,26 @@ function insertTable(): Command {
     const tableNode = tableType.create(null, tableRows);
 
     const $from = state.selection.$from;
-    // Find the doc-level position where a table can be inserted.
-    const insertAt = $from.before(1);
+    // Walk up from the cursor's deepest non-textblock ancestor outward,
+    // finding the innermost container whose schema allows a `table`
+    // child. doc / card / analytic_unit accept tables; card_body and
+    // textblocks (paragraph, tag, etc.) don't. Insert immediately
+    // before the ancestor that lives one level inside that container,
+    // matching the prior doc-level "before current block" semantic —
+    // so a cursor inside a card produces a card-internal table just
+    // above the card_body the cursor is in.
+    let depth = $from.depth;
+    while (depth > 0) {
+      const container = $from.node(depth - 1);
+      const idx = $from.index(depth - 1);
+      if (container.canReplaceWith(idx, idx, tableType)) break;
+      depth--;
+    }
+    if (depth === 0) {
+      // Even the doc rejected the table — schema misconfiguration.
+      return false;
+    }
+    const insertAt = $from.before(depth);
     if (!dispatch) return true;
     dispatch(state.tr.insert(insertAt, tableNode).scrollIntoView());
     return true;

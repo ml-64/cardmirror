@@ -170,6 +170,66 @@ describe('importer — card grouping', () => {
     expect(card.child(1).type.name).toBe('analytic');
     expect(card.child(2).type.name).toBe('card_body');
   });
+
+  it('absorbs a table that follows a tag into the card', () => {
+    const xml = bodyXml(`
+      <w:p><w:pPr><w:pStyle w:val="Heading4"/></w:pPr><w:r><w:t>Tag text</w:t></w:r></w:p>
+      <w:p><w:r><w:t>Body before</w:t></w:r></w:p>
+      <w:tbl>
+        <w:tblGrid><w:gridCol w:w="3000"/></w:tblGrid>
+        <w:tr><w:tc><w:p><w:r><w:t>cell</w:t></w:r></w:p></w:tc></w:tr>
+      </w:tbl>
+      <w:p><w:r><w:t>Body after</w:t></w:r></w:p>
+    `);
+    const doc = importDoc(xml);
+    expect(doc.childCount).toBe(1);
+    const card = doc.firstChild!;
+    expect(card.type.name).toBe('card');
+    expect(card.childCount).toBe(4);
+    expect(card.child(0).type.name).toBe('tag');
+    expect(card.child(1).type.name).toBe('card_body');
+    expect(card.child(2).type.name).toBe('table');
+    expect(card.child(3).type.name).toBe('card_body');
+  });
+
+  it('absorbs a table that follows an analytic into the analytic_unit', () => {
+    const xml = bodyXml(`
+      <w:p><w:pPr><w:pStyle w:val="Analytic"/></w:pPr><w:r><w:t>Analytic header</w:t></w:r></w:p>
+      <w:tbl>
+        <w:tblGrid><w:gridCol w:w="3000"/></w:tblGrid>
+        <w:tr><w:tc><w:p><w:r><w:t>cell</w:t></w:r></w:p></w:tc></w:tr>
+      </w:tbl>
+    `);
+    const doc = importDoc(xml);
+    const au = doc.firstChild!;
+    expect(au.type.name).toBe('analytic_unit');
+    expect(au.childCount).toBe(2);
+    expect(au.child(0).type.name).toBe('analytic');
+    expect(au.child(1).type.name).toBe('table');
+  });
+
+  it('stops absorbing at the next heading boundary even mid-table-run', () => {
+    const xml = bodyXml(`
+      <w:p><w:pPr><w:pStyle w:val="Heading4"/></w:pPr><w:r><w:t>Tag A</w:t></w:r></w:p>
+      <w:tbl>
+        <w:tblGrid><w:gridCol w:w="3000"/></w:tblGrid>
+        <w:tr><w:tc><w:p><w:r><w:t>cell</w:t></w:r></w:p></w:tc></w:tr>
+      </w:tbl>
+      <w:p><w:pPr><w:pStyle w:val="Heading4"/></w:pPr><w:r><w:t>Tag B</w:t></w:r></w:p>
+      <w:tbl>
+        <w:tblGrid><w:gridCol w:w="3000"/></w:tblGrid>
+        <w:tr><w:tc><w:p><w:r><w:t>second</w:t></w:r></w:p></w:tc></w:tr>
+      </w:tbl>
+    `);
+    const doc = importDoc(xml);
+    expect(doc.childCount).toBe(2);
+    expect(doc.child(0).type.name).toBe('card');
+    expect(doc.child(0).childCount).toBe(2); // tag + table
+    expect(doc.child(0).child(1).type.name).toBe('table');
+    expect(doc.child(1).type.name).toBe('card');
+    expect(doc.child(1).childCount).toBe(2);
+    expect(doc.child(1).child(1).type.name).toBe('table');
+  });
 });
 
 describe('importer — heading IDs from bookmarks', () => {

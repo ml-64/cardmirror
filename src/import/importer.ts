@@ -760,11 +760,24 @@ function assembleDoc(paragraphs: ParaInfo[]): PMNode {
 
       // Body paragraphs: classify by cite_mark presence (same rule as
       // in cards), since analytic_unit now allows cite_paragraph too.
-      while (j < paragraphs.length && paragraphs[j]!.nodeType === 'paragraph') {
+      // Also absorb inline tables — the analytic_unit schema accepts
+      // `table` as a child; without this loop seeing them, every
+      // post-analytic table would be ejected back to the doc level
+      // and break the visual grouping users expect.
+      while (j < paragraphs.length) {
         const p = paragraphs[j]!;
-        const slot = hasCiteMark(p.inlines) ? 'cite_paragraph' : 'card_body';
-        unitChildren.push(schema.nodes[slot]!.create(withIndent(null, p), p.inlines));
-        j++;
+        if (p.nodeType === 'paragraph') {
+          const slot = hasCiteMark(p.inlines) ? 'cite_paragraph' : 'card_body';
+          unitChildren.push(schema.nodes[slot]!.create(withIndent(null, p), p.inlines));
+          j++;
+          continue;
+        }
+        if (p.rawNode && p.rawNode.type.name === 'table') {
+          unitChildren.push(p.rawNode);
+          j++;
+          continue;
+        }
+        break;
       }
 
       try {
@@ -815,11 +828,24 @@ function assembleDoc(paragraphs: ParaInfo[]): PMNode {
       // content carries any cite_mark, otherwise as card_body. This is
       // content-based (matches what the user sees) rather than position-
       // based, so cards with multiple cite paragraphs round-trip cleanly.
-      while (j < paragraphs.length && paragraphs[j]!.nodeType === 'paragraph') {
+      // Inline tables are absorbed into the card too — the schema
+      // accepts `table` as a card child, and a docx where the table
+      // sits between the tag and the next heading was authored as
+      // part of that card's evidence.
+      while (j < paragraphs.length) {
         const p = paragraphs[j]!;
-        const slot = hasCiteMark(p.inlines) ? 'cite_paragraph' : 'card_body';
-        cardChildren.push(schema.nodes[slot]!.create(withIndent(null, p), p.inlines));
-        j++;
+        if (p.nodeType === 'paragraph') {
+          const slot = hasCiteMark(p.inlines) ? 'cite_paragraph' : 'card_body';
+          cardChildren.push(schema.nodes[slot]!.create(withIndent(null, p), p.inlines));
+          j++;
+          continue;
+        }
+        if (p.rawNode && p.rawNode.type.name === 'table') {
+          cardChildren.push(p.rawNode);
+          j++;
+          continue;
+        }
+        break;
       }
 
       // Construct the card.

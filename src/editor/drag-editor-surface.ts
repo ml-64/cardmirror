@@ -283,12 +283,30 @@ export class EditorDragSurface implements DragSurface {
       }
       pushPos(range.from, topInHost);
     }
-    // Doc-end indicator: no DOM element to query, so use the host's
-    // own scrollHeight as the floor (it's the bottom-most CSS top
-    // inside host that any indicator could occupy).
+    // Doc-end indicator: place it at the bottom edge of PM's own
+    // element (`view.dom` is the `.ProseMirror` mount). Using
+    // `host.scrollHeight` here is wrong — host typically has
+    // `overflow: visible`, and the spec defines scrollHeight as
+    // clientHeight in that case, so the value collapses to the
+    // host's box bottom instead of the real content bottom.
     const docEnd = view.state.doc.content.size;
     if (!seen.has(docEnd)) {
-      pushPos(docEnd, host.scrollHeight || 0);
+      const pm = view.dom as HTMLElement;
+      const pmTopInHost = offsetTopWithin(pm, host);
+      if (pmTopInHost != null) {
+        pushPos(docEnd, pmTopInHost + pm.offsetHeight);
+      } else {
+        // Fallback: viewport-coord transform (same as id-less
+        // heading fallback above).
+        try {
+          const hostRect = host.getBoundingClientRect();
+          const zoom = this.getEditorZoom();
+          const endCoords = view.coordsAtPos(docEnd);
+          pushPos(docEnd, (endCoords.bottom - hostRect.top) / zoom + host.scrollTop);
+        } catch {
+          /* skip */
+        }
+      }
     }
 
     // Single-DOM append via a fragment — no layout thrash from the

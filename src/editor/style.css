@@ -2018,6 +2018,66 @@ body.pmd-nav-resize-active {
   border-left: 1px solid var(--pmd-c-border-soft);
 }
 
+/* Normal-formatting panel — Table dropdown on top, three small
+   inline-formatting toggles (super / sub / strikethrough) below.
+   Same vertical rhythm as the Doc/Card panel; the second row hosts
+   a sub-grid of three glyph-sized toggle buttons sized to fit
+   side-by-side under the Table button. */
+.ribbon-format-menu-panel {
+  display: grid;
+  grid-template-columns: auto;
+  grid-template-rows: 1.45rem 1.45rem;
+  align-content: center;
+  gap: 2px 3px;
+  padding-left: 0.5rem;
+  margin-left: 0.25rem;
+  border-left: 1px solid var(--pmd-c-border-soft);
+}
+
+#ribbon .ribbon-format-table-btn {
+  /* Match width to the inline-row beneath it so the panel feels
+     balanced top-to-bottom. */
+  width: 100%;
+  justify-self: stretch;
+}
+
+.ribbon-format-inline-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1.45rem);
+  gap: 2px;
+}
+
+#ribbon .ribbon-format-inline-btn {
+  width: 1.45rem;
+  height: 1.45rem;
+  padding: 0;
+  font-size: 0.78rem;
+  /* Plain inline-block centering (not flex) so the native baseline
+     shift of <sup> / <sub> inside the label survives — flex
+     alignment would flatten the digits onto the cell center. */
+  line-height: 1.45rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* Restore conspicuous baseline shift inside the small button cells.
+   At 0.78rem the browser default ~0.5em offset reads as a barely-
+   noticeable wobble; tighten the font-size and push the digit a hair
+   further off the baseline. */
+#ribbon .ribbon-format-inline-btn sup,
+#ribbon .ribbon-format-inline-btn sub {
+  font-size: 0.7em;
+  line-height: 0;
+  position: relative;
+  vertical-align: baseline;
+}
+#ribbon .ribbon-format-inline-btn sup { top: -0.45em; }
+#ribbon .ribbon-format-inline-btn sub { top: 0.3em; }
+
+#ribbon .ribbon-format-inline-btn[aria-pressed="true"] {
+  background: var(--pmd-c-button-active, rgba(0, 0, 0, 0.12));
+}
+
 #ribbon .ribbon-doc-menu-btn {
   height: 1.45rem;
   width: auto;

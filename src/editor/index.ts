@@ -230,6 +230,18 @@ if (docMenuBtn) {
           },
         ],
       },
+    ]);
+  });
+}
+
+// Table dropdown — same openDocMenu shape as Doc / Card, lives in
+// the new normal-formatting panel. Sections alphabetical by title.
+const tableMenuBtn = document.getElementById('table-menu-btn') as HTMLButtonElement | null;
+if (tableMenuBtn) {
+  tableMenuBtn.addEventListener('mousedown', (e) => e.preventDefault());
+  tableMenuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openDocMenu(tableMenuBtn, view, [
       {
         title: 'Table',
         items: [
@@ -247,6 +259,27 @@ if (docMenuBtn) {
       },
     ]);
   });
+}
+
+// Inline formatting toggles — same runRibbon dispatch as Mod-B/Mod-I,
+// so a binding override or future shadow-selection change applies
+// uniformly. Press state isn't reflected on these buttons yet (parity
+// with bold/italic in the cite panel, which also don't show pressed
+// state — defer until we have a generic mark-state plugin).
+const superscriptBtn = document.getElementById('superscript-btn') as HTMLButtonElement | null;
+if (superscriptBtn) {
+  superscriptBtn.addEventListener('mousedown', (e) => e.preventDefault());
+  superscriptBtn.addEventListener('click', () => runRibbon('toggleSuperscript'));
+}
+const subscriptBtn = document.getElementById('subscript-btn') as HTMLButtonElement | null;
+if (subscriptBtn) {
+  subscriptBtn.addEventListener('mousedown', (e) => e.preventDefault());
+  subscriptBtn.addEventListener('click', () => runRibbon('toggleSubscript'));
+}
+const strikethroughBtn = document.getElementById('strikethrough-btn') as HTMLButtonElement | null;
+if (strikethroughBtn) {
+  strikethroughBtn.addEventListener('mousedown', (e) => e.preventDefault());
+  strikethroughBtn.addEventListener('click', () => runRibbon('toggleStrikethrough'));
 }
 
 const cardMenuBtn = document.getElementById('card-menu-btn') as HTMLButtonElement | null;

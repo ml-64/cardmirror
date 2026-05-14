@@ -1805,3 +1805,26 @@ so any body text on either side of the literal "FOOTNOTE" stays
 inside the protected range. Doubles listed before singles so the
 longer match wins on overlap, matching the rest of the file's
 ordering convention.
+
+## 2026-05-13: Normal-formatting ribbon panel + Table dropdown
+
+A new ribbon panel sits between the Doc / Card menu panel and the
+doc-ops toggles. The panel hosts a `Table ▾` dropdown (same shape
+as Doc / Card; opens via `openDocMenu` with the 10 table commands)
+and a 3-cell row of small inline-mark toggles: superscript,
+subscript, strikethrough. The Table section moved out of the Doc
+menu — it now lives only in this dedicated dropdown. Bold / italic
+intentionally do NOT get buttons here; their Mod-B / Mod-I shortcuts
+are universal enough that surfacing a button would be redundant
+clutter.
+
+New ribbon command `toggleStrikethrough` rounds out the schema's
+strikethrough mark — same `shadowAwareToggleMark` dispatch as bold
+/ italic / super / sub. No default keybinding; users can bind via
+the keybinding editor.
+
+The small inline-mark buttons use plain line-height / text-align
+centering rather than `display: inline-flex` so the native baseline
+shift of `<sup>` / `<sub>` inside the labels survives. Flex alignment
+collapsed the digits onto the cell center, hiding the super/subscript
+visual cue.

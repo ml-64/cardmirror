@@ -330,8 +330,6 @@ const FORMATTING_PANEL_SHORT_LABEL: Record<FormattingPanelId, string> = {
 };
 const formattingPanelEl = document.getElementById('formatting-panel') as HTMLElement | null;
 const citePanelEl = document.getElementById('cite-panel') as HTMLElement | null;
-const colorPanelEl = document.getElementById('color-panel') as HTMLElement | null;
-const docOpsPanelEl = document.getElementById('doc-ops-panel') as HTMLElement | null;
 const paragraphIntegrityBtn = document.getElementById('paragraph-integrity-btn') as HTMLButtonElement | null;
 const formattingPanelBtnRefs: { id: FormattingPanelId; btn: HTMLButtonElement }[] = [];
 for (const [id, btnId] of Object.entries(FORMATTING_PANEL_BUTTONS) as [FormattingPanelId, string][]) {
@@ -359,6 +357,12 @@ function applyFormattingPanel(
   showCharacterStyles: boolean,
 ): void {
   if (!formattingPanelEl) return;
+  // "Hide" mode scopes to the F4–F12 button array only: the
+  // structural-style sub-panel + the cite-panel sub-panel. The
+  // color panel (font color / size / highlight / shading) and the
+  // doc-ops panel (paragraph integrity toggle) are unaffected —
+  // they don't host F-key bindings and have their own visibility
+  // controls.
   formattingPanelEl.classList.toggle('hidden', mode === 'hidden');
   formattingPanelEl.classList.toggle('style-preview', preview);
   if (citePanelEl) {
@@ -366,12 +370,6 @@ function applyFormattingPanel(
     // OR when the "Show character styles" setting is off.
     citePanelEl.classList.toggle('hidden', mode === 'hidden' || !showCharacterStyles);
     citePanelEl.classList.toggle('style-preview', preview);
-  }
-  if (colorPanelEl) {
-    colorPanelEl.classList.toggle('hidden', mode === 'hidden');
-  }
-  if (docOpsPanelEl) {
-    docOpsPanelEl.classList.toggle('hidden', mode === 'hidden');
   }
   for (const { id, btn } of formattingPanelBtnRefs) {
     const keyDisplay = formatKeyForDisplay(

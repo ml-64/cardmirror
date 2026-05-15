@@ -871,19 +871,24 @@ code {
   /* `contain: layout style` tells the browser that layout (and
      style invalidation) inside this element never propagates up
      to ancestors. Without this, every keystroke makes the browser
-     walk the entire 31k-element doc tree to recompute layout;
-     profiling on a long doc showed Layout at ~65% of per-keystroke
-     self time. With it, layout is scoped to the edited container.
+     walk the entire doc tree to recompute layout.
 
-     `content-visibility: auto` was added alongside this for an
-     extra win (skip off-screen cards from layout AND paint) but
-     pulled because its implicit size containment uses
-     `contain-intrinsic-size` as the rendered size for both axes
-     when skipped — and finding a width value that works cleanly
-     across single-doc / multi-pane compact / wide-scroll proved
-     fiddly. The layout-only containment captures the bulk of the
-     win without that complication. */
+     `content-visibility: auto` is the stronger move: off-screen
+     cards are skipped from layout AND paint entirely. The catch
+     is that it implicitly applies size containment when skipped,
+     using `contain-intrinsic-size` as the rendered size for both
+     axes — so a fixed-pixel width fallback would clip multi-pane
+     cards in narrow panes. Instead, the WIDTH is driven by a CSS
+     variable `--pmd-card-intrinsic-width` that the editor shell
+     keeps in sync with each editor surface's current clientWidth
+     (via a ResizeObserver in editor/index.ts and Slot in
+     multi-pane-shell.ts). The HEIGHT uses `auto 200px` —
+     auto-remember once the card's been measured, 200px as the
+     initial placeholder. */
   contain: layout style;
+  content-visibility: auto;
+  contain-intrinsic-width: var(--pmd-card-intrinsic-width, 600px);
+  contain-intrinsic-height: auto 200px;
 }
 
 .pmd-card:hover,
@@ -891,13 +896,16 @@ code {
   border-left-color: var(--pmd-c-card-hover);
 }
 
-/* Heading containers (pocket / hat / block) — same `contain: layout
-   style` as cards so their interior changes don't reflow the whole
-   doc. */
+/* Heading containers (pocket / hat / block) — same containment as
+   cards. Smaller intrinsic-height placeholder since these are
+   typically single-line headings. */
 .pmd-pocket,
 .pmd-hat,
 .pmd-block {
   contain: layout style;
+  content-visibility: auto;
+  contain-intrinsic-width: var(--pmd-card-intrinsic-width, 600px);
+  contain-intrinsic-height: auto 40px;
 }
 
 /* Undertag paragraph. Color is settings-driven (--pmd-color-undertag);

@@ -99,6 +99,9 @@ class Slot {
   readonly navSectionEl: HTMLElement;
   /** Nav body — DocRecord.navEl mounts here. */
   private navBodyEl: HTMLElement;
+  /** ResizeObserver tracking the pane body's width, driving the
+   *  per-pane `--pmd-card-intrinsic-width` CSS variable. */
+  private bodyResizeObserver: ResizeObserver;
 
   /** Live stack. Index 0 = bottom (least recently active);
    *  `visibleIndex` is the doc currently shown. */
@@ -183,6 +186,31 @@ class Slot {
     this.navBodyEl = document.createElement('div');
     this.navBodyEl.className = 'pmd-multi-nav-body';
     this.navSectionEl.appendChild(this.navBodyEl);
+
+    // Keep `--pmd-card-intrinsic-width` on the pane root in sync
+    // with the pane body's current clientWidth. Cards inside use
+    // this variable for `contain-intrinsic-width` so that when
+    // `content-visibility: auto` skips them off-screen they render
+    // their placeholder box at the right width for THIS pane (not
+    // a fixed pixel fallback that'd be wrong for narrow multi-pane
+    // slots). ResizeObserver covers every resize: layout-mode
+    // toggle, active-count change, window resize, nav drag.
+    this.bodyResizeObserver = new ResizeObserver(() => {
+      this.syncCardIntrinsicWidth();
+    });
+    this.bodyResizeObserver.observe(this.bodyEl);
+  }
+
+  /** Read the pane body's current content width and publish it as
+   *  the `--pmd-card-intrinsic-width` CSS variable on this slot's
+   *  pane element. Descendants (cards / heading containers) pick it
+   *  up via `var()` in their `contain-intrinsic-width`. No-op when
+   *  the body has no measurable width (slot empty / not in DOM yet). */
+  private syncCardIntrinsicWidth(): void {
+    const width = this.bodyEl.clientWidth;
+    if (width > 0) {
+      this.paneEl.style.setProperty('--pmd-card-intrinsic-width', `${width}px`);
+    }
   }
 
   /** The currently-visible doc record (or null when stack is empty). */

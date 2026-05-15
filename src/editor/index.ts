@@ -1401,12 +1401,37 @@ function mountView(doc: PMNode, threads: Thread[] = []): void {
   // a nav-pane drag is active, and exposes a hit-test the nav drag
   // handler queries during pointermove. (Phase 3a.)
   editorDragSurface.attach(view, editorEl);
+  // Publish editor width as `--pmd-card-intrinsic-width` so cards
+  // and heading containers (which have `content-visibility: auto`)
+  // can use it as their intrinsic-width when skipped off-screen.
+  // ResizeObserver catches every resize (window, nav drag, etc.).
+  setupCardIntrinsicWidthObserver();
   exportBtn.disabled = false;
   // Initial paint: do the heavy update synchronously so the user sees
   // the right thing immediately on doc load.
   navPanel.update(doc);
   refreshWordCount();
   refreshFontSizeDisplay();
+}
+
+/** ResizeObserver that keeps `--pmd-card-intrinsic-width` on
+ *  `#editor` synced to its current `clientWidth`. Cards and heading
+ *  containers (which use `content-visibility: auto`) consume the
+ *  variable as their intrinsic-width when skipped, so the placeholder
+ *  box matches the editor's actual width rather than a fixed pixel
+ *  fallback. Created lazily on the first `mountView`. */
+let cardIntrinsicWidthObserver: ResizeObserver | null = null;
+function setupCardIntrinsicWidthObserver(): void {
+  if (cardIntrinsicWidthObserver) return;
+  const apply = (): void => {
+    const width = editorEl.clientWidth;
+    if (width > 0) {
+      editorEl.style.setProperty('--pmd-card-intrinsic-width', `${width}px`);
+    }
+  };
+  cardIntrinsicWidthObserver = new ResizeObserver(apply);
+  cardIntrinsicWidthObserver.observe(editorEl);
+  apply();
 }
 
 let pendingHeavyUpdate: IdleHandle | null = null;

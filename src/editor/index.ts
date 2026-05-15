@@ -1334,6 +1334,14 @@ function mountView(doc: PMNode, threads: Thread[] = []): void {
   view = new EditorView(editorEl, {
     state,
     editable: () => !settings.get('readMode'),
+    // Browser spellcheck on a 31k-element contenteditable is a
+    // visible per-keystroke cost: the engine tokenizes every
+    // changed text node, queries the dictionary, and maintains the
+    // red-squiggly underline overlay on top of normal layout/paint.
+    // Disable globally; debate evidence is often technical /
+    // jargon-heavy where spellcheck would mostly be false-positive
+    // noise anyway.
+    attributes: { spellcheck: 'false' },
     dispatchTransaction(tx) {
       if (!view) return;
       const prevState = view.state;

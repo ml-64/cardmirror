@@ -702,6 +702,10 @@ function buildDocRecord(filename: string, doc: PMNode, slot: Slot): DocRecord {
   // changes.
   const view: EditorView = new EditorView(editorEl, {
     state,
+    // Match the single-doc shell — browser spellcheck on a large
+    // contenteditable carries continuous layout/paint cost. See
+    // the matching comment in `editor/index.ts`.
+    attributes: { spellcheck: 'false' },
     dispatchTransaction(tx) {
       const next = view.state.apply(tx);
       view.updateState(next);

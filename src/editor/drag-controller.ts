@@ -355,7 +355,7 @@ export function buildCopyTransaction(
  *  populated with a string get rewritten (pocket / hat / block / tag /
  *  analytic — see `headingAttrs` in `schema/nodes.ts`). Nodes without
  *  an id attr or with a default-null id pass through unchanged. */
-function rewriteHeadingIds(slice: Slice): Slice {
+export function rewriteHeadingIds(slice: Slice): Slice {
   return new Slice(
     rewriteFragment(slice.content),
     slice.openStart,

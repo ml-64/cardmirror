@@ -2854,7 +2854,11 @@ export type RibbonCommandId =
   | 'deleteTable'
   | 'newDocument'
   | 'openFile'
-  | 'saveAs';
+  | 'saveAs'
+  | 'newSpeechDocument'
+  | 'markActiveAsSpeech'
+  | 'sendToSpeechAtCursor'
+  | 'sendToSpeechAtEnd';
 
 export const STRUCTURAL_RIBBON_COMMAND_IDS: StructuralRibbonCommandId[] = [
   'setPocket',
@@ -2916,6 +2920,10 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'newDocument',
   'openFile',
   'saveAs',
+  'newSpeechDocument',
+  'markActiveAsSpeech',
+  'sendToSpeechAtCursor',
+  'sendToSpeechAtEnd',
 ];
 
 export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
@@ -2954,7 +2962,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   toggleCommentsVisible: 'Show / hide comments',
   addCommentToSelection: 'Add comment to selection',
   aiAskAboutSelection: 'Ask AI about selection',
-  aiCreateCite: 'AI: format cite from selection',
+  aiCreateCite: 'Format cite from selection',
   wordCountSelection: 'Word count selection',
   openShortcutsReference: 'Open keyboard shortcuts',
   selectSimilar: 'Select Similar Formatting',
@@ -2974,6 +2982,10 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   newDocument: 'New document',
   openFile: 'Open file',
   saveAs: 'Save document',
+  newSpeechDocument: 'New speech document',
+  markActiveAsSpeech: 'Mark / unmark active doc as the speech doc',
+  sendToSpeechAtCursor: 'Send to speech (at cursor)',
+  sendToSpeechAtEnd: 'Send to speech (at end)',
 };
 
 /**
@@ -3049,6 +3061,16 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   newDocument: 'Mod-Alt-n',
   openFile: 'Mod-o',
   saveAs: 'Mod-s',
+  // Verbatim's "Send to speech" — bare backtick (next to 1 on US
+  // layouts) for at-cursor, Alt-backtick for at-end-of-doc. Same
+  // chord as the desktop app. Trade-off: a bare backtick keystroke
+  // is consumed by the command; users who actually need to type a
+  // literal "`" in evidence can rebind these via Settings →
+  // Keybindings.
+  sendToSpeechAtCursor: '`',
+  sendToSpeechAtEnd: 'Alt-`',
+  newSpeechDocument: '',
+  markActiveAsSpeech: '',
 };
 
 /**
@@ -3119,6 +3141,14 @@ export interface RibbonContext {
   newDocument: () => void;
   openFile: () => void;
   saveAs: () => void;
+  /** Speech-doc commands (Verbatim's `Paperless.SendToSpeech` family).
+   *  All four are wired via the speech-doc registry — when the host
+   *  hasn't installed a real implementation, the defaults are
+   *  no-ops so tests / standalone uses don't crash. */
+  newSpeechDocument: () => void;
+  markActiveAsSpeech: () => void;
+  sendToSpeechAtCursor: () => void;
+  sendToSpeechAtEnd: () => void;
 }
 
 const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
@@ -3148,6 +3178,10 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   newDocument: () => {},
   openFile: () => {},
   saveAs: () => {},
+  newSpeechDocument: () => {},
+  markActiveAsSpeech: () => {},
+  sendToSpeechAtCursor: () => {},
+  sendToSpeechAtEnd: () => {},
 };
 
 function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
@@ -3325,6 +3359,30 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.saveAs();
+        return true;
+      };
+    case 'newSpeechDocument':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.newSpeechDocument();
+        return true;
+      };
+    case 'markActiveAsSpeech':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.markActiveAsSpeech();
+        return true;
+      };
+    case 'sendToSpeechAtCursor':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.sendToSpeechAtCursor();
+        return true;
+      };
+    case 'sendToSpeechAtEnd':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.sendToSpeechAtEnd();
         return true;
       };
   }

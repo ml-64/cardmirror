@@ -23,6 +23,19 @@ interface ShortcutGroup {
 
 const GROUPS: ShortcutGroup[] = [
   {
+    title: 'File',
+    commands: ['newDocument', 'openFile', 'saveAs'],
+  },
+  {
+    title: 'Speech',
+    commands: [
+      'newSpeechDocument',
+      'markActiveAsSpeech',
+      'sendToSpeechAtCursor',
+      'sendToSpeechAtEnd',
+    ],
+  },
+  {
     title: 'Structural styles',
     commands: ['setPocket', 'setHat', 'setBlock', 'setTag', 'setAnalytic', 'setUndertag'],
   },
@@ -70,11 +83,11 @@ const GROUPS: ShortcutGroup[] = [
   },
   {
     title: 'Comments',
-    commands: ['toggleCommentsVisible', 'addCommentToSelection', 'aiAskAboutSelection'],
+    commands: ['toggleCommentsVisible', 'addCommentToSelection'],
   },
   {
     title: 'AI',
-    commands: ['aiCreateCite'],
+    commands: ['aiAskAboutSelection', 'aiCreateCite'],
   },
   {
     title: 'Select',

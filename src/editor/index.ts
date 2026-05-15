@@ -20,6 +20,7 @@ import type { Thread } from './comments-plugin.js';
 import { NavigationPanel } from './nav-panel.js';
 import { openSettings } from './settings-ui.js';
 import { openReference } from './reference-ui.js';
+import { getSpeechDocResolver } from './speech-doc-registry.js';
 import { openDocMenu } from './doc-menu-ui.js';
 import { createReference } from './create-reference.js';
 import { showToast } from './toast.js';
@@ -85,6 +86,13 @@ const exportBtn = document.getElementById('export-btn') as HTMLButtonElement;
 const settingsBtn = document.getElementById('settings-btn') as HTMLButtonElement;
 const referenceBtn = document.getElementById('reference-btn') as HTMLButtonElement | null;
 const readModeBtn = document.getElementById('read-mode-btn') as HTMLButtonElement;
+// Speech-doc buttons. Only visible in multi-doc mode (CSS-gated on
+// `body.pmd-multi-doc`); the click handlers below route into the
+// shell's ctx implementations, which are no-ops in single-doc.
+const speechNewBtn = document.getElementById('speech-new-btn') as HTMLButtonElement | null;
+const speechMarkBtn = document.getElementById('speech-mark-btn') as HTMLButtonElement | null;
+const speechSendCursorBtn = document.getElementById('speech-send-cursor-btn') as HTMLButtonElement | null;
+const speechSendEndBtn = document.getElementById('speech-send-end-btn') as HTMLButtonElement | null;
 /** Resolver for "what value should the read-mode ribbon button
  *  show as pressed?". Single-doc mode reads `settings.readMode`;
  *  multi-doc swaps in a resolver that asks the focused pane's
@@ -93,6 +101,21 @@ const readModeBtn = document.getElementById('read-mode-btn') as HTMLButtonElemen
  *  because `applyReadMode` runs at module-init time before the
  *  bottom-of-file declarations execute — a TDZ access otherwise. */
 let readModeStateForActive: () => boolean = () => settings.get('readMode');
+
+/** Sync the speech-mark button's aria-pressed with whether the
+ *  currently-active view IS the speech doc. Called from
+ *  `setActiveView` (focus change) and from the speech-doc
+ *  registry subscription installed below. */
+function refreshSpeechMarkBtn(): void {
+  if (!speechMarkBtn) return;
+  const speechView = getSpeechDocResolver().getSpeechView();
+  const isPressed = !!view && speechView === view;
+  speechMarkBtn.setAttribute('aria-pressed', isPressed ? 'true' : 'false');
+}
+// Subscribe to the speech-doc registry so the button stays in sync
+// when the designation changes outside of a focus event (e.g., the
+// shell marks a fresh `newSpeech` doc as soon as it lands).
+getSpeechDocResolver().subscribe(() => refreshSpeechMarkBtn());
 const wordCountBtn = document.getElementById('word-count-btn') as HTMLButtonElement;
 const commentsToggleBtn = document.getElementById('comments-toggle-btn') as HTMLButtonElement | null;
 const commentsAddBtn = document.getElementById('comments-add-btn') as HTMLButtonElement | null;
@@ -135,6 +158,14 @@ let multiDocOnNewDoc: (() => Promise<void> | void) | null = null;
 /** When the multi-pane shell is active, this delegates the
  *  read-mode ribbon button to the shell's per-pane toggle. */
 let multiDocToggleReadMode: (() => void) | null = null;
+/** Speech-doc command hooks. Installed by the multi-pane shell; in
+ *  single-doc mode these stay null and the commands no-op (no
+ *  second doc to send TO, and a single doc doesn't gain anything
+ *  from a per-doc speech designation). */
+let multiDocNewSpeechDocument: (() => void) | null = null;
+let multiDocMarkActiveAsSpeech: (() => void) | null = null;
+let multiDocSendToSpeechAtCursor: (() => void) | null = null;
+let multiDocSendToSpeechAtEnd: (() => void) | null = null;
 
 /** Multi-pane shell hooks. Called by `multi-pane-shell.ts` at boot
  *  to install the override that redirects the single-doc dropzone
@@ -143,11 +174,19 @@ export function enableMultiDocMode(opts: {
   onFileOpen: (file: File) => Promise<void> | void;
   onNewDoc?: () => Promise<void> | void;
   toggleReadMode?: () => void;
+  newSpeechDocument?: () => void;
+  markActiveAsSpeech?: () => void;
+  sendToSpeechAtCursor?: () => void;
+  sendToSpeechAtEnd?: () => void;
 }): void {
   multiDocActive = true;
   multiDocOnFileOpen = opts.onFileOpen;
   multiDocOnNewDoc = opts.onNewDoc ?? null;
   multiDocToggleReadMode = opts.toggleReadMode ?? null;
+  multiDocNewSpeechDocument = opts.newSpeechDocument ?? null;
+  multiDocMarkActiveAsSpeech = opts.markActiveAsSpeech ?? null;
+  multiDocSendToSpeechAtCursor = opts.sendToSpeechAtCursor ?? null;
+  multiDocSendToSpeechAtEnd = opts.sendToSpeechAtEnd ?? null;
   // Hide the single-doc surfaces. The multi-pane shell mounts its
   // own DOM into #app, alongside #editor + #comments-column which
   // we hide here.
@@ -175,10 +214,11 @@ export function setActiveView(v: EditorView | null): void {
   }
   // Re-sync the chrome that depends on `view` (font-size chip,
   // word-count display, paragraph integrity indicator,
-  // read-mode toggle pressed-state, etc.).
+  // read-mode toggle pressed-state, speech-mark button, etc.).
   refreshFontSizeDisplay();
   refreshWordCount();
   refreshReadModeBtn();
+  refreshSpeechMarkBtn();
 }
 
 /** Read-only accessor for the active view — exposed so other
@@ -297,6 +337,21 @@ const ribbonContext: RibbonContext = {
   },
   saveAs: () => {
     void runSaveAsFlow();
+  },
+  newSpeechDocument: () => {
+    // Multi-doc owns the speech-doc lifecycle (creates the doc,
+    // marks it). Single-doc would have no second doc to send TO
+    // anyway, so we just no-op there.
+    multiDocNewSpeechDocument?.();
+  },
+  markActiveAsSpeech: () => {
+    multiDocMarkActiveAsSpeech?.();
+  },
+  sendToSpeechAtCursor: () => {
+    multiDocSendToSpeechAtCursor?.();
+  },
+  sendToSpeechAtEnd: () => {
+    multiDocSendToSpeechAtEnd?.();
   },
 };
 
@@ -569,6 +624,28 @@ if (cardMenuBtn) {
 }
 readModeBtn.addEventListener('click', () => runRibbon('toggleReadMode'));
 wordCountBtn.addEventListener('click', () => runRibbon('wordCountSelection'));
+
+// Speech-doc buttons — multi-doc only (CSS hides them in
+// single-doc). All four route into the shell's ctx hooks. The new-
+// speech button uses ribbonContext directly because it works
+// without a view; the other three guard on `view` to match the
+// keymap dispatch path.
+if (speechNewBtn) {
+  speechNewBtn.addEventListener('mousedown', (e) => e.preventDefault());
+  speechNewBtn.addEventListener('click', () => ribbonContext.newSpeechDocument());
+}
+if (speechMarkBtn) {
+  speechMarkBtn.addEventListener('mousedown', (e) => e.preventDefault());
+  speechMarkBtn.addEventListener('click', () => runRibbon('markActiveAsSpeech'));
+}
+if (speechSendCursorBtn) {
+  speechSendCursorBtn.addEventListener('mousedown', (e) => e.preventDefault());
+  speechSendCursorBtn.addEventListener('click', () => runRibbon('sendToSpeechAtCursor'));
+}
+if (speechSendEndBtn) {
+  speechSendEndBtn.addEventListener('mousedown', (e) => e.preventDefault());
+  speechSendEndBtn.addEventListener('click', () => runRibbon('sendToSpeechAtEnd'));
+}
 
 // Comments column. The CommentsColumn instance owns the side-panel
 // DOM; we re-render it via `view.dispatchTransaction` overrides
@@ -956,6 +1033,11 @@ const VIEWLESS_RIBBON_COMMANDS = new Set<RibbonCommandId>([
   'openFile',
   'saveAs',
   'openShortcutsReference',
+  // `newSpeechDocument` creates a fresh doc and routes it through a
+  // slot — no source view required. The other three speech
+  // commands DO need an active doc (a source for send, or the
+  // focused doc for mark) so they stay gated on `view`.
+  'newSpeechDocument',
 ]);
 
 function runViewlessRibbon(id: RibbonCommandId): void {
@@ -964,6 +1046,7 @@ function runViewlessRibbon(id: RibbonCommandId): void {
     case 'openFile': ribbonContext.openFile(); return;
     case 'saveAs': ribbonContext.saveAs(); return;
     case 'openShortcutsReference': ribbonContext.openShortcutsReference(); return;
+    case 'newSpeechDocument': ribbonContext.newSpeechDocument(); return;
   }
 }
 

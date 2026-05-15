@@ -22,7 +22,7 @@
  * declares its view, the controller treats it as cross-view.
  */
 
-import { EditorState } from 'prosemirror-state';
+import { EditorState, TextSelection } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { Node as PMNode } from 'prosemirror-model';
 import { schema, newHeadingId } from '../schema/index.js';
@@ -30,9 +30,10 @@ import { fromDocxFull } from '../index.js';
 import { settings } from './settings.js';
 import { NavigationPanel } from './nav-panel.js';
 import { EditorDragSurface } from './drag-editor-surface.js';
-import { dragController } from './drag-controller.js';
+import { dragController, rewriteHeadingIds } from './drag-controller.js';
 import { countReadAloudWords, formatReadTime, formatNumber } from './word-count.js';
 import { scheduleIdle, cancelIdle, type IdleHandle } from './idle-scheduler.js';
+import { getSpeechDocResolver } from './speech-doc-registry.js';
 import {
   buildEditorPlugins,
   enableMultiDocMode,
@@ -190,6 +191,14 @@ class Slot {
     this.navSectionEl.className = 'pmd-multi-nav-section';
     this.navSectionEl.dataset['slot'] = id;
     this.navSectionEl.hidden = true;
+    // Clicking anywhere in the nav section focuses this slot —
+    // same affordance as clicking the pane itself. Without this,
+    // clicking a heading would scroll the doc into view but the
+    // chrome (font-size chip, read-mode button, etc.) would
+    // continue routing through whatever pane was previously
+    // focused, which feels broken when the user is navigating
+    // via the nav pane.
+    this.navSectionEl.addEventListener('mousedown', () => this.shell.focusSlot(this));
     this.navBodyEl = document.createElement('div');
     this.navBodyEl.className = 'pmd-multi-nav-body';
     this.navSectionEl.appendChild(this.navBodyEl);
@@ -282,6 +291,13 @@ class Slot {
       cancelIdle(closing.heavyUpdateTimer);
       closing.heavyUpdateTimer = null;
     }
+    // Clear speech-doc designation if the closing doc was it —
+    // matches Verbatim's `AutoClose` which clears
+    // `Globals.ActiveSpeechDoc` when the speech doc is closed.
+    const speechResolver = getSpeechDocResolver();
+    if (speechResolver.getSpeechView() === closing.view) {
+      speechResolver.setSpeech(null);
+    }
     closing.view.destroy();
     closing.dragSurface.detach();
     this.stack.splice(idx, 1);
@@ -323,6 +339,10 @@ class Slot {
     this.chipNameEl.textContent = rec.filename;
     this.refreshChip();
     this.refreshWordCount();
+    // Speech-chip class lives on the pane element and reflects
+    // the currently-visible record vs the speech-doc registry;
+    // swapping records via the stack switcher needs to refresh.
+    this.shell.refreshSpeechChips();
   }
 
   /** Update the chip's stack-dropdown trigger visibility based on
@@ -416,6 +436,11 @@ class Slot {
     if (rec.heavyUpdateTimer !== null) {
       cancelIdle(rec.heavyUpdateTimer);
       rec.heavyUpdateTimer = null;
+    }
+    // Clear speech-doc designation if the closing record was it.
+    const speechResolver = getSpeechDocResolver();
+    if (speechResolver.getSpeechView() === rec.view) {
+      speechResolver.setSpeech(null);
     }
     rec.view.destroy();
     rec.dragSurface.detach();
@@ -526,6 +551,11 @@ class MultiPaneShell {
     // read-mode button show?" — in multi-doc that's the focused
     // pane's per-doc state, not the global setting.
     setReadModeStateResolver(() => this.focusedSlot?.visible?.readMode ?? false);
+
+    // Keep the speech chip / button state in sync with the
+    // registry — the registry fires on every set/clear, including
+    // ones the shell itself initiated.
+    getSpeechDocResolver().subscribe(() => this.refreshSpeechChips());
 
     // Window resize is the other event that legitimately changes
     // pane widths. Deliberately NOT a ResizeObserver — see the doc
@@ -831,6 +861,225 @@ class MultiPaneShell {
     const record = buildDocRecord('Untitled.docx', doc, slot);
     slot.push(record);
   }
+
+  /** Create a new speech document and mark it as the active speech
+   *  doc. Verbatim parallels: `Paperless.NewSpeech` prompts for a
+   *  round name ("1NC", "2AC vs Hogwarts", etc.); we do the same
+   *  via a simple `prompt()` plus the standard slot picker. The
+   *  fresh doc auto-registers as the speech doc — that's the
+   *  whole point of `NewSpeech` (vs the generic `New doc`). */
+  async createNewSpeechDocument(): Promise<void> {
+    const roundName = window.prompt(
+      'Which speech? (e.g. 1NC, 2AC Round 3 vs Hogwarts)',
+      '',
+    );
+    if (roundName == null) return;
+    const trimmed = roundName.trim();
+    if (!trimmed) return;
+    const target = await this.promptForSlot(`Speech ${trimmed}`);
+    if (!target) return;
+    const filename = formatSpeechFilename(trimmed);
+    const doc = makeBlankDoc();
+    const slot = this.slots[target];
+    const record = buildDocRecord(filename, doc, slot);
+    slot.push(record);
+    // Mark immediately. `slot.push` already routed focus through
+    // `setActiveView` (which fires the registry resolver hook).
+    getSpeechDocResolver().setSpeech(record.view);
+    this.refreshSpeechChips();
+  }
+
+  /** Toggle the focused pane's speech-doc designation. If the
+   *  focused doc IS already the speech doc, clear the designation.
+   *  Otherwise mark it (replacing any previous). No-op if no pane
+   *  is focused. */
+  markFocusedAsSpeech(): void {
+    const rec = this.focusedSlot?.visible;
+    if (!rec) return;
+    const resolver = getSpeechDocResolver();
+    const next = resolver.getSpeechView() === rec.view ? null : rec.view;
+    resolver.setSpeech(next);
+    this.refreshSpeechChips();
+  }
+
+  /** Send the focused pane's selection (or its enclosing heading-
+   *  and-content range if the selection is empty) into the speech
+   *  doc. `atEnd` controls the insertion point — true → after the
+   *  doc-end, false → at the speech doc's current cursor. Verbatim:
+   *  `Paperless.SendToSpeech PasteAtEnd:=true|false`. */
+  sendToSpeech(atEnd: boolean): void {
+    const sourceRec = this.focusedSlot?.visible;
+    if (!sourceRec) return;
+    const speechView = getSpeechDocResolver().getSpeechView();
+    if (!speechView) {
+      window.alert(
+        'No speech document yet. Use "New speech document" to create one or "Mark active doc as speech" to designate an existing pane.',
+      );
+      return;
+    }
+    // If the user is sending FROM the speech doc itself, no-op for
+    // now — Verbatim inserts a `~ Marked HH:MM ~` card-marker here,
+    // which we agreed to skip until the schema gains a font_color
+    // mark to render the red marker text.
+    if (sourceRec.view === speechView) return;
+
+    const sliceFromSource = resolveSendSlice(sourceRec.view);
+    if (!sliceFromSource) return;
+
+    // Cross-view insertion: rewrite heading ids so the destination
+    // doesn't collide with the source's, then drop the slice in.
+    // Same path the drag controller uses for cross-view drops.
+    const rewritten = rewriteHeadingIds(sliceFromSource);
+    const state = speechView.state;
+
+    // Resolve the destination range. Two refinements over a naive
+    // `tr.insert(pos, content)`:
+    //   1. At-end picks the literal end-of-doc.
+    //   2. If the cursor (or doc tail in at-end mode) sits in an
+    //      empty top-level textblock, we REPLACE that block with
+    //      the slice rather than splitting it — otherwise the
+    //      placeholder paragraph that `makeBlankDoc` seeds the
+    //      speech doc with would leave a stray empty line above
+    //      every sent card. Verbatim's flow has Word's paste fill
+    //      the empty paragraph naturally; we get the same UX by
+    //      collapsing the empty block into the insertion range.
+    let from: number;
+    let to: number;
+    if (atEnd) {
+      const lastChild = state.doc.lastChild;
+      if (lastChild && lastChild.isTextblock && lastChild.content.size === 0) {
+        to = state.doc.content.size;
+        from = to - lastChild.nodeSize;
+      } else {
+        from = state.doc.content.size;
+        to = from;
+      }
+    } else {
+      const $from = state.selection.$from;
+      const isEmpty = state.selection.empty;
+      const inBlankLine =
+        isEmpty &&
+        $from.depth >= 1 &&
+        $from.parent.isTextblock &&
+        $from.parent.content.size === 0;
+      if (inBlankLine) {
+        from = $from.before($from.depth);
+        to = $from.after($from.depth);
+      } else {
+        from = state.selection.from;
+        to = state.selection.from;
+      }
+    }
+
+    const tr = state.tr;
+    // `replaceRange` (vs `replaceWith`) handles slices with open
+    // boundaries — non-empty text selections inside a card body
+    // produce slices with `openStart`/`openEnd` > 0, and
+    // replaceRange wraps / fits them into the destination schema.
+    tr.replaceRange(from, to, rewritten);
+
+    // Append a trailing empty paragraph after the inserted content
+    // so the next send has a fresh blank line to land into — and
+    // so this send's cursor can land THERE, satisfying the
+    // "consecutive sends accumulate in order" invariant. Without
+    // the trailer, the cursor would have to land inside the last
+    // text node of the inserted slice (the only valid text
+    // position after the insert), which would cause the next
+    // send to interleave INSIDE that node instead of after it.
+    const sliceEndPos = tr.mapping.map(to);
+    const trailer = schema.nodes['paragraph']!.create();
+    tr.insert(sliceEndPos, trailer);
+    // Cursor inside the trailer (position is just past the
+    // trailer's opening boundary token).
+    tr.setSelection(TextSelection.create(tr.doc, sliceEndPos + 1));
+
+    speechView.dispatch(tr.scrollIntoView());
+    // Route focus to the speech doc so subsequent ` keystrokes
+    // either insert markers (when we add them) or send the next
+    // slice — same flow Verbatim users expect.
+    speechView.focus();
+    const speechSlot = this.findSlotByView(speechView);
+    if (speechSlot) this.focusSlot(speechSlot);
+  }
+
+  /** Sync the visual speech indicator on every slot's chip with
+   *  the registry's current state. Called whenever the speech
+   *  designation changes or a slot's visible doc changes. */
+  refreshSpeechChips(): void {
+    const speechView = getSpeechDocResolver().getSpeechView();
+    for (const id of SLOT_IDS) {
+      const slot = this.slots[id];
+      const isSpeech = !!speechView && slot.visible?.view === speechView;
+      slot.paneEl.classList.toggle('pmd-pane-speech', isSpeech);
+    }
+  }
+}
+
+/** Format a Verbatim-style speech filename: "Speech <round> M-D
+ *  H:MMam/pm.docx". Mirrors `Paperless.NewSpeech`'s filename
+ *  construction so users who lean on filename-based workflows
+ *  (USB save, recent-files menu) see a consistent shape. */
+function formatSpeechFilename(round: string): string {
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const day = now.getDate();
+  let hour = now.getHours();
+  const minute = now.getMinutes();
+  const ampm = hour < 12 ? 'AM' : 'PM';
+  if (hour === 0) hour = 12;
+  else if (hour > 12) hour -= 12;
+  const m = String(minute).padStart(2, '0');
+  return `Speech ${round} ${month}-${day} ${hour}-${m}${ampm}.docx`;
+}
+
+/** Decide what slice to send from the source view:
+ *    - Non-empty selection → exactly that range.
+ *    - Empty selection → the smallest enclosing heading-and-content
+ *      range (card / analytic_unit / pocket / hat / block), found
+ *      by walking up `$pos.depth` and applying the same
+ *      heading-range semantics `headings.computeHeadingRange`
+ *      uses for nav-pane drops.
+ *  Returns null when no slice could be resolved (e.g., cursor in
+ *  a position with no enclosing heading container). */
+function resolveSendSlice(view: EditorView): import('prosemirror-model').Slice | null {
+  const state = view.state;
+  const sel = state.selection;
+  if (!sel.empty) {
+    return state.doc.slice(sel.from, sel.to);
+  }
+  const $pos = sel.$from;
+  const doc = state.doc;
+  for (let depth = $pos.depth; depth >= 0; depth--) {
+    const node = $pos.node(depth);
+    const t = node.type.name;
+    if (t === 'card' || t === 'analytic_unit') {
+      const from = $pos.before(depth);
+      return doc.slice(from, from + node.nodeSize);
+    }
+    if (t === 'pocket' || t === 'hat' || t === 'block') {
+      // Heading + everything until the next equal-or-shallower
+      // heading. Same semantics computeHeadingRange uses.
+      const from = $pos.before(depth);
+      const headingLevel = t === 'pocket' ? 1 : t === 'hat' ? 2 : 3;
+      let to = doc.content.size;
+      doc.nodesBetween(from + node.nodeSize, doc.content.size, (n, p) => {
+        if (to !== doc.content.size) return false;
+        const nt = n.type.name;
+        const nLevel =
+          nt === 'pocket' ? 1
+          : nt === 'hat' ? 2
+          : nt === 'block' ? 3
+          : null;
+        if (nLevel !== null && nLevel <= headingLevel) {
+          to = p;
+          return false;
+        }
+        return true;
+      });
+      return doc.slice(from, to);
+    }
+  }
+  return null;
 }
 
 /** Minimal valid doc — one empty paragraph. Used by `createNewDoc`
@@ -946,5 +1195,9 @@ export function mountMultiPaneShell(): void {
     onFileOpen: (file) => shell!.onFileOpen(file),
     onNewDoc: () => shell!.createNewDoc(),
     toggleReadMode: () => shell!.toggleFocusedReadMode(),
+    newSpeechDocument: () => { void shell!.createNewSpeechDocument(); },
+    markActiveAsSpeech: () => shell!.markFocusedAsSpeech(),
+    sendToSpeechAtCursor: () => shell!.sendToSpeech(false),
+    sendToSpeechAtEnd: () => shell!.sendToSpeech(true),
   });
 }

@@ -185,6 +185,31 @@ body {
   font-size: 0.78rem;
 }
 
+/* Speech-doc button stack. Same layout rhythm as the file stack
+   (Open/New/Save), placed immediately to its right. Hidden in
+   single-doc — the speech-send gesture requires a separate
+   destination doc that single-doc can't provide, and the
+   commands all hand off to the multi-pane shell. A thin
+   left-side rule separates this cluster from the file buttons
+   so they read as two distinct groups. */
+.ribbon-speech-stack {
+  /* Override the parent stack's column-major auto-flow: with four
+     buttons we want a clean 2×2 row-major grid so the buttons
+     read left-to-right top-to-bottom. */
+  grid-auto-flow: row;
+  grid-template-columns: repeat(2, auto);
+  border-left: 1px solid var(--pmd-c-border-soft);
+  padding-left: 0.4rem;
+  margin-left: 0.2rem;
+}
+body:not(.pmd-multi-doc) #speech-stack { display: none; }
+/* `mark active as speech` is a toggle — when this button is the
+   active doc's speech designation, it stays pressed-down so the
+   user can see at a glance which slot holds the speech doc. */
+#speech-mark-btn[aria-pressed="true"] {
+  background: var(--pmd-c-hover-strong);
+}
+
 /* Formatting panel — Verbatim-style apply-paragraph-style buttons.
    3×2 grid laid out column-major (grid-auto-flow: column), so the HTML
    order Pocket / Tag / Hat / Block / Analytic / Undertag renders as:
@@ -3853,6 +3878,26 @@ body.pmd-multi-doc #word-count-display {
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--pmd-c-text);
+}
+
+/* Speech-doc indicator. Class on the pane element gets set/cleared
+   by `MultiPaneShell.refreshSpeechChips`. The 🎤 prefix on the
+   chip name is the same affordance Verbatim's title-bar tweak
+   uses ("Speech …") — just visible enough to remind the user
+   which slot is the active destination for the ` send-to-speech
+   chord. The chip's accent stripe reinforces it without crowding
+   the filename. */
+.pmd-pane-speech .pmd-pane-chip-name::before {
+  content: '🎤';
+  margin-right: 0.3em;
+}
+/* Light blue tint when the slot is NOT focused. When focused, the
+   `.pmd-pane-focused .pmd-pane-chip` rule takes over (dark blue
+   bg + white text) — without the `:not()` guard the speech rule
+   wins on source order and leaves white text on a light-blue
+   chip, which is unreadable. */
+.pmd-pane-speech:not(.pmd-pane-focused) .pmd-pane-chip {
+  background: var(--pmd-c-drop-soft, var(--pmd-c-surface));
 }
 .pmd-pane-chip-stack {
   flex: 0 0 auto;

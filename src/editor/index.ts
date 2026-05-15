@@ -311,6 +311,10 @@ const ribbonContext: RibbonContext = {
   },
   openShortcutsReference: () => openReference(),
   toggleCommentsVisible: () => {
+    // Comments are disabled in multi-doc mode; if the user has
+    // rebound this command to a key, refuse rather than re-show the
+    // hidden column on top of the multi-pane layout.
+    if (multiDocActive) return;
     if (!commentsColumn || !commentsColumnEl) return;
     const next = commentsColumnEl.hidden;
     commentsColumn.setVisible(next);

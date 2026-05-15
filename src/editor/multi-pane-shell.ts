@@ -102,6 +102,14 @@ class Slot {
   /** ResizeObserver tracking the pane body's width, driving the
    *  per-pane `--pmd-card-intrinsic-width` CSS variable. */
   private bodyResizeObserver: ResizeObserver;
+  /** Last width we wrote into `--pmd-card-intrinsic-width`. Used to
+   *  short-circuit no-op observations and prevent feedback loops
+   *  where setting the variable triggers a layout pass that fires
+   *  the observer again. */
+  private lastIntrinsicWidth = -1;
+  /** Pending rAF id for the next intrinsic-width sync. Coalesces
+   *  bursts of observer fires into one write per animation frame. */
+  private intrinsicWidthRaf: number | null = null;
 
   /** Live stack. Index 0 = bottom (least recently active);
    *  `visibleIndex` is the doc currently shown. */
@@ -196,21 +204,28 @@ class Slot {
     // slots). ResizeObserver covers every resize: layout-mode
     // toggle, active-count change, window resize, nav drag.
     this.bodyResizeObserver = new ResizeObserver(() => {
-      this.syncCardIntrinsicWidth();
+      this.scheduleCardIntrinsicWidthSync();
     });
     this.bodyResizeObserver.observe(this.bodyEl);
   }
 
-  /** Read the pane body's current content width and publish it as
-   *  the `--pmd-card-intrinsic-width` CSS variable on this slot's
-   *  pane element. Descendants (cards / heading containers) pick it
-   *  up via `var()` in their `contain-intrinsic-width`. No-op when
-   *  the body has no measurable width (slot empty / not in DOM yet). */
-  private syncCardIntrinsicWidth(): void {
-    const width = this.bodyEl.clientWidth;
-    if (width > 0) {
+  /** Coalesce a burst of observer fires into one write per animation
+   *  frame, and bail when the width is unchanged. Without both
+   *  guards the observer feedback-loops in multi-doc mode: setting
+   *  the variable triggers a re-layout that toggles scrollbar
+   *  presence, which changes clientWidth, which re-fires the
+   *  observer, with each iteration drifting wider until it hits a
+   *  ceiling. */
+  private scheduleCardIntrinsicWidthSync(): void {
+    if (this.intrinsicWidthRaf !== null) return;
+    this.intrinsicWidthRaf = requestAnimationFrame(() => {
+      this.intrinsicWidthRaf = null;
+      const width = Math.round(this.bodyEl.clientWidth);
+      if (width <= 0) return;
+      if (width === this.lastIntrinsicWidth) return;
+      this.lastIntrinsicWidth = width;
       this.paneEl.style.setProperty('--pmd-card-intrinsic-width', `${width}px`);
-    }
+    });
   }
 
   /** The currently-visible doc record (or null when stack is empty). */

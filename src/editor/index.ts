@@ -1419,19 +1419,31 @@ function mountView(doc: PMNode, threads: Thread[] = []): void {
  *  containers (which use `content-visibility: auto`) consume the
  *  variable as their intrinsic-width when skipped, so the placeholder
  *  box matches the editor's actual width rather than a fixed pixel
- *  fallback. Created lazily on the first `mountView`. */
+ *  fallback. Created lazily on the first `mountView`.
+ *
+ *  Both an rAF batch and a last-value cache are needed to prevent
+ *  feedback loops: setting the variable on every observation
+ *  triggers re-layout that can toggle scrollbar presence, which
+ *  changes clientWidth, which re-fires the observer. */
 let cardIntrinsicWidthObserver: ResizeObserver | null = null;
+let lastCardIntrinsicWidth = -1;
+let cardIntrinsicWidthRaf: number | null = null;
 function setupCardIntrinsicWidthObserver(): void {
   if (cardIntrinsicWidthObserver) return;
-  const apply = (): void => {
-    const width = editorEl.clientWidth;
-    if (width > 0) {
+  const schedule = (): void => {
+    if (cardIntrinsicWidthRaf !== null) return;
+    cardIntrinsicWidthRaf = requestAnimationFrame(() => {
+      cardIntrinsicWidthRaf = null;
+      const width = Math.round(editorEl.clientWidth);
+      if (width <= 0) return;
+      if (width === lastCardIntrinsicWidth) return;
+      lastCardIntrinsicWidth = width;
       editorEl.style.setProperty('--pmd-card-intrinsic-width', `${width}px`);
-    }
+    });
   };
-  cardIntrinsicWidthObserver = new ResizeObserver(apply);
+  cardIntrinsicWidthObserver = new ResizeObserver(schedule);
   cardIntrinsicWidthObserver.observe(editorEl);
-  apply();
+  schedule();
 }
 
 let pendingHeavyUpdate: IdleHandle | null = null;

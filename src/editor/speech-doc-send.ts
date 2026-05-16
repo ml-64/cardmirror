@@ -112,14 +112,31 @@ export function insertSpeechSlice(
       $from.depth >= 1 &&
       $from.parent.isTextblock &&
       $from.parent.content.size === 0;
-    if (!inBlankLine && isEmpty && $from.parentOffset > 0) midText = true;
+    // Mid-text means strictly BETWEEN characters in a non-empty
+    // textblock. Cursor at the start of a block (parentOffset === 0)
+    // inserts before that block; cursor at the end (parentOffset ===
+    // parent.content.size) inserts after — both are clean splits
+    // and don't need the user-facing confirmation.
+    const inMidOfText =
+      isEmpty &&
+      $from.parent.isTextblock &&
+      $from.parentOffset > 0 &&
+      $from.parentOffset < $from.parent.content.size;
+    if (!inBlankLine && inMidOfText) midText = true;
   }
 
   if (midText) {
     const ok = window.confirm(
       'Sending to the middle of text in the speech doc. Are you sure?',
     );
-    if (!ok) return;
+    if (!ok) {
+      // `window.confirm` steals OS-level focus from the editor's
+      // contenteditable — after dismissal the speech doc renders
+      // a grey (unfocused) selection until something else grabs
+      // focus. Explicitly re-focusing the view fixes that.
+      speechView.focus();
+      return;
+    }
   }
 
   setTimeout(() => {

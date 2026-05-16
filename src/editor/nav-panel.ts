@@ -44,7 +44,6 @@ function applyNavWidthCss(px: number): void {
   document.documentElement.style.setProperty('--nav-width', `${clamped}px`);
 }
 
-
 export class NavigationPanel {
   private root: HTMLElement;
   private view: EditorView | null = null;
@@ -1338,38 +1337,6 @@ export class NavigationPanel {
     // is the position right before the heading node; +1 steps inside
     // its content. Wrap in try/catch in case the doc has shifted out
     // from under the entry (e.g., after rapid edits).
-    this.applyCursorAndFocus(entry);
-
-    let scrolled = false;
-    if (entry.id) {
-      const target = this.view.dom.querySelector<HTMLElement>(`[data-id="${cssEscape(entry.id)}"]`);
-      if (target) {
-        this.scrollTargetIntoView(target);
-        scrolled = true;
-      }
-    }
-    if (!scrolled) {
-      // Fallback: resolve the doc position and scroll the editor's
-      // closest containing element into view.
-      const domAtPos = this.view.domAtPos(entry.pos);
-      let el: Node | null = domAtPos.node;
-      while (el && el.nodeType !== Node.ELEMENT_NODE) el = el.parentNode;
-      if (el && (el as Element).scrollIntoView) {
-        this.scrollTargetIntoView(el as HTMLElement);
-      }
-    }
-    // Fragment navigation can clear the editor's text selection
-    // and may shift the browser's keyboard focus to the target
-    // element. Re-apply on the next animation frame, after the
-    // navigation has committed, so the cursor lands inside the
-    // heading and ` (send-to-speech) works immediately.
-    requestAnimationFrame(() => this.applyCursorAndFocus(entry));
-  }
-
-  /** Place the editor's text cursor inside the heading represented
-   *  by `entry` and refocus the contenteditable. Idempotent. */
-  private applyCursorAndFocus(entry: HeadingEntry): void {
-    if (!this.view) return;
     try {
       const tr = this.view.state.tr.setSelection(
         TextSelection.create(this.view.state.doc, entry.pos + 1),
@@ -1377,50 +1344,25 @@ export class NavigationPanel {
       this.view.dispatch(tr);
       this.view.focus();
     } catch {
-      // Doc shifted from under the entry (e.g. after rapid edits) —
-      // skip selection update; scroll-only behavior is acceptable.
+      // Fall through to scroll-only behavior if the position is stale.
     }
-  }
 
-  /** Navigate to `target` by content identity (the heading's
-   *  stable `data-id`) rather than by computed scroll position.
-   *  Uses the browser's fragment-navigation primitive
-   *  (`location.hash = "#id"`) — Chromium special-cases this to
-   *  materialize `content-visibility: auto` subtrees as part of
-   *  the scroll, which is exactly what our manual scroll-math
-   *  approaches stumble on (placeholder `contain-intrinsic-height`
-   *  values for skipped subtrees making cumulative offsets
-   *  systematically wrong).
-   *
-   *  We mirror `data-id` onto a real `id` attribute briefly so
-   *  the fragment resolves to this element, then revert after
-   *  the navigation. The URL hash is also reverted via
-   *  `history.replaceState` so it stays invisible. Fallback to
-   *  plain `scrollIntoView` for any element without a `data-id`
-   *  (the `domAtPos` fallback path in `jumpTo`). */
-  private scrollTargetIntoView(target: HTMLElement): void {
-    const dataId = target.dataset['id'];
-    if (!dataId) {
-      target.scrollIntoView({ behavior: 'auto', block: 'start' });
-      return;
+    if (entry.id) {
+      const target = this.view.dom.querySelector<HTMLElement>(`[data-id="${cssEscape(entry.id)}"]`);
+      if (target) {
+        target.scrollIntoView({ behavior: 'auto', block: 'start' });
+        return;
+      }
     }
-    const prevDomId = target.id;
-    target.id = dataId;
-    const prevHash = window.location.hash;
-    // Two-step hash assignment: if the hash already equals the
-    // target id (e.g., the user clicked the same heading twice),
-    // a same-value assignment is a no-op and won't re-trigger
-    // the scroll. Setting to a sentinel first guarantees a
-    // hashchange fires on the second assignment.
-    window.location.hash = '__pmd_nav_reset__';
-    window.location.hash = dataId;
-    requestAnimationFrame(() => {
-      target.id = prevDomId;
-      // Restore the URL without re-triggering a scroll.
-      const url =
-        window.location.pathname + window.location.search + (prevHash || '');
-      history.replaceState(null, '', url);
-    });
+
+    // Fallback: resolve the doc position and scroll the editor's
+    // closest containing element into view.
+    const domAtPos = this.view.domAtPos(entry.pos);
+    let el: Node | null = domAtPos.node;
+    while (el && el.nodeType !== Node.ELEMENT_NODE) el = el.parentNode;
+    if (el && (el as Element).scrollIntoView) {
+      (el as Element).scrollIntoView({ behavior: 'auto', block: 'start' });
+    }
   }
 }
 

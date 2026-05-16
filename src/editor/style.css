@@ -1018,7 +1018,6 @@ code {
 }
 
 
-
 /* Undertag paragraph. Color is settings-driven (--pmd-color-undertag);
    italic / bold are gated on typography-flag classes on #editor. */
 .pmd-undertag {

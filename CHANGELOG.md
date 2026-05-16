@@ -40,6 +40,18 @@ Not in this release (planned):
 - Cross-window drag-and-drop. (Cross-pane drag within multi-pane
   mode works.)
 
+Operational:
+
+- **Crash dumps** are collected locally to disk only — never
+  uploaded anywhere. If CardMirror crashes and you want to send
+  a report, open *Help → Open Crash Dumps Folder* and attach
+  the minidump to a GitHub issue.
+- **Auto-update**: on launch, CardMirror checks GitHub Releases
+  for a newer version and downloads it in the background. When
+  one's ready, a dialog asks whether to restart now or install
+  on next quit. *Help → Check for Updates…* triggers the same
+  check on demand.
+
 Known gaps:
 
 - Desktop builds are unsigned. First-launch warnings on

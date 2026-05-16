@@ -21,13 +21,28 @@ import {
   Menu,
   MenuItemConstructorOptions,
   clipboard,
+  crashReporter,
   dialog,
   ipcMain,
+  shell,
 } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 
 const DEV_SERVER_URL = 'http://localhost:5173';
+
+// Start collecting crash minidumps as early as possible. We do
+// NOT upload them — `uploadToServer: false` keeps everything on
+// disk in `app.getPath('crashDumps')`. Users who hit a crash can
+// pull the dump from there manually and attach it to a bug report.
+// No telemetry, no remote endpoint, no third-party SDK.
+crashReporter.start({
+  productName: 'CardMirror',
+  companyName: 'CardMirror',
+  submitURL: '',
+  uploadToServer: false,
+});
 
 interface FileFilter {
   name: string;
@@ -585,9 +600,92 @@ function buildMenu(): Menu {
       ],
     },
     { role: 'windowMenu' },
+    {
+      label: 'Help',
+      submenu: [
+        {
+          label: 'Check for Updates…',
+          // Manual update check. Same path as the on-launch one; the
+          // user-driven 'update-not-available' branch shows a
+          // confirmation so they know the check ran.
+          click: () => {
+            if (!app.isPackaged) {
+              const win = BrowserWindow.getFocusedWindow();
+              if (win) {
+                void dialog.showMessageBox(win, {
+                  type: 'info',
+                  message: 'Update checks are only active in packaged builds.',
+                });
+              }
+              return;
+            }
+            autoUpdater.once('update-not-available', () => {
+              const win = BrowserWindow.getFocusedWindow();
+              if (!win) return;
+              void dialog.showMessageBox(win, {
+                type: 'info',
+                message: `You're on the latest version.`,
+              });
+            });
+            autoUpdater.checkForUpdates().catch((err) => {
+              console.warn('Manual update check failed:', err);
+            });
+          },
+        },
+        {
+          label: 'Open Crash Dumps Folder',
+          // Crash minidumps land in `app.getPath('crashDumps')`. We
+          // don't upload them anywhere — users who hit a crash can
+          // grab the dump from this folder and attach it to a bug
+          // report manually.
+          click: () => {
+            void shell.openPath(app.getPath('crashDumps'));
+          },
+        },
+      ],
+    },
   ];
 
   return Menu.buildFromTemplate(template);
+}
+
+// ─── Auto-update ───────────────────────────────────────────────────
+//
+// electron-updater reads `app-update.yml` from inside the packaged
+// app — electron-builder emits it as part of the release build with
+// the GitHub Releases provider configured. In development (no
+// `app.isPackaged`) the check is a no-op so we don't 404 against a
+// missing config file. Failures are logged, never alerted.
+
+function startAutoUpdate(): void {
+  if (!app.isPackaged) return;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on('error', (err) => {
+    console.warn('Auto-update error:', err);
+  });
+  autoUpdater.on('update-available', (info) => {
+    console.log(`Auto-update: ${info.version} available, downloading…`);
+  });
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log(`Auto-update: ${info.version} downloaded; will install on next quit.`);
+    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+    if (!win) return;
+    void dialog.showMessageBox(win, {
+      type: 'info',
+      buttons: ['Restart now', 'Later'],
+      defaultId: 0,
+      cancelId: 1,
+      title: 'Update ready',
+      message: `CardMirror ${info.version} is ready to install.`,
+      detail: 'Restart now to apply the update, or later — it will install when you quit the app.',
+    }).then((result) => {
+      if (result.response === 0) autoUpdater.quitAndInstall();
+    });
+  });
+  autoUpdater.checkForUpdates().catch((err) => {
+    console.warn('Auto-update check failed:', err);
+  });
 }
 
 // ─── App lifecycle ─────────────────────────────────────────────────
@@ -595,6 +693,7 @@ function buildMenu(): Menu {
 void app.whenReady().then(() => {
   Menu.setApplicationMenu(buildMenu());
   createWindow();
+  startAutoUpdate();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

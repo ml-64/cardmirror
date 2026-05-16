@@ -1338,6 +1338,38 @@ export class NavigationPanel {
     // is the position right before the heading node; +1 steps inside
     // its content. Wrap in try/catch in case the doc has shifted out
     // from under the entry (e.g., after rapid edits).
+    this.applyCursorAndFocus(entry);
+
+    let scrolled = false;
+    if (entry.id) {
+      const target = this.view.dom.querySelector<HTMLElement>(`[data-id="${cssEscape(entry.id)}"]`);
+      if (target) {
+        this.scrollTargetIntoView(target);
+        scrolled = true;
+      }
+    }
+    if (!scrolled) {
+      // Fallback: resolve the doc position and scroll the editor's
+      // closest containing element into view.
+      const domAtPos = this.view.domAtPos(entry.pos);
+      let el: Node | null = domAtPos.node;
+      while (el && el.nodeType !== Node.ELEMENT_NODE) el = el.parentNode;
+      if (el && (el as Element).scrollIntoView) {
+        this.scrollTargetIntoView(el as HTMLElement);
+      }
+    }
+    // Fragment navigation can clear the editor's text selection
+    // and may shift the browser's keyboard focus to the target
+    // element. Re-apply on the next animation frame, after the
+    // navigation has committed, so the cursor lands inside the
+    // heading and ` (send-to-speech) works immediately.
+    requestAnimationFrame(() => this.applyCursorAndFocus(entry));
+  }
+
+  /** Place the editor's text cursor inside the heading represented
+   *  by `entry` and refocus the contenteditable. Idempotent. */
+  private applyCursorAndFocus(entry: HeadingEntry): void {
+    if (!this.view) return;
     try {
       const tr = this.view.state.tr.setSelection(
         TextSelection.create(this.view.state.doc, entry.pos + 1),
@@ -1345,24 +1377,8 @@ export class NavigationPanel {
       this.view.dispatch(tr);
       this.view.focus();
     } catch {
-      // Fall through to scroll-only behavior if the position is stale.
-    }
-
-    if (entry.id) {
-      const target = this.view.dom.querySelector<HTMLElement>(`[data-id="${cssEscape(entry.id)}"]`);
-      if (target) {
-        this.scrollTargetIntoView(target);
-        return;
-      }
-    }
-
-    // Fallback: resolve the doc position and scroll the editor's
-    // closest containing element into view.
-    const domAtPos = this.view.domAtPos(entry.pos);
-    let el: Node | null = domAtPos.node;
-    while (el && el.nodeType !== Node.ELEMENT_NODE) el = el.parentNode;
-    if (el && (el as Element).scrollIntoView) {
-      this.scrollTargetIntoView(el as HTMLElement);
+      // Doc shifted from under the entry (e.g. after rapid edits) —
+      // skip selection update; scroll-only behavior is acceptable.
     }
   }
 

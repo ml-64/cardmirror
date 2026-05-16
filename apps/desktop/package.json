@@ -61,6 +61,23 @@
       ],
       "artifactName": "cardmirror-${version}.${ext}"
     },
+    "pacman": {
+      "depends": [
+        "c-ares",
+        "ffmpeg",
+        "gtk3",
+        "libevent",
+        "libnotify",
+        "libvpx",
+        "libxslt",
+        "libxss",
+        "minizip",
+        "nss",
+        "re2",
+        "snappy",
+        "libxcrypt-compat"
+      ]
+    },
     "publish": {
       "provider": "github",
       "owner": "ant981228",

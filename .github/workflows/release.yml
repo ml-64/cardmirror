@@ -47,6 +47,14 @@ jobs:
         # install here.
         run: npm --prefix apps/desktop ci
 
+      - name: Install Linux build tools
+        # fpm (the Ruby tool electron-builder shells out to for
+        # .pacman / .deb) needs `bsdtar` to assemble the package's
+        # .MTREE file. Ubuntu runners don't ship libarchive-tools
+        # by default — install it here.
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y libarchive-tools
+
       - name: Run tests
         # Same as the CI workflow — runs against ubuntu but we let
         # the other platforms skip to save build minutes; the

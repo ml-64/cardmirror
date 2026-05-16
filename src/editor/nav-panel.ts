@@ -44,20 +44,6 @@ function applyNavWidthCss(px: number): void {
   document.documentElement.style.setProperty('--nav-width', `${clamped}px`);
 }
 
-/** Find the nearest scrolling ancestor of `el`, falling back to
- *  the document scrolling element. Used by the nav-pane jumpTo
- *  refine loop so each correction targets the right scroll
- *  container — `documentElement` for single-doc, the multi-pane
- *  shell's `.pmd-multi-section` for per-pane editors. */
-function findScrollContainer(el: HTMLElement): HTMLElement {
-  let cur: HTMLElement | null = el.parentElement;
-  while (cur && cur !== document.body) {
-    const overflow = getComputedStyle(cur).overflowY;
-    if (overflow === 'auto' || overflow === 'scroll') return cur;
-    cur = cur.parentElement;
-  }
-  return document.documentElement;
-}
 
 export class NavigationPanel {
   private root: HTMLElement;
@@ -1380,68 +1366,45 @@ export class NavigationPanel {
     }
   }
 
-  /** Scroll `target` into view, then refine the scroll position
-   *  by reading the target's actual `getBoundingClientRect` and
-   *  scrolling by the delta. Repeated for a few animation frames.
+  /** Navigate to `target` by content identity (the heading's
+   *  stable `data-id`) rather than by computed scroll position.
+   *  Uses the browser's fragment-navigation primitive
+   *  (`location.hash = "#id"`) — Chromium special-cases this to
+   *  materialize `content-visibility: auto` subtrees as part of
+   *  the scroll, which is exactly what our manual scroll-math
+   *  approaches stumble on (placeholder `contain-intrinsic-height`
+   *  values for skipped subtrees making cumulative offsets
+   *  systematically wrong).
    *
-   *  Rationale: cards / heading containers have
-   *  `content-visibility: auto` with `contain-intrinsic-height`
-   *  placeholders (200px / 40px). On a big doc, the browser's
-   *  initial `scrollIntoView` computes its scroll target using
-   *  cumulative placeholder heights — off by tens of pixels per
-   *  skipped subtree — and lands near but not on the heading.
-   *  Forcing materialization up-front via CSS override is slow
-   *  and doesn't reliably flush content-visibility state inside
-   *  a JS handler.
-   *
-   *  Instead, we accept that the first scroll is approximate.
-   *  The target IS now visible (cv:auto materializes on
-   *  intersection); on the next frame, its
-   *  `getBoundingClientRect().top` is a real number. We compute
-   *  how far off we are from the desired Y and scroll by that
-   *  delta. Each iteration uses freshly-measured layout, so the
-   *  scrollbar converges in 1–3 frames. The user perceives a
-   *  quick settle rather than the original "land in the wrong
-   *  place and stay there." */
+   *  We mirror `data-id` onto a real `id` attribute briefly so
+   *  the fragment resolves to this element, then revert after
+   *  the navigation. The URL hash is also reverted via
+   *  `history.replaceState` so it stays invisible. Fallback to
+   *  plain `scrollIntoView` for any element without a `data-id`
+   *  (the `domAtPos` fallback path in `jumpTo`). */
   private scrollTargetIntoView(target: HTMLElement): void {
-    // Coarse scroll first — gets us approximately at the target.
-    // The browser's math is wrong (placeholder heights), but it's
-    // good enough to put the target's neighborhood on-screen,
-    // which is what we need for accurate measurement to start.
-    target.scrollIntoView({ behavior: 'auto', block: 'start' });
-
-    const scroller = findScrollContainer(target);
-    const isWindowScroll = scroller === document.documentElement;
-    // Desired viewport Y for the target's top edge. Ribbon is
-    // position:fixed, so the document scroll's "top" is 0 in
-    // viewport coords; the editor's content begins below the
-    // ribbon via #app's margin-top, and `scrollIntoView({block:
-    // 'start'})` aligns target.top to scroller.top.
-    let desiredY: number;
-    if (isWindowScroll) {
-      desiredY = 0;
-    } else {
-      desiredY = scroller.getBoundingClientRect().top;
+    const dataId = target.dataset['id'];
+    if (!dataId) {
+      target.scrollIntoView({ behavior: 'auto', block: 'start' });
+      return;
     }
-
-    let iterations = 0;
-    const refine = (): void => {
-      if (!target.isConnected) return;
-      if (iterations >= 6) return;
-      const rect = target.getBoundingClientRect();
-      const delta = rect.top - desiredY;
-      // Sub-pixel deltas: we're done. Anything > 1px gets one
-      // more correction.
-      if (Math.abs(delta) < 1) return;
-      if (isWindowScroll) {
-        window.scrollBy(0, delta);
-      } else {
-        scroller.scrollTop += delta;
-      }
-      iterations++;
-      requestAnimationFrame(refine);
-    };
-    requestAnimationFrame(refine);
+    const prevDomId = target.id;
+    target.id = dataId;
+    const prevHash = window.location.hash;
+    // Two-step hash assignment: if the hash already equals the
+    // target id (e.g., the user clicked the same heading twice),
+    // a same-value assignment is a no-op and won't re-trigger
+    // the scroll. Setting to a sentinel first guarantees a
+    // hashchange fires on the second assignment.
+    window.location.hash = '__pmd_nav_reset__';
+    window.location.hash = dataId;
+    requestAnimationFrame(() => {
+      target.id = prevDomId;
+      // Restore the URL without re-triggering a scroll.
+      const url =
+        window.location.pathname + window.location.search + (prevHash || '');
+      history.replaceState(null, '', url);
+    });
   }
 }
 

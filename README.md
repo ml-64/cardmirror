@@ -36,7 +36,7 @@ CardMirror is built with JavaScript / TypeScript and needs **Node.js**
 to run. Node is a regular desktop installer.
 
 - **macOS** — open [nodejs.org](https://nodejs.org/) in your browser
-  and click the big green **"LTS"** download button. Open the `.pkg`
+  and click the blue **"LTS"** download button. Open the `.pkg`
   file from Downloads and click through the installer (Continue,
   Continue, Agree, Install, enter your password if asked, Close).
 - **Windows** — open [nodejs.org](https://nodejs.org/) and click the

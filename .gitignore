@@ -41,3 +41,10 @@ apps/desktop/dist/
 
 # Electron-builder artifacts (Phase 5).
 release/
+
+# `build/` is gitignored above as a generic build-output directory,
+# but electron-builder's `buildResources` lives at
+# apps/desktop/build/ and holds tracked source assets (icon.png).
+# Re-include that specific path.
+!apps/desktop/build/
+!apps/desktop/build/**

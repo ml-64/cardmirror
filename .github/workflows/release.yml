@@ -36,10 +36,16 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - name: Install dependencies
-        # npm ci with workspaces installs both the root package and
-        # apps/desktop in one shot.
+      - name: Install root dependencies
         run: npm ci
+
+      - name: Install desktop dependencies
+        # apps/desktop is intentionally NOT in the workspaces array
+        # (electron-builder's internal install step prunes hoisted
+        # dev-deps mid-build under npm workspaces — separate install
+        # is the workaround). Each platform's runner does its own
+        # install here.
+        run: npm --prefix apps/desktop ci
 
       - name: Run tests
         # Same as the CI workflow — runs against ubuntu but we let
@@ -53,4 +59,4 @@ jobs:
           # electron-builder reads GH_TOKEN (not GITHUB_TOKEN) for
           # GitHub Releases publishing.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm --workspace=@cardmirror/desktop run release
+        run: npm --prefix apps/desktop run release

@@ -14,9 +14,6 @@
   },
   "type": "module",
   "private": true,
-  "workspaces": [
-    "apps/*"
-  ],
   "scripts": {
     "build": "vite build",
     "dev": "vite",
@@ -25,8 +22,12 @@
     "test:bench": "vitest bench --run",
     "typecheck": "tsc --noEmit",
     "round-trip": "tsx bin/round-trip.ts",
-    "desktop:dev": "npm --workspace=@cardmirror/desktop run dev",
-    "desktop:build": "npm --workspace=@cardmirror/desktop run build"
+    "desktop:install": "npm --prefix apps/desktop install",
+    "desktop:dev": "npm --prefix apps/desktop run dev",
+    "desktop:build": "npm --prefix apps/desktop run build",
+    "desktop:pack": "npm --prefix apps/desktop run pack",
+    "desktop:dist": "npm --prefix apps/desktop run dist",
+    "desktop:release": "npm --prefix apps/desktop run release"
   },
   "dependencies": {
     "fast-xml-parser": "^4.5.0",

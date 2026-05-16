@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./logo.png" alt="CardMirror" width="280" />
+</p>
+
 # CardMirror
 
 CardMirror is a debate-evidence editor for high school and college

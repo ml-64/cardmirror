@@ -35,6 +35,7 @@ import { showToast } from './toast.js';
 import {
   settings,
   condenseWarningCloseFor,
+  CUSTOMIZABLE_COLOR_TOKENS,
   DISPLAY_SIZE_KEYS,
   DISPLAY_COLOR_KEYS,
   type DisplaySizes,
@@ -43,6 +44,7 @@ import {
   type FormattingPanelMode,
 } from './settings.js';
 import { openSaveAs } from './save-as-ui.js';
+import { highlightColorLabel, shadingColorLabel } from './color-palette.js';
 import { commentsPlugin, commentsKey, loadThreads, getCommentsState, gcOrphanThreads } from './comments-plugin.js';
 import { scheduleIdle, cancelIdle, type IdleHandle } from './idle-scheduler.js';
 import { CommentsColumn, addCommentToSelection } from './comments-ui.js';
@@ -61,6 +63,7 @@ import { buildImageNodeFromBlob, insertImageNode } from './image-insert.js';
 import { imageContextMenuPlugin } from './image-context-menu-plugin.js';
 import { linkContextMenuPlugin } from './link-context-menu-plugin.js';
 import { tripleClickDragPlugin } from './triple-click-drag-plugin.js';
+import { highlightFrequencyPlugin } from './highlight-frequency-plugin.js';
 import { editorDragSurface } from './drag-editor-surface.js';
 import {
   backspaceAtTagStart,
@@ -338,6 +341,8 @@ const commentsToggleBtn = document.getElementById('comments-toggle-btn') as HTML
 const commentsAddBtn = document.getElementById('comments-add-btn') as HTMLButtonElement | null;
 const commentsColumnEl = document.getElementById('comments-column') as HTMLElement | null;
 const wordCountText = document.getElementById('word-count-text')!;
+const cursorColorDisplay = document.getElementById('cursor-color-display') as HTMLElement;
+const cursorColorText = document.getElementById('cursor-color-text')!;
 const plainPasteToggleBtn = document.getElementById('plain-paste-toggle-btn') as HTMLButtonElement | null;
 const fontSizeInput = document.getElementById('font-size-input') as HTMLInputElement | null;
 const fontSizePickerBtn = document.getElementById('font-size-picker-btn') as HTMLButtonElement | null;
@@ -528,6 +533,7 @@ export function setActiveView(v: EditorView | null): void {
   // word-count display, paragraph integrity indicator,
   // read-mode toggle pressed-state, speech-mark button, etc.).
   refreshFontSizeDisplay();
+  refreshCursorColorDisplay();
   refreshWordCount();
   refreshReadModeBtn();
   refreshSpeechMarkBtn();
@@ -1366,25 +1372,53 @@ function applyDisplayColors(c: DisplayColors): void {
   }
 }
 
+/** Apply the user's per-token color overrides as inline styles
+ *  on documentElement. Inline style has the highest specificity,
+ *  so an entry in `customColorOverrides` wins over the :root
+ *  defaults AND over any future preset that sets the same
+ *  variable via a body class. Tokens missing from the overrides
+ *  blob get `removeProperty` so the cascade fallback kicks back
+ *  in (cleanly restoring whichever preset / default applies). */
+function applyCustomColorOverrides(
+  overrides: Record<string, string>,
+  knownTokens: readonly string[],
+): void {
+  const docEl = document.documentElement;
+  for (const token of knownTokens) {
+    if (Object.prototype.hasOwnProperty.call(overrides, token)) {
+      docEl.style.setProperty('--' + token, overrides[token]!);
+    } else {
+      docEl.style.removeProperty('--' + token);
+    }
+  }
+}
+
 /** Apply the highlight + shading display-override settings.
  *  Toggles two body classes that the CSS rules in style.css gate
- *  on, and pushes the override colors into CSS variables. Cheap
- *  to call on every settings transaction. */
+ *  on, and pushes the LAST slot's color into a CSS variable as
+ *  the catch-all for source colors not in the ranked top-(N-1).
+ *  With slots.length === 1, the entire override collapses to
+ *  that single color (no ranking needed). The
+ *  highlight-frequency plugin handles the per-color top-N-1
+ *  rules via a dynamic stylesheet — see
+ *  src/editor/highlight-frequency-plugin.ts. */
 function applyHighlightShadingOverride(
   highlightOn: boolean,
-  highlightValue: string,
+  highlightSlots: string[],
   shadingOn: boolean,
-  shadingValue: string,
+  shadingSlots: string[],
 ): void {
   document.body.classList.toggle('pmd-override-highlight', highlightOn);
   document.body.classList.toggle('pmd-override-shading', shadingOn);
+  // Catch-all variables: read by the static CSS rule. Last slot
+  // doubles as the "everything not in top-(N-1)" bucket.
   document.documentElement.style.setProperty(
     '--pmd-c-override-highlight',
-    highlightValue,
+    highlightSlots[highlightSlots.length - 1] ?? '#ffff00',
   );
   document.documentElement.style.setProperty(
     '--pmd-c-override-shading',
-    shadingValue,
+    shadingSlots[shadingSlots.length - 1] ?? '#d2d2d2',
   );
 }
 
@@ -1449,9 +1483,13 @@ settings.subscribe((s) => {
   applyDisplayColors(s.displayColors);
   applyHighlightShadingOverride(
     s.overrideHighlightColor,
-    s.overrideHighlightColorValue,
+    s.overrideHighlightSlots,
     s.overrideShadingColor,
-    s.overrideShadingColorValue,
+    s.overrideShadingSlots,
+  );
+  applyCustomColorOverrides(
+    s.customColorOverrides,
+    CUSTOMIZABLE_COLOR_TOKENS.map((t) => t.name),
   );
   applyBodyFont(s.bodyFont);
   applyLineHeight(s.lineHeight);
@@ -1459,6 +1497,7 @@ settings.subscribe((s) => {
   syncParagraphIntegrityBtn();
   refreshWordCount();
   refreshFontSizeDisplay();
+  refreshCursorColorDisplay();
   if (s.ribbonKeyOverrides !== lastRibbonOverrides) {
     lastRibbonOverrides = s.ribbonKeyOverrides;
     if (view) {
@@ -1487,9 +1526,13 @@ applyDisplayTypography(settings.get('displayTypography'));
 applyDisplayColors(settings.get('displayColors'));
 applyHighlightShadingOverride(
   settings.get('overrideHighlightColor'),
-  settings.get('overrideHighlightColorValue'),
+  settings.get('overrideHighlightSlots'),
   settings.get('overrideShadingColor'),
-  settings.get('overrideShadingColorValue'),
+  settings.get('overrideShadingSlots'),
+);
+applyCustomColorOverrides(
+  settings.get('customColorOverrides'),
+  CUSTOMIZABLE_COLOR_TOKENS.map((t) => t.name),
 );
 applyBodyFont(settings.get('bodyFont'));
 applyLineHeight(settings.get('lineHeight'));
@@ -1738,6 +1781,49 @@ for (const [btn, delta] of [
     adjustFontSize(delta, effectivePtForNode)(view.state, view.dispatch.bind(view));
     view.focus();
   });
+}
+
+/** Update the status-bar cursor-color readout. Visible only when
+ *  at least one of the highlight / shading display overrides is
+ *  on — the readout reports the ACTUAL stored colors on the run
+ *  at the cursor, NOT the rendered override colors, so the user
+ *  can tell what's encoded in the doc while the override hides
+ *  it from view. */
+function refreshCursorColorDisplay(): void {
+  const highlightOn = settings.get('overrideHighlightColor');
+  const shadingOn = settings.get('overrideShadingColor');
+  if (!highlightOn && !shadingOn) {
+    cursorColorDisplay.hidden = true;
+    return;
+  }
+  cursorColorDisplay.hidden = false;
+  if (!view) {
+    cursorColorText.textContent = '—';
+    return;
+  }
+  const sel = view.state.selection;
+  const marks = sel.$head.marks();
+  let highlightName = '';
+  let shadingHex = '';
+  for (const m of marks) {
+    if (m.type.name === 'highlight') {
+      highlightName = String(m.attrs['color'] ?? '');
+    } else if (m.type.name === 'shading') {
+      shadingHex = String(m.attrs['color'] ?? '');
+    }
+  }
+  const parts: string[] = [];
+  if (highlightOn) {
+    parts.push(
+      `Hl: ${highlightName ? highlightColorLabel(highlightName) : 'none'}`,
+    );
+  }
+  if (shadingOn) {
+    parts.push(
+      `Sh: ${shadingHex ? shadingColorLabel(shadingHex) : 'none'}`,
+    );
+  }
+  cursorColorText.textContent = parts.join(' · ');
 }
 
 function refreshFontSizeDisplay(): void {
@@ -2220,6 +2306,7 @@ export function buildEditorPlugins(): Plugin[] {
     imageContextMenuPlugin,
     linkContextMenuPlugin,
     tripleClickDragPlugin,
+    highlightFrequencyPlugin,
     // When `enableTextDragDrop` is off, swallow the browser's
     // `dragstart` on the editor's contenteditable so the user
     // can't initiate a text-move drag from a selection. Doesn't
@@ -2277,6 +2364,7 @@ function mountView(doc: PMNode, threads: Thread[] = []): void {
       // Cheap; runs on every transaction (selection moves included)
       // so the readout always reflects the cursor's current run.
       refreshFontSizeDisplay();
+      refreshCursorColorDisplay();
       // Doc-walking work (nav rebuild, word count, comments column
       // refresh, comments-plugin orphan GC) is all O(doc) and the
       // dominant per-keystroke cost on big docs. Debounce so it only

@@ -197,6 +197,15 @@
       <div id="word-count-display" class="status-segment" title="Read-aloud word count and read time">
         <span id="word-count-text">—</span>
       </div>
+      <!-- Cursor-position color readout. Visible only when at
+           least one of the highlight / shading display overrides
+           is on; reports the ACTUAL stored colors at the cursor
+           (not the rendered override colors) so the user retains
+           awareness of what's encoded in the doc. -->
+      <div id="cursor-color-display" class="status-segment" hidden
+           title="Highlight and shading colors stored on the run at the cursor">
+        <span id="cursor-color-text">—</span>
+      </div>
       <div class="status-spacer"></div>
       <div class="zoom-controls" title="Zoom">
         <button id="zoom-out-btn" type="button" aria-label="Zoom out">−</button>

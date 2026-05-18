@@ -959,6 +959,18 @@ body.pmd-host-browser #autosave-btn { display: none; }
   font-variant-numeric: tabular-nums;
 }
 
+#cursor-color-display {
+  /* Subtle visual divider from the word-count segment on its left
+     so the two read as separate readings, not one long string. */
+  padding-left: 0.65rem;
+  border-left: 1px solid var(--pmd-c-divider);
+  color: var(--pmd-c-text-secondary);
+}
+#cursor-color-display[hidden] { display: none; }
+#cursor-color-text {
+  white-space: nowrap;
+}
+
 .zoom-controls {
   display: flex;
   align-items: center;
@@ -1384,6 +1396,188 @@ body.pmd-override-highlight .pmd-highlight[data-highlight] {
 }
 body.pmd-override-shading [data-shading] {
   background-color: var(--pmd-c-override-shading) !important;
+}
+
+/* Multi-slot color editor — highlight / shading display
+   overrides. Ordered list of 1-3 color pickers with grow/shrink
+   controls. Lives under the override toggle in the
+   accessibility section. */
+.pmd-color-slots-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+}
+.pmd-color-slot-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.4rem;
+  background: var(--pmd-c-bg-soft);
+  border: 1px solid var(--pmd-c-border-soft);
+  border-radius: 3px;
+}
+.pmd-color-slot-rank {
+  flex: 0 0 5.5em;
+  font-size: 0.78rem;
+  color: var(--pmd-c-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.pmd-color-slot-input {
+  width: 2rem;
+  height: 1.3rem;
+  padding: 0;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 3px;
+  cursor: pointer;
+  background: var(--pmd-c-bg);
+}
+.pmd-color-slot-hex {
+  flex: 1 1 auto;
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: var(--pmd-c-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.pmd-color-slot-trash {
+  width: 1.4rem;
+  height: 1.4rem;
+  padding: 0;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 3px;
+  background: var(--pmd-c-bg);
+  cursor: pointer;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+.pmd-color-slot-trash:hover:not(:disabled) { background: var(--pmd-c-hover); }
+.pmd-color-slot-trash:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.pmd-color-slot-add {
+  align-self: flex-start;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.78rem;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 3px;
+  background: var(--pmd-c-bg);
+  color: var(--pmd-c-text);
+  cursor: pointer;
+}
+.pmd-color-slot-add:hover { background: var(--pmd-c-hover); }
+
+/* Per-token color override panel (accessibility section). One
+   row per overridable variable, grouped by semantic role. */
+.pmd-color-overrides-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-top: 0.5rem;
+}
+.pmd-color-override-group-label {
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pmd-c-text-muted);
+  margin-top: 0.5rem;
+  margin-bottom: 0.1rem;
+}
+.pmd-color-override-group-label:first-child { margin-top: 0; }
+.pmd-color-override-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.4rem;
+  background: var(--pmd-c-bg-soft);
+  border: 1px solid var(--pmd-c-border-soft);
+  border-radius: 3px;
+}
+.pmd-color-override-label {
+  flex: 1 1 auto;
+  font-size: 0.85rem;
+  color: var(--pmd-c-text);
+}
+.pmd-color-override-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+}
+.pmd-color-override-swatch {
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 2px;
+  display: inline-block;
+}
+.pmd-color-override-hex {
+  font-family: monospace;
+  font-size: 0.78rem;
+  color: var(--pmd-c-text-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 6.5em;
+}
+.pmd-color-override-input {
+  width: 1.8rem;
+  height: 1.2rem;
+  padding: 0;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 3px;
+  cursor: pointer;
+  background: var(--pmd-c-bg);
+}
+.pmd-color-override-alpha {
+  width: 4rem;
+  cursor: pointer;
+  /* Match the row's vertical rhythm without growing it. */
+  margin: 0;
+}
+.pmd-color-override-reset {
+  width: 1.4rem;
+  height: 1.4rem;
+  padding: 0;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 3px;
+  background: var(--pmd-c-bg);
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  color: var(--pmd-c-text);
+}
+.pmd-color-override-reset:hover:not(:disabled) {
+  background: var(--pmd-c-hover);
+}
+.pmd-color-override-reset:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* Header above the per-token rows. Holds the "reset all"
+   button; gives it a stable place at the top of the panel
+   that doesn't move as the user edits individual rows. */
+.pmd-color-overrides-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.35rem;
+}
+.pmd-color-overrides-reset-all {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.78rem;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 3px;
+  background: var(--pmd-c-bg);
+  color: var(--pmd-c-text);
+  cursor: pointer;
+}
+.pmd-color-overrides-reset-all:hover:not(:disabled) {
+  background: var(--pmd-c-hover);
+}
+.pmd-color-overrides-reset-all:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 /* Color-picker widget in Settings — used by the highlight /

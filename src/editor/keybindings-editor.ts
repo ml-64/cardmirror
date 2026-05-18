@@ -330,7 +330,16 @@ export function buildKeybindingsEditor(): HTMLElement {
       render();
     }
   });
-  wrap.addEventListener('DOMNodeRemoved', () => unsubscribe());
+  // Cancel the settings subscription when the editor leaves the
+  // DOM (e.g., the settings modal closes). MutationObserver
+  // replacement for the deprecated DOMNodeRemoved event.
+  const obs = new MutationObserver(() => {
+    if (!wrap.isConnected) {
+      unsubscribe();
+      obs.disconnect();
+    }
+  });
+  obs.observe(document.documentElement, { childList: true, subtree: true });
 
   render();
   return wrap;

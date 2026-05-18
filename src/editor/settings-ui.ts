@@ -8,6 +8,7 @@
  */
 
 import {
+  CUSTOMIZABLE_COLOR_TOKENS,
   SETTING_METADATA,
   SETTINGS_DEFAULTS,
   settings,
@@ -75,13 +76,34 @@ const DISPLAY_SIZE_LABELS: Record<keyof DisplaySizes, string> = {
   undertag: 'Undertag',
 };
 
+/** Run `callback` when `el` is no longer attached to the document.
+ *  Replaces `el.addEventListener('DOMNodeRemoved', ...)` — the
+ *  classic mutation event Chrome flagged as deprecated. Uses a
+ *  MutationObserver on the document root and disconnects after
+ *  firing. Returns a manual-cancel function in case the caller
+ *  wants to tear down early. */
+function onDetached(el: Element, callback: () => void): () => void {
+  const obs = new MutationObserver(() => {
+    if (!el.isConnected) {
+      callback();
+      obs.disconnect();
+    }
+  });
+  obs.observe(document.documentElement, { childList: true, subtree: true });
+  return () => obs.disconnect();
+}
+
 /** Tab labels shown in the settings dialog, in display order. */
 const CATEGORY_TABS: { id: SettingsCategory; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'editing', label: 'Editing' },
-  { id: 'shortcuts', label: 'Keyboard shortcuts' },
+  { id: 'shortcuts', label: 'Keyboard' },
   { id: 'comments-ai', label: 'Comments & AI' },
+  // Accessibility intentionally lives at the far right — its
+  // override-anything panel is a "last-resort" customization
+  // surface, separated from the everyday tabs.
+  { id: 'accessibility', label: 'Accessibility' },
 ];
 
 class SettingsModal {
@@ -329,6 +351,14 @@ class SettingsModal {
       row.appendChild(text);
       row.appendChild(buildColorEditor(meta.key as keyof typeof SETTINGS_DEFAULTS));
       return row;
+    } else if (meta.kind === 'colorSlots') {
+      row.appendChild(text);
+      row.appendChild(buildColorSlotsEditor(meta.key as keyof Settings));
+      return row;
+    } else if (meta.kind === 'colorOverrides') {
+      row.appendChild(text);
+      row.appendChild(buildColorOverridesEditor());
+      return row;
     } else if (meta.kind === 'headingMode') {
       row.appendChild(text);
       row.appendChild(buildHeadingModeEditor());
@@ -566,7 +596,7 @@ function buildTypographyEditor(): HTMLElement {
     const hideCb = checkboxes[flagKeys.length];
     if (hideCb) hideCb.checked = !!settings.get('hideEmphasisBordersInReadMode');
   });
-  wrap.addEventListener('DOMNodeRemoved', () => unsubscribe());
+  onDetached(wrap, () => unsubscribe());
 
   return wrap;
 }
@@ -615,7 +645,7 @@ function buildColorsEditor(): HTMLElement {
       if (inp && inp.value !== c[key]) inp.value = c[key];
     }
   });
-  wrap.addEventListener('DOMNodeRemoved', () => unsubscribe());
+  onDetached(wrap, () => unsubscribe());
 
   return wrap;
 }
@@ -663,7 +693,7 @@ function buildBodyFontEditor(): HTMLElement {
   const unsubscribe = settings.subscribe(() => {
     if (select.value !== settings.get('bodyFont')) populate();
   });
-  wrap.addEventListener('DOMNodeRemoved', () => unsubscribe());
+  onDetached(wrap, () => unsubscribe());
 
   return wrap;
 }
@@ -755,7 +785,7 @@ function buildLineHeightsEditor(): HTMLElement {
     }
   });
   render();
-  wrap.addEventListener('DOMNodeRemoved', () => unsubscribe());
+  onDetached(wrap, () => unsubscribe());
 
   return wrap;
 }
@@ -812,9 +842,7 @@ function buildDisplaySizesEditor(): HTMLElement {
   });
   render();
 
-  wrap.addEventListener('DOMNodeRemoved', () => {
-    unsubscribe();
-  });
+  onDetached(wrap, () => unsubscribe());
 
   return wrap;
 }
@@ -947,9 +975,7 @@ function buildReadersEditor(): HTMLElement {
   render();
 
   // Best-effort cleanup if the editor is detached (modal closes & rebuilds).
-  wrap.addEventListener('DOMNodeRemoved', () => {
-    unsubscribe();
-  });
+  onDetached(wrap, () => unsubscribe());
 
   return wrap;
 }
@@ -1067,6 +1093,284 @@ function buildColorEditor(key: string): HTMLElement {
   });
 
   refreshActive();
+  return wrap;
+}
+
+/** Ordered list of 1-3 color slots for the highlight / shading
+ *  display overrides. Slot 0 maps to the most-common source
+ *  color in the doc, slot 1 to the second-most-common, and the
+ *  last slot doubles as the "everything else" catch-all. Frequency
+ *  ranking happens in the highlight-frequency plugin; this UI
+ *  just owns the values.
+ *
+ *  Renders as a stack of color pickers; the user can grow / shrink
+ *  the list with `+ Add slot` / trash buttons. The last slot's
+ *  trash is disabled (always at least one). */
+function buildColorSlotsEditor(key: keyof Settings): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-color-slots-editor';
+
+  const get = (): string[] => settings.get(key) as string[];
+  const set = (slots: string[]) => settings.set(key, slots as never);
+
+  function render(): void {
+    wrap.innerHTML = '';
+    const slots = get();
+    for (let i = 0; i < slots.length; i++) {
+      const row = document.createElement('div');
+      row.className = 'pmd-color-slot-row';
+      const rank = document.createElement('span');
+      rank.className = 'pmd-color-slot-rank';
+      // Last slot's caption clarifies it's the catch-all when N > 1.
+      const isLast = i === slots.length - 1;
+      const isOnly = slots.length === 1;
+      if (isOnly) rank.textContent = '1';
+      else if (isLast) rank.textContent = `${i + 1} · catch-all`;
+      else rank.textContent = `${i + 1}`;
+      row.appendChild(rank);
+      const input = document.createElement('input');
+      input.type = 'color';
+      input.className = 'pmd-color-slot-input';
+      input.value = slots[i]!;
+      input.addEventListener('input', () => {
+        const next = get().slice();
+        next[i] = input.value;
+        set(next);
+      });
+      row.appendChild(input);
+      const hex = document.createElement('span');
+      hex.className = 'pmd-color-slot-hex';
+      hex.textContent = slots[i]!;
+      input.addEventListener('input', () => {
+        hex.textContent = input.value;
+      });
+      row.appendChild(hex);
+      const trash = document.createElement('button');
+      trash.type = 'button';
+      trash.className = 'pmd-color-slot-trash';
+      trash.textContent = '✕';
+      trash.title = 'Remove this slot';
+      trash.disabled = slots.length <= 1;
+      trash.addEventListener('click', () => {
+        const next = get().slice();
+        next.splice(i, 1);
+        set(next);
+      });
+      row.appendChild(trash);
+      wrap.appendChild(row);
+    }
+    if (slots.length < 3) {
+      const add = document.createElement('button');
+      add.type = 'button';
+      add.className = 'pmd-color-slot-add';
+      add.textContent = '+ Add slot';
+      add.addEventListener('click', () => {
+        const next = get().slice();
+        // New slot defaults to the previous-last value so the
+        // user sees a visible swatch immediately and can adjust.
+        next.push(next[next.length - 1] ?? '#888888');
+        set(next);
+      });
+      wrap.appendChild(add);
+    }
+  }
+
+  render();
+  const unsub = settings.subscribe(render);
+  onDetached(wrap, () => unsub());
+  return wrap;
+}
+
+/** Per-token color override panel. Structured like the
+ *  keybindings editor: one row per overridable token, grouped
+ *  into sections. Each row shows the current effective color +
+ *  hex, a color picker that writes to the override, and a reset
+ *  button that drops the override (revealing the default or
+ *  whichever preset is active). */
+function buildColorOverridesEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-color-overrides-editor';
+
+  // Global reset header — clears every override at once.
+  const header = document.createElement('div');
+  header.className = 'pmd-color-overrides-header';
+  const resetAll = document.createElement('button');
+  resetAll.type = 'button';
+  resetAll.className = 'pmd-color-overrides-reset-all';
+  resetAll.textContent = '↺ Reset all overrides';
+  resetAll.title = 'Drop every override and fall back to defaults';
+  resetAll.addEventListener('click', () => {
+    settings.set('customColorOverrides', {});
+  });
+  header.appendChild(resetAll);
+  wrap.appendChild(header);
+
+  function refreshResetAll(): void {
+    const has = Object.keys(settings.get('customColorOverrides')).length > 0;
+    resetAll.disabled = !has;
+  }
+  refreshResetAll();
+  const unsubResetAll = settings.subscribe(refreshResetAll);
+  onDetached(wrap, () => unsubResetAll());
+
+  // Group tokens by their `group` field, preserving manifest order.
+  const groups = new Map<string, typeof CUSTOMIZABLE_COLOR_TOKENS[number][]>();
+  for (const tok of CUSTOMIZABLE_COLOR_TOKENS) {
+    let g = groups.get(tok.group);
+    if (!g) { g = []; groups.set(tok.group, g); }
+    g.push(tok);
+  }
+
+  function currentValue(name: string): string {
+    return getComputedStyle(document.documentElement)
+      .getPropertyValue('--' + name)
+      .trim();
+  }
+
+  /** Resolve any CSS color string (hex / rgba / named / hsl) to
+   *  numeric RGB + alpha. Used to pre-fill the color picker AND
+   *  the alpha slider with the token's current effective value
+   *  regardless of how it's stored. */
+  function parseToRgbaParts(css: string): {
+    r: number; g: number; b: number; a: number;
+  } {
+    const probe = document.createElement('span');
+    probe.style.color = css;
+    document.body.appendChild(probe);
+    const resolved = getComputedStyle(probe).color;
+    document.body.removeChild(probe);
+    const m = resolved.match(
+      /rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?/,
+    );
+    if (!m) return { r: 0, g: 0, b: 0, a: 1 };
+    return {
+      r: +m[1]!,
+      g: +m[2]!,
+      b: +m[3]!,
+      a: m[4] !== undefined ? +m[4]! : 1,
+    };
+  }
+  function toHex(r: number, g: number, b: number): string {
+    const h = (n: number) => Math.round(n).toString(16).padStart(2, '0');
+    return '#' + h(r) + h(g) + h(b);
+  }
+  /** Compose a numeric RGB + alpha back into a CSS color string.
+   *  Alpha == 1 → `#rrggbb`; otherwise → `rgba(r, g, b, a)`.
+   *  Keeps the override storage compact when no transparency is
+   *  needed. */
+  function composeColor(r: number, g: number, b: number, a: number): string {
+    if (a >= 0.999) return toHex(r, g, b);
+    return `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${
+      Math.round(a * 1000) / 1000
+    })`;
+  }
+
+  function isOverridden(name: string): boolean {
+    const overrides = settings.get('customColorOverrides');
+    return Object.prototype.hasOwnProperty.call(overrides, name);
+  }
+
+  function setOverride(name: string, value: string): void {
+    const next = { ...settings.get('customColorOverrides'), [name]: value };
+    settings.set('customColorOverrides', next);
+  }
+  function clearOverride(name: string): void {
+    const cur = settings.get('customColorOverrides');
+    if (!Object.prototype.hasOwnProperty.call(cur, name)) return;
+    const next = { ...cur };
+    delete next[name];
+    settings.set('customColorOverrides', next);
+  }
+
+  function renderRow(tok: typeof CUSTOMIZABLE_COLOR_TOKENS[number]): HTMLElement {
+    const row = document.createElement('div');
+    row.className = 'pmd-color-override-row';
+
+    const label = document.createElement('span');
+    label.className = 'pmd-color-override-label';
+    label.textContent = tok.label;
+    row.appendChild(label);
+
+    const right = document.createElement('span');
+    right.className = 'pmd-color-override-right';
+
+    const swatch = document.createElement('span');
+    swatch.className = 'pmd-color-override-swatch';
+    const hex = document.createElement('span');
+    hex.className = 'pmd-color-override-hex';
+
+    const input = document.createElement('input');
+    input.type = 'color';
+    input.className = 'pmd-color-override-input';
+
+    // Alpha slider, sized 0–1 with two-decimal steps. Lets the
+    // user tune translucent tokens (`pmd-c-overlay`, the various
+    // soft accents) — important for an accessibility tool, where
+    // a user might need to dial the modal-scrim alpha way up for
+    // readability or way down to keep underlying text legible.
+    const alpha = document.createElement('input');
+    alpha.type = 'range';
+    alpha.className = 'pmd-color-override-alpha';
+    alpha.min = '0';
+    alpha.max = '1';
+    alpha.step = '0.01';
+    alpha.title = 'Opacity';
+
+    const reset = document.createElement('button');
+    reset.type = 'button';
+    reset.className = 'pmd-color-override-reset';
+    reset.textContent = '↺';
+    reset.title = 'Reset to default';
+
+    function refresh(): void {
+      const value = currentValue(tok.name);
+      const { r, g, b, a } = parseToRgbaParts(value);
+      swatch.style.background = value;
+      hex.textContent = value;
+      input.value = toHex(r, g, b);
+      alpha.value = String(a);
+      // Keep the button in the layout always so the row doesn't
+      // shift width as the user drags the alpha slider into / out
+      // of "this is now overridden" territory. Just toggle
+      // disabled / aria-pressed for visual state.
+      reset.disabled = !isOverridden(tok.name);
+    }
+
+    function write(): void {
+      const { r, g, b } = parseToRgbaParts(input.value);
+      const a = Math.max(0, Math.min(1, +alpha.value));
+      setOverride(tok.name, composeColor(r, g, b, a));
+    }
+
+    input.addEventListener('input', write);
+    alpha.addEventListener('input', write);
+    reset.addEventListener('click', () => clearOverride(tok.name));
+
+    right.appendChild(swatch);
+    right.appendChild(hex);
+    right.appendChild(input);
+    right.appendChild(alpha);
+    right.appendChild(reset);
+    row.appendChild(right);
+
+    refresh();
+    // Refresh when ANY setting changes — keeps the row in sync
+    // when the user toggles a future preset, edits a different
+    // row, etc. Cheap (reads one computed style).
+    const unsub = settings.subscribe(refresh);
+    onDetached(row, () => unsub());
+
+    return row;
+  }
+
+  for (const [groupName, tokens] of groups) {
+    const heading = document.createElement('div');
+    heading.className = 'pmd-color-override-group-label';
+    heading.textContent = groupName;
+    wrap.appendChild(heading);
+    for (const t of tokens) wrap.appendChild(renderRow(t));
+  }
+
   return wrap;
 }
 
@@ -1432,7 +1736,7 @@ function buildShrinkProtectionsEditor(): HTMLElement {
     if (!isTextInputFocused) render();
   });
   render();
-  wrap.addEventListener('DOMNodeRemoved', () => unsubscribe());
+  onDetached(wrap, () => unsubscribe());
 
   return wrap;
 }

@@ -66,3 +66,37 @@ export function highlightRgbFor(name: string): string | null {
 export function isHex6(hex: unknown): hex is string {
   return typeof hex === 'string' && /^[0-9a-fA-F]{6}$/.test(hex);
 }
+
+/** Reverse lookup: RGB hex → human-readable label. Word's 15
+ *  highlight RGBs map straight back to their canonical labels.
+ *  Verbatim's "protected grey" sentinel (`D2D2D2`) — produced
+ *  by `HighlightToBackgroundColor` — gets its own label because
+ *  it's semantically distinct from Word's `lightGray` even
+ *  though both render as a pale grey. Anything else falls back
+ *  to the bare hex. */
+const LABEL_BY_RGB = new Map<string, string>();
+for (const c of WORD_HIGHLIGHT_COLORS) {
+  LABEL_BY_RGB.set(c.rgb.toUpperCase(), c.label);
+}
+LABEL_BY_RGB.set('D2D2D2', 'Protected Grey');
+
+/** Human label for a stored highlight `color` attribute value
+ *  (Word OOXML name like `yellow`). Falls back to the raw value
+ *  for unknown names. */
+export function highlightColorLabel(name: string): string {
+  if (!name) return '';
+  for (const c of WORD_HIGHLIGHT_COLORS) {
+    if (c.name === name) return c.label;
+  }
+  return name;
+}
+
+/** Human label for a stored shading `color` attribute value
+ *  (RGB hex without `#`). Matches Word's 15 palette names, plus
+ *  Verbatim's "Protected Grey" (D2D2D2). Unknown hexes display
+ *  as `#XXXXXX`. */
+export function shadingColorLabel(hex: string): string {
+  if (!hex) return '';
+  const up = hex.toUpperCase();
+  return LABEL_BY_RGB.get(up) ?? `#${up}`;
+}

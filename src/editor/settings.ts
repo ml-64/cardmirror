@@ -176,25 +176,38 @@ export interface Settings {
    *  on-disk files always Save As in their current format — the
    *  handle wins over this default. */
   defaultSaveFormat: 'cmir' | 'docx';
-  /** When on, every highlighted run renders as
-   *  `overrideHighlightColorValue` regardless of the color stored
-   *  on the mark. Display-only — does NOT mutate the doc, so
-   *  saving back to `.cmir` / `.docx` preserves the original
-   *  per-mark colors. Useful when cards from many sources have
+  /** When on, the highlight marks in the doc render in the colors
+   *  defined by `overrideHighlightSlots` rather than their stored
+   *  colors. Display-only — does NOT mutate the doc, so saving
+   *  back to `.cmir` / `.docx` preserves the original per-mark
+   *  colors. Useful when cards from many sources have
    *  inconsistent highlight conventions and the user wants a
    *  visually-unified read. */
   overrideHighlightColor: boolean;
-  /** Hex color (with leading `#`) used when `overrideHighlightColor`
-   *  is on. Default: `#ffff00` (yellow). */
-  overrideHighlightColorValue: string;
+  /** 1–3 hex/rgba colors used to remap highlights at display
+   *  time. If length 1: every highlight renders as that color.
+   *  If length > 1: the most-common source highlight color gets
+   *  slot 0, the second-most-common gets slot 1, and everything
+   *  else gets the LAST slot (so "third" slot doubles as the
+   *  catch-all when length is 3). Frequency ranking is computed
+   *  per-doc by the highlight-frequency plugin. */
+  overrideHighlightSlots: string[];
   /** Same idea, applied to `shading` marks (the protected
    *  highlight variant Verbatim uses for "remove highlighting"-
    *  resistant emphasis). Default-on color matches the
    *  protected-grey convention. */
   overrideShadingColor: boolean;
-  /** Hex color (with leading `#`) used when `overrideShadingColor`
-   *  is on. Default: `#d2d2d2` (Verbatim's classic shading grey). */
-  overrideShadingColorValue: string;
+  /** 1–3 hex/rgba colors mirroring `overrideHighlightSlots` for
+   *  shading marks. */
+  overrideShadingSlots: string[];
+  /** Per-token UI color overrides. Keyed by CSS-variable name
+   *  WITHOUT the `--` prefix (e.g. `"pmd-c-accent"`); values are
+   *  CSS color strings the user picked in the accessibility
+   *  panel. Applied as inline styles on documentElement so they
+   *  win over the :root defaults AND over any future preset
+   *  (high-contrast, colorblind, dark) that sets the variable
+   *  via a body class. Empty by default. */
+  customColorOverrides: Record<string, string>;
   /** Whether the navigation pane (outline) is visible in THIS
    *  window. Default on. Toggled via the ribbon's nav-pane
    *  button or the left-edge pull-tab that appears when the pane
@@ -589,9 +602,10 @@ const DEFAULTS: Settings = {
   defaultSpeechDocFormat: 'docx',
   defaultSaveFormat: 'docx',
   overrideHighlightColor: false,
-  overrideHighlightColorValue: '#ffff00',
+  overrideHighlightSlots: ['#ffff00'],
   overrideShadingColor: false,
-  overrideShadingColorValue: '#d2d2d2',
+  overrideShadingSlots: ['#d2d2d2'],
+  customColorOverrides: {},
   navPaneVisible: true,
   jumpToDocTopOnReadModeToggle: false,
   findResultsExpanded: false,
@@ -685,6 +699,7 @@ export const SETTINGS_DEFAULTS: Readonly<Settings> = DEFAULTS;
 export type SettingsCategory =
   | 'general'
   | 'appearance'
+  | 'accessibility'
   | 'editing'
   | 'shortcuts'
   | 'comments-ai';
@@ -725,6 +740,8 @@ export interface SettingMeta {
     | 'saveFormat'
     | 'findCategoryOrder'
     | 'color'
+    | 'colorSlots'
+    | 'colorOverrides'
     | 'password'
     | 'clod'
     | 'aiCitePrompt'
@@ -885,15 +902,17 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'overrideHighlightColor',
     label: 'Override highlight color in display',
     description:
-      "When on, every highlight in the doc renders as the override color you pick below regardless of what's stored on the mark. Display-only — the doc itself is untouched, so re-saving preserves the original per-mark colors. Useful when cards from many sources have inconsistent highlight conventions and you want a unified read.",
+      "When on, highlights in the doc render in the override colors below regardless of what's stored on the mark. Display-only — the doc itself is untouched, so re-saving preserves the original per-mark colors. Useful when cards from many sources have inconsistent highlight conventions and you want a unified read.",
     kind: 'toggle',
-    category: 'appearance',
+    category: 'accessibility',
   },
   {
-    key: 'overrideHighlightColorValue',
-    label: 'Highlight override color',
-    kind: 'color',
-    category: 'appearance',
+    key: 'overrideHighlightSlots',
+    label: 'Highlight override colors',
+    description:
+      "Up to 3 ordered colors. With one slot, every highlight renders in that color. With two or three, the most-common highlight color in the doc gets slot 1, the second-most-common gets slot 2, and everything else gets the last slot. The ranking re-computes automatically as the doc changes.",
+    kind: 'colorSlots',
+    category: 'accessibility',
     dependsOn: 'overrideHighlightColor',
   },
   {
@@ -902,14 +921,22 @@ export const SETTING_METADATA: SettingMeta[] = [
     description:
       "Same idea, applied to shading marks (Verbatim's protected-grey emphasis variant). Doc data is untouched.",
     kind: 'toggle',
-    category: 'appearance',
+    category: 'accessibility',
   },
   {
-    key: 'overrideShadingColorValue',
-    label: 'Shading override color',
-    kind: 'color',
-    category: 'appearance',
+    key: 'overrideShadingSlots',
+    label: 'Shading override colors',
+    kind: 'colorSlots',
+    category: 'accessibility',
     dependsOn: 'overrideShadingColor',
+  },
+  {
+    key: 'customColorOverrides',
+    label: 'Color overrides',
+    description:
+      "Override any color in the interface. Explicit overrides here always win over the defaults and over future accessibility presets (high-contrast, dark mode, colorblind-friendly, etc.) — pick a color to override it; reset a row to fall back to whichever preset is active.",
+    kind: 'colorOverrides',
+    category: 'accessibility',
   },
   {
     key: 'bodyFont',
@@ -1220,9 +1247,18 @@ function sanitize(s: Settings): Settings {
     defaultSaveFormat:
       s.defaultSaveFormat === 'cmir' ? 'cmir' : 'docx',
     overrideHighlightColor: !!s.overrideHighlightColor,
-    overrideHighlightColorValue: sanitizeHexColor(s.overrideHighlightColorValue, '#ffff00'),
+    overrideHighlightSlots: sanitizeColorSlots(
+      s.overrideHighlightSlots,
+      (s as { overrideHighlightColorValue?: unknown }).overrideHighlightColorValue,
+      '#ffff00',
+    ),
     overrideShadingColor: !!s.overrideShadingColor,
-    overrideShadingColorValue: sanitizeHexColor(s.overrideShadingColorValue, '#d2d2d2'),
+    overrideShadingSlots: sanitizeColorSlots(
+      s.overrideShadingSlots,
+      (s as { overrideShadingColorValue?: unknown }).overrideShadingColorValue,
+      '#d2d2d2',
+    ),
+    customColorOverrides: sanitizeCustomColorOverrides(s.customColorOverrides),
     // navPaneVisible defaults to TRUE when missing — the user
     // opens to an outline-visible window unless they've already
     // dismissed it during the session (transient — see
@@ -1370,6 +1406,131 @@ function sanitizeHexColor(raw: unknown, defaultValue: string): string {
   if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) return trimmed.toLowerCase();
   return defaultValue;
 }
+
+/** Validate + clamp the 1–3-color slots arrays used by the
+ *  highlight / shading display overrides. Accepts hex or
+ *  rgba/rgb strings. Migrates from the previous single-color
+ *  field (`overrideHighlightColorValue` / `overrideShadingColorValue`)
+ *  when the new array is absent. Always returns at least one
+ *  entry — `defaultValue` if everything else is missing. */
+function sanitizeColorSlots(
+  raw: unknown,
+  legacy: unknown,
+  defaultValue: string,
+): string[] {
+  const isColor = (v: unknown): v is string =>
+    typeof v === 'string' &&
+    (
+      /^#[0-9a-fA-F]{6}$/.test(v.trim()) ||
+      /^rgba?\(/.test(v.trim())
+    );
+  if (Array.isArray(raw)) {
+    const out: string[] = [];
+    for (const v of raw) {
+      if (isColor(v)) out.push(v.trim());
+      if (out.length >= 3) break;
+    }
+    if (out.length > 0) return out;
+  }
+  // Migration: pre-multi-slot installs had a single color stored
+  // in `overrideHighlightColorValue` / `overrideShadingColorValue`.
+  // Copy it into slot 0 if present.
+  if (isColor(legacy)) return [legacy.trim()];
+  return [defaultValue];
+}
+
+/** Filter a Record<string, string> against the registered list of
+ *  customizable color tokens. Keeps entries whose key matches a
+ *  known token AND whose value parses as a CSS color (we accept
+ *  any non-empty string here; CSS will reject malformed values
+ *  silently when applied). Used to scrub the persisted
+ *  `customColorOverrides` blob. */
+function sanitizeCustomColorOverrides(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const known = new Set(CUSTOMIZABLE_COLOR_TOKENS.map((t) => t.name));
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!known.has(k)) continue;
+    if (typeof v !== 'string' || v.trim() === '') continue;
+    out[k] = v.trim();
+  }
+  return out;
+}
+
+/** Manifest of color tokens the user can override via the
+ *  accessibility panel. Keys are CSS-variable names without the
+ *  `--` prefix; labels are human-readable; groups cluster the UI
+ *  into sections. Defaults come from the cascade at runtime
+ *  (`getComputedStyle`) so the manifest stays in sync with
+ *  style.css without duplicating values here.
+ *
+ *  To add a new override, append an entry; to remove one, just
+ *  delete the entry (existing user overrides for that token will
+ *  be dropped by `sanitizeCustomColorOverrides` on next load). */
+export interface CustomizableColorToken {
+  name: string;
+  label: string;
+  group: string;
+}
+export const CUSTOMIZABLE_COLOR_TOKENS: readonly CustomizableColorToken[] = [
+  // Surface
+  { group: 'Surface', name: 'pmd-c-bg', label: 'Background (page / panels / buttons)' },
+  { group: 'Surface', name: 'pmd-c-bg-soft', label: 'Off-white row background' },
+  { group: 'Surface', name: 'pmd-c-surface', label: 'Chrome surface (ribbon / status bar)' },
+  { group: 'Surface', name: 'pmd-c-surface-soft', label: 'Soft surface (nav header)' },
+  { group: 'Surface', name: 'pmd-c-surface-alt', label: 'Alt surface (editor viewport / code)' },
+  { group: 'Surface', name: 'pmd-c-overlay', label: 'Modal scrim' },
+
+  // Borders
+  { group: 'Borders', name: 'pmd-c-border', label: 'Button border' },
+  { group: 'Borders', name: 'pmd-c-border-soft', label: 'Chrome border (ribbon, nav)' },
+  { group: 'Borders', name: 'pmd-c-divider', label: 'Divider' },
+  { group: 'Borders', name: 'pmd-c-divider-faint', label: 'Faint divider' },
+
+  // Text
+  { group: 'Text', name: 'pmd-c-text', label: 'Body text' },
+  { group: 'Text', name: 'pmd-c-text-strong', label: 'Strong text (max contrast)' },
+  { group: 'Text', name: 'pmd-c-text-secondary', label: 'Secondary text' },
+  { group: 'Text', name: 'pmd-c-text-muted', label: 'Muted text' },
+  { group: 'Text', name: 'pmd-c-text-faint', label: 'Faint text' },
+  { group: 'Text', name: 'pmd-c-text-on-accent', label: 'Text on accent surface' },
+
+  // Hover / press
+  { group: 'Interaction', name: 'pmd-c-hover', label: 'Hover background' },
+  { group: 'Interaction', name: 'pmd-c-hover-strong', label: 'Selected / pressed background' },
+
+  // Accent
+  { group: 'Accent', name: 'pmd-c-accent', label: 'Accent (primary)' },
+  { group: 'Accent', name: 'pmd-c-accent-hover', label: 'Accent hover' },
+  { group: 'Accent', name: 'pmd-c-accent-soft', label: 'Accent tint' },
+  { group: 'Accent', name: 'pmd-c-focus', label: 'Focus ring' },
+
+  // Status
+  { group: 'Status', name: 'pmd-c-success', label: 'Success' },
+  { group: 'Status', name: 'pmd-c-warning', label: 'Warning' },
+  { group: 'Status', name: 'pmd-c-error', label: 'Error' },
+  { group: 'Status', name: 'pmd-c-danger', label: 'Danger (close)' },
+
+  // Drop / drag
+  { group: 'Drag affordances', name: 'pmd-c-drop', label: 'Drop indicator' },
+  { group: 'Drag affordances', name: 'pmd-c-drop-soft', label: 'Drop indicator (soft)' },
+  { group: 'Drag affordances', name: 'pmd-c-drop-mid', label: 'Drop indicator (mid)' },
+
+  // Speech-doc
+  { group: 'Speech doc', name: 'pmd-c-speech-bg', label: 'Speech-doc band background' },
+  { group: 'Speech doc', name: 'pmd-c-speech-border', label: 'Speech-doc band border' },
+  { group: 'Speech doc', name: 'pmd-c-speech-text', label: 'Speech-doc band text' },
+
+  // Editor decorations
+  { group: 'Editor', name: 'pmd-c-card-hover', label: 'Card hover indicator' },
+  { group: 'Editor', name: 'pmd-c-emphasis-box', label: 'Emphasis box border' },
+  { group: 'Editor', name: 'pmd-c-highlight-default', label: 'New-highlight default color' },
+
+  // Per-style document colors (these duplicate displayColors but
+  // are reachable via this panel too for advanced users).
+  { group: 'Document text', name: 'pmd-color-analytic', label: 'Analytic text' },
+  { group: 'Document text', name: 'pmd-color-undertag', label: 'Undertag text' },
+];
 
 function sanitizeFindCategoryOrder(
   raw: unknown,

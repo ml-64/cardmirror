@@ -27,6 +27,7 @@ import {
   condenseWarningCloseFor,
 } from './settings.js';
 import { isFontAvailable } from './font-detect.js';
+import { WORD_HIGHLIGHT_COLORS } from './color-palette.js';
 import { buildKeybindingsEditor } from './keybindings-editor.js';
 import { getHost, getElectronHost } from './host/index.js';
 
@@ -323,6 +324,10 @@ class SettingsModal {
     } else if (meta.kind === 'findCategoryOrder') {
       row.appendChild(text);
       row.appendChild(buildFindCategoryOrderEditor());
+      return row;
+    } else if (meta.kind === 'color') {
+      row.appendChild(text);
+      row.appendChild(buildColorEditor(meta.key as keyof typeof SETTINGS_DEFAULTS));
       return row;
     } else if (meta.kind === 'headingMode') {
       row.appendChild(text);
@@ -997,6 +1002,71 @@ function buildSpeechDocFormatEditor(): HTMLElement {
     row.appendChild(labelText);
     wrap.appendChild(row);
   }
+  return wrap;
+}
+
+/** Color editor: a free `<input type="color">` plus a row of
+ *  preset swatches for the 15 OOXML highlight colors. Picking a
+ *  preset writes its canonical hex into the setting and updates
+ *  the free picker; using the free picker leaves the preset
+ *  selection unhighlighted. Reads / writes the hex value (with
+ *  leading `#`) directly via the settings store. */
+function buildColorEditor(key: string): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-color-editor';
+  const get = () => settings.get(key as keyof Settings) as string;
+  const set = (v: string) => settings.set(key as keyof Settings, v as never);
+
+  const top = document.createElement('div');
+  top.className = 'pmd-color-editor-row';
+  const input = document.createElement('input');
+  input.type = 'color';
+  input.className = 'pmd-color-editor-input';
+  input.value = get();
+  top.appendChild(input);
+  const hex = document.createElement('span');
+  hex.className = 'pmd-color-editor-hex';
+  hex.textContent = input.value;
+  top.appendChild(hex);
+  wrap.appendChild(top);
+
+  // Preset row: the 15 Word highlight colors as quick-pick swatches.
+  const presets = document.createElement('div');
+  presets.className = 'pmd-color-editor-presets';
+  const swatchButtons: { btn: HTMLButtonElement; hex: string }[] = [];
+  for (const c of WORD_HIGHLIGHT_COLORS) {
+    const sw = document.createElement('button');
+    sw.type = 'button';
+    sw.className = 'pmd-color-editor-swatch';
+    sw.style.background = `#${c.rgb}`;
+    sw.title = c.label;
+    sw.setAttribute('aria-label', c.label);
+    const hexValue = `#${c.rgb.toLowerCase()}`;
+    sw.addEventListener('click', () => {
+      set(hexValue);
+      input.value = hexValue;
+      hex.textContent = hexValue;
+      refreshActive();
+    });
+    presets.appendChild(sw);
+    swatchButtons.push({ btn: sw, hex: hexValue });
+  }
+  wrap.appendChild(presets);
+
+  function refreshActive(): void {
+    const current = get().toLowerCase();
+    for (const { btn, hex } of swatchButtons) {
+      btn.classList.toggle('pmd-color-editor-swatch-active', hex === current);
+    }
+  }
+
+  input.addEventListener('input', () => {
+    set(input.value);
+    hex.textContent = input.value;
+    refreshActive();
+  });
+
+  refreshActive();
   return wrap;
 }
 

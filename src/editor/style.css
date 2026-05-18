@@ -1267,6 +1267,73 @@ img[data-pmd-image].ProseMirror-selectednode,
   overflow: hidden;
 }
 
+/* Display-time override for highlight + shading colors. The
+   override values are set as CSS variables on `:root` by
+   `applyHighlightShadingOverride` in index.ts. The selectors here
+   fire only when the corresponding body class is on, leaving the
+   ordinary per-color rules untouched in the default state.
+   `!important` is needed for shading because its background-color
+   is set as an inline style (`style="background-color: #..."`)
+   from the schema's toDOM. */
+body.pmd-override-highlight .pmd-highlight[data-highlight] {
+  background: var(--pmd-c-override-highlight) !important;
+}
+body.pmd-override-shading [data-shading] {
+  background-color: var(--pmd-c-override-shading) !important;
+}
+
+/* Color-picker widget in Settings — used by the highlight /
+   shading override entries (and reusable for any future single-
+   color setting). Top row: free `<input type="color">` + hex
+   readout. Bottom row: 15 Word highlight colors as quick-pick
+   swatches. */
+.pmd-color-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.pmd-color-editor-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.pmd-color-editor-input {
+  width: 2rem;
+  height: 1.4rem;
+  padding: 0;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 3px;
+  cursor: pointer;
+  background: var(--pmd-c-bg);
+}
+.pmd-color-editor-hex {
+  font-family: monospace;
+  font-size: 0.85rem;
+  color: var(--pmd-c-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.pmd-color-editor-presets {
+  display: grid;
+  grid-template-columns: repeat(15, 1.1rem);
+  gap: 3px;
+}
+.pmd-color-editor-swatch {
+  width: 1.1rem;
+  height: 1.1rem;
+  padding: 0;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.pmd-color-editor-swatch:hover {
+  outline: 1px solid var(--pmd-c-accent);
+  outline-offset: 1px;
+}
+.pmd-color-editor-swatch-active {
+  outline: 2px solid var(--pmd-c-accent);
+  outline-offset: 1px;
+}
+
 /* Word's 15 named highlight colors with the OOXML-canonical saturated
    RGBs. Round-trip fidelity over visual softness — what the user sees
    matches what Word renders. The mark spec also accepts "none" (no

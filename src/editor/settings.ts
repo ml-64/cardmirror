@@ -176,6 +176,25 @@ export interface Settings {
    *  on-disk files always Save As in their current format — the
    *  handle wins over this default. */
   defaultSaveFormat: 'cmir' | 'docx';
+  /** When on, every highlighted run renders as
+   *  `overrideHighlightColorValue` regardless of the color stored
+   *  on the mark. Display-only — does NOT mutate the doc, so
+   *  saving back to `.cmir` / `.docx` preserves the original
+   *  per-mark colors. Useful when cards from many sources have
+   *  inconsistent highlight conventions and the user wants a
+   *  visually-unified read. */
+  overrideHighlightColor: boolean;
+  /** Hex color (with leading `#`) used when `overrideHighlightColor`
+   *  is on. Default: `#ffff00` (yellow). */
+  overrideHighlightColorValue: string;
+  /** Same idea, applied to `shading` marks (the protected
+   *  highlight variant Verbatim uses for "remove highlighting"-
+   *  resistant emphasis). Default-on color matches the
+   *  protected-grey convention. */
+  overrideShadingColor: boolean;
+  /** Hex color (with leading `#`) used when `overrideShadingColor`
+   *  is on. Default: `#d2d2d2` (Verbatim's classic shading grey). */
+  overrideShadingColorValue: string;
   /** Whether the navigation pane (outline) is visible in THIS
    *  window. Default on. Toggled via the ribbon's nav-pane
    *  button or the left-edge pull-tab that appears when the pane
@@ -569,6 +588,10 @@ const DEFAULTS: Settings = {
   defaultSpeechDocFolder: '',
   defaultSpeechDocFormat: 'docx',
   defaultSaveFormat: 'docx',
+  overrideHighlightColor: false,
+  overrideHighlightColorValue: '#ffff00',
+  overrideShadingColor: false,
+  overrideShadingColorValue: '#d2d2d2',
   navPaneVisible: true,
   jumpToDocTopOnReadModeToggle: false,
   findResultsExpanded: false,
@@ -701,6 +724,7 @@ export interface SettingMeta {
     | 'speechDocFormat'
     | 'saveFormat'
     | 'findCategoryOrder'
+    | 'color'
     | 'password'
     | 'clod'
     | 'aiCitePrompt'
@@ -856,6 +880,36 @@ export const SETTING_METADATA: SettingMeta[] = [
       'Pick the color used for Analytic and Undertag text.',
     kind: 'displayColors',
     category: 'appearance',
+  },
+  {
+    key: 'overrideHighlightColor',
+    label: 'Override highlight color in display',
+    description:
+      "When on, every highlight in the doc renders as the override color you pick below regardless of what's stored on the mark. Display-only — the doc itself is untouched, so re-saving preserves the original per-mark colors. Useful when cards from many sources have inconsistent highlight conventions and you want a unified read.",
+    kind: 'toggle',
+    category: 'appearance',
+  },
+  {
+    key: 'overrideHighlightColorValue',
+    label: 'Highlight override color',
+    kind: 'color',
+    category: 'appearance',
+    dependsOn: 'overrideHighlightColor',
+  },
+  {
+    key: 'overrideShadingColor',
+    label: 'Override shading color in display',
+    description:
+      "Same idea, applied to shading marks (Verbatim's protected-grey emphasis variant). Doc data is untouched.",
+    kind: 'toggle',
+    category: 'appearance',
+  },
+  {
+    key: 'overrideShadingColorValue',
+    label: 'Shading override color',
+    kind: 'color',
+    category: 'appearance',
+    dependsOn: 'overrideShadingColor',
   },
   {
     key: 'bodyFont',
@@ -1165,6 +1219,10 @@ function sanitize(s: Settings): Settings {
       s.defaultSpeechDocFormat === 'cmir' ? 'cmir' : 'docx',
     defaultSaveFormat:
       s.defaultSaveFormat === 'cmir' ? 'cmir' : 'docx',
+    overrideHighlightColor: !!s.overrideHighlightColor,
+    overrideHighlightColorValue: sanitizeHexColor(s.overrideHighlightColorValue, '#ffff00'),
+    overrideShadingColor: !!s.overrideShadingColor,
+    overrideShadingColorValue: sanitizeHexColor(s.overrideShadingColorValue, '#d2d2d2'),
     // navPaneVisible defaults to TRUE when missing — the user
     // opens to an outline-visible window unless they've already
     // dismissed it during the session (transient — see
@@ -1301,6 +1359,16 @@ function sanitize(s: Settings): Settings {
         ? s.multiDocLayoutMode
         : DEFAULTS.multiDocLayoutMode,
   };
+}
+
+/** Accept a hex color string (`#rrggbb`, case-insensitive); fall
+ *  back to `defaultValue` otherwise. Used by the highlight /
+ *  shading display-override settings. */
+function sanitizeHexColor(raw: unknown, defaultValue: string): string {
+  if (typeof raw !== 'string') return defaultValue;
+  const trimmed = raw.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) return trimmed.toLowerCase();
+  return defaultValue;
 }
 
 function sanitizeFindCategoryOrder(

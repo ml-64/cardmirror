@@ -2939,7 +2939,8 @@ export type RibbonCommandId =
   | 'togglePaintbrushShading'
   | 'openFind'
   | 'openFindReplace'
-  | 'openFindByProximity';
+  | 'openFindByProximity'
+  | 'toggleNavPane';
 
 export const STRUCTURAL_RIBBON_COMMAND_IDS: StructuralRibbonCommandId[] = [
   'setPocket',
@@ -3016,6 +3017,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'openFind',
   'openFindReplace',
   'openFindByProximity',
+  'toggleNavPane',
 ];
 
 export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
@@ -3089,6 +3091,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   openFind: 'Find',
   openFindReplace: 'Find and Replace',
   openFindByProximity: 'Find by Proximity (No Category Boost)',
+  toggleNavPane: 'Show / Hide Navigation Pane',
 };
 
 /**
@@ -3199,6 +3202,11 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   openFind: 'Mod-f',
   openFindReplace: 'Mod-h',
   openFindByProximity: 'Alt-f',
+  // No default — pickable in Settings → Keybindings. Hiding the
+  // nav pane is a personal-workflow toggle that's already on the
+  // ribbon + nav-pane × + pull-tab; the keybinding is a power-
+  // user convenience layer, not a discoverable default.
+  toggleNavPane: '',
 };
 
 /**
@@ -3302,6 +3310,10 @@ export interface RibbonContext {
   openFind: () => void;
   openFindReplace: () => void;
   openFindByProximity: () => void;
+  /** Flip the navigation-pane visibility setting. Per-window
+   *  (transient), so toggling in one window leaves siblings
+   *  untouched. */
+  toggleNavPane: () => void;
 }
 
 const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
@@ -3346,6 +3358,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   openFind: () => {},
   openFindReplace: () => {},
   openFindByProximity: () => {},
+  toggleNavPane: () => {},
 };
 
 function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
@@ -3613,6 +3626,12 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.openFindByProximity();
+        return true;
+      };
+    case 'toggleNavPane':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.toggleNavPane();
         return true;
       };
   }

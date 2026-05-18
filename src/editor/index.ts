@@ -733,6 +733,9 @@ const ribbonContext: RibbonContext = {
     if (!view) return;
     ensureFindReplaceBar().open({ mode: 'find', sortMode: 'proximity' });
   },
+  toggleNavPane: () => {
+    settings.set('navPaneVisible', !settings.get('navPaneVisible'));
+  },
 };
 
 openBtn.addEventListener('click', () => {
@@ -1363,6 +1366,28 @@ function applyDisplayColors(c: DisplayColors): void {
   }
 }
 
+/** Apply the highlight + shading display-override settings.
+ *  Toggles two body classes that the CSS rules in style.css gate
+ *  on, and pushes the override colors into CSS variables. Cheap
+ *  to call on every settings transaction. */
+function applyHighlightShadingOverride(
+  highlightOn: boolean,
+  highlightValue: string,
+  shadingOn: boolean,
+  shadingValue: string,
+): void {
+  document.body.classList.toggle('pmd-override-highlight', highlightOn);
+  document.body.classList.toggle('pmd-override-shading', shadingOn);
+  document.documentElement.style.setProperty(
+    '--pmd-c-override-highlight',
+    highlightValue,
+  );
+  document.documentElement.style.setProperty(
+    '--pmd-c-override-shading',
+    shadingValue,
+  );
+}
+
 /** CSS generic font categories — always available, picked by the
  *  browser per system. Don't quote these; quotes would turn them into
  *  literal font names that don't exist. */
@@ -1422,6 +1447,12 @@ settings.subscribe((s) => {
   applyDisplaySizes(s.displaySizes);
   applyDisplayTypography(s.displayTypography);
   applyDisplayColors(s.displayColors);
+  applyHighlightShadingOverride(
+    s.overrideHighlightColor,
+    s.overrideHighlightColorValue,
+    s.overrideShadingColor,
+    s.overrideShadingColorValue,
+  );
   applyBodyFont(s.bodyFont);
   applyLineHeight(s.lineHeight);
   applyFormattingPanel(s.formattingPanelMode, s.formattingPanelPreview, s.showCharacterStyles);
@@ -1454,6 +1485,12 @@ applyZoom(settings.get('zoomPct'));
 applyDisplaySizes(settings.get('displaySizes'));
 applyDisplayTypography(settings.get('displayTypography'));
 applyDisplayColors(settings.get('displayColors'));
+applyHighlightShadingOverride(
+  settings.get('overrideHighlightColor'),
+  settings.get('overrideHighlightColorValue'),
+  settings.get('overrideShadingColor'),
+  settings.get('overrideShadingColorValue'),
+);
 applyBodyFont(settings.get('bodyFont'));
 applyLineHeight(settings.get('lineHeight'));
 applyFormattingPanel(
@@ -1530,6 +1567,9 @@ const VIEWLESS_RIBBON_COMMANDS = new Set<RibbonCommandId>([
   'zoomIn',
   'zoomOut',
   'zoomReset',
+  // Toggling the nav-pane visibility only flips a transient
+  // setting + body class; works without an active doc.
+  'toggleNavPane',
 ]);
 
 function runViewlessRibbon(id: RibbonCommandId): void {
@@ -1544,6 +1584,7 @@ function runViewlessRibbon(id: RibbonCommandId): void {
     case 'zoomIn': ribbonContext.zoomIn(); return;
     case 'zoomOut': ribbonContext.zoomOut(); return;
     case 'zoomReset': ribbonContext.zoomReset(); return;
+    case 'toggleNavPane': ribbonContext.toggleNavPane(); return;
   }
 }
 

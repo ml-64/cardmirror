@@ -59,6 +59,7 @@ import { tableEditing, columnResizing } from 'prosemirror-tables';
 import { buildPastePlugin } from './paste-plugin.js';
 import { buildImageNodeFromBlob, insertImageNode } from './image-insert.js';
 import { imageContextMenuPlugin } from './image-context-menu-plugin.js';
+import { linkContextMenuPlugin } from './link-context-menu-plugin.js';
 import { editorDragSurface } from './drag-editor-surface.js';
 import {
   backspaceAtTagStart,
@@ -2147,6 +2148,7 @@ export function buildEditorPlugins(): Plugin[] {
       onArmedChange: (armed) => updatePlainPasteIndicator(armed),
     }),
     imageContextMenuPlugin,
+    linkContextMenuPlugin,
     // When `enableTextDragDrop` is off, swallow the browser's
     // `dragstart` on the editor's contenteditable so the user
     // can't initiate a text-move drag from a selection. Doesn't

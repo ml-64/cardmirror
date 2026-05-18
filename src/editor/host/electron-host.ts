@@ -24,6 +24,7 @@ import type {
  *  doesn't take a build-time dependency on Electron-specific code. */
 interface ElectronAPI {
   clipboardReadText(): Promise<string>;
+  openExternal(url: string): Promise<void>;
   pickDirectory(opts?: {
     defaultPath?: string;
     title?: string;
@@ -80,6 +81,10 @@ export class ElectronHost implements Host {
 
   async clipboardReadText(): Promise<string> {
     return api().clipboardReadText();
+  }
+
+  async openExternal(url: string): Promise<void> {
+    await api().openExternal(url);
   }
 
   async pickDirectory(opts?: {

@@ -35,6 +35,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
    *  a sticky-toggle workaround. */
   clipboardReadText: () => ipcRenderer.invoke('host:clipboard-read-text'),
 
+  /** Open a URL in the user's default OS browser (via shell.openExternal).
+   *  Main filters to http(s) + mailto so file:// URLs can't escape. */
+  openExternal: (url: string) => ipcRenderer.invoke('host:open-external', url),
+
   /** Open the native directory-picker dialog. Used by the
    *  settings UI for the "default folder" rows. Returns the
    *  chosen absolute path or null if the user cancelled. */

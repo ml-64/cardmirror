@@ -626,10 +626,16 @@ body.pmd-host-browser #autosave-btn { display: none; }
    gesture; same cursor for all three modes since the active button
    already communicates which mark gets applied. The class is added
    to view.dom (the .ProseMirror element). */
+/* Paint-mode classes are still useful as hooks for descendant
+   selectors (e.g. dimming non-target marks). The cursor itself is
+   set inline by color-panel.ts as a data-URI SVG showing the
+   active color — see `paintbrushCursorDataUri`. The `text`
+   fallback below kicks in if the SVG cursor fails to load (very
+   rare; browsers fall back to the second value automatically). */
 .ProseMirror.pmd-paintbrush-highlight,
 .ProseMirror.pmd-paintbrush-shading,
 .ProseMirror.pmd-paintbrush-fontcolor {
-  cursor: cell;
+  cursor: text;
 }
 
 /* Color picker popup — a small grid of swatches that appears under

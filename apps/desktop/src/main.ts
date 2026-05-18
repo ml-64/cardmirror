@@ -197,6 +197,18 @@ function bytesToBuffer(bytes: unknown): Buffer {
  *  needs a per-press permission grant under Chromium's web policy. */
 ipcMain.handle('host:clipboard-read-text', () => clipboard.readText());
 
+/** Open a URL in the user's default OS browser. Used by the
+ *  hyperlink context menu's "Open Link" action — we route through
+ *  the shell instead of `window.open` so the link lands in the
+ *  user's real browser, not a new Electron BrowserWindow. */
+ipcMain.handle('host:open-external', async (_event, url: string) => {
+  // Defensive: only allow http(s) + mailto so a crafted file:// URL
+  // can't pop a local viewer the user didn't expect.
+  if (typeof url !== 'string') return;
+  if (!/^(https?:|mailto:)/i.test(url)) return;
+  await shell.openExternal(url);
+});
+
 ipcMain.handle(
   'host:pick-directory',
   async (event, opts?: { defaultPath?: string; title?: string }) => {

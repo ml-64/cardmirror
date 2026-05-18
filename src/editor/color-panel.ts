@@ -95,6 +95,9 @@ export function wireColorPanel(viewRef: ViewRef): ColorPanelHandle {
         'pmd-paintbrush-shading',
         'pmd-paintbrush-fontcolor',
       );
+      // Reset any custom cursor from a previous mode. The CSS
+      // fallback (cursor: text) takes over until we re-arm.
+      editorEl.style.cursor = '';
     }
     for (const id of ['highlight-btn', 'shading-btn', 'fontcolor-btn']) {
       document.getElementById(id)?.classList.remove('pmd-paintbrush-active');
@@ -102,6 +105,16 @@ export function wireColorPanel(viewRef: ViewRef): ColorPanelHandle {
     if (activePaintbrush) {
       editorEl?.classList.add(`pmd-paintbrush-${activePaintbrush}`);
       document.getElementById(`${activePaintbrush}-btn`)?.classList.add('pmd-paintbrush-active');
+      // Custom SVG cursor: a precision pointer (I-beam) so the user
+      // can still see exactly which character they're about to
+      // start a paint drag on, plus a small swatch hanging off the
+      // lower-right showing the active color. Refreshed on every
+      // settings change (subscriber below) so swapping the color
+      // in mid-session updates the cursor live.
+      if (editorEl) {
+        const color = resolvePaintbrushColor(activePaintbrush);
+        editorEl.style.cursor = `url("${paintbrushCursorDataUri(color)}") 6 10, text`;
+      }
     }
   }
 
@@ -171,6 +184,10 @@ export function wireColorPanel(viewRef: ViewRef): ColorPanelHandle {
 
   settings.subscribe(() => {
     for (const c of controls) c.updateIndicator();
+    // Live-refresh the paint cursor when the active color changes
+    // (otherwise picking a new swatch leaves the cursor showing
+    // the old color until paint mode is toggled off + back on).
+    if (activePaintbrush) syncPaintbrushUI();
   });
 
   return {
@@ -178,6 +195,52 @@ export function wireColorPanel(viewRef: ViewRef): ColorPanelHandle {
       setPaintbrush(activePaintbrush === mode ? null : mode);
     },
   };
+}
+
+/** Resolve the active color for a paintbrush mode to a CSS color
+ *  string suitable for the SVG cursor swatch. Reads the same
+ *  `lastX` settings the ribbon indicator bars do, so the cursor
+ *  matches what the next click will apply. */
+function resolvePaintbrushColor(mode: PaintbrushMode): string {
+  if (mode === 'highlight') {
+    const name = settings.get('lastHighlightColor');
+    const rgb = highlightRgbFor(name) ?? 'ffff00';
+    return '#' + rgb;
+  }
+  if (mode === 'shading') {
+    const rgb = settings.get('lastShadingColor') || 'cccccc';
+    return '#' + rgb;
+  }
+  // fontcolor
+  const v = settings.get('lastFontColor');
+  return '#' + (v ?? '000000');
+}
+
+/** Build the SVG-cursor data URI for paint mode. The cursor is a
+ *  thin I-beam (precision pointer for text selection) with a small
+ *  color swatch hanging off the lower-right corner. Hotspot:
+ *  centered on the I-beam (x=6, y=10 in the 24x24 viewBox), set in
+ *  the consuming `cursor:` declaration. */
+function paintbrushCursorDataUri(fillColor: string): string {
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">' +
+    // I-beam: vertical stem + top/bottom caps. Two-tone (white
+    // stroke underneath the black stroke) so the cursor stays
+    // visible on dark backgrounds.
+    '<g stroke="#fff" stroke-width="3" fill="none">' +
+    '<line x1="6" y1="2" x2="6" y2="18"/>' +
+    '<line x1="3" y1="2" x2="9" y2="2"/>' +
+    '<line x1="3" y1="18" x2="9" y2="18"/>' +
+    '</g>' +
+    '<g stroke="#000" stroke-width="1.5" fill="none">' +
+    '<line x1="6" y1="2" x2="6" y2="18"/>' +
+    '<line x1="3" y1="2" x2="9" y2="2"/>' +
+    '<line x1="3" y1="18" x2="9" y2="18"/>' +
+    '</g>' +
+    // Color swatch in the lower-right with a thin dark outline.
+    `<rect x="12" y="13" width="10" height="10" fill="${fillColor}" stroke="#000" stroke-width="1"/>` +
+    '</svg>';
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
 }
 
 function buildHighlightControl(): ColorControlSetup {

@@ -57,6 +57,17 @@ internal refactors live in commit messages, not here.
   running no longer offers to "recover" the docs you have open
   in other windows. Only the first window of an app session
   surfaces the startup-recovery sidebar.
+- Right-clicking a link now opens a context menu (Open Link /
+  Copy Link Address / Edit Link… / Remove Link). Open routes
+  through the OS default browser via `shell.openExternal` on
+  desktop; Edit reuses the in-app text prompt; Remove strips the
+  link mark while preserving the text. Non-link right-clicks
+  pass through to the browser / image context menu as before.
+- Paint mode (highlight / shading paintbrush) now shows an I-beam
+  precision cursor with a small swatch of the active color, so
+  you can target characters precisely AND see which color the
+  next paint will apply. Picking a new color while paint mode is
+  armed updates the cursor live.
 - Text selection inside the editor is now translucent (~30%
   alpha) instead of fully opaque, so the underlying highlight,
   shading, and other colors show through. Side effect: you can

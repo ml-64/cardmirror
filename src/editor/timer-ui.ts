@@ -80,7 +80,7 @@ export function mountTimerUI(): void {
   // without restructuring the DOM.
   panel.innerHTML = `
     <button id="timer-reset-btn" class="pmd-timer-reset" type="button"
-            title="Reset all timers" aria-label="Reset all timers">RESET</button>
+            title="Reset all timers" aria-label="Reset all timers">↻</button>
     <div id="timer-display" class="pmd-timer-display"
          role="timer" aria-live="off"
          title="Click to edit when paused">0:00</div>

@@ -6005,21 +6005,30 @@ html.pmd-emphasis-box .pmd-pane-editor .pmd-emphasis {
   color: var(--pmd-c-text);
   padding: 0 0.3rem;
   line-height: 1;
+  /* Explicit centering so a glyph (▶, ↻, etc.) sits on the same
+     baseline as the text labels next to it — browser-default
+     button alignment isn't quite right when mixing icon + text
+     buttons in the same grid row. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .pmd-timer-panel button:hover:not(:disabled) {
   background: var(--pmd-c-hover);
 }
 
-/* Reset — col 1, both rows. Vertical text reads bottom-to-top. */
+/* Reset — col 1, both rows. Icon ↻ (universal reset glyph) so the
+   button fits comfortably in a narrow column without the rotated-
+   text clipping that "RESET" had at ~2.92rem panel height. */
 .pmd-timer-reset {
   grid-column: 1;
   grid-row: 1 / span 2;
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  font-size: 0.6rem;
-  letter-spacing: 0.08em;
-  padding: 0.3rem 0.1rem;
-  min-width: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  padding: 0 0.2rem;
+  min-width: 1.4rem;
 }
 
 /* Big speech-timer display — col 2, both rows. Spans the full
@@ -6121,10 +6130,8 @@ html.pmd-emphasis-box .pmd-pane-editor .pmd-emphasis {
 .pmd-timer-panel.pmd-timer-compact .pmd-timer-reset {
   grid-column: 3;
   grid-row: 2;
-  writing-mode: initial;
-  transform: none;
-  font-size: 0.7rem;
-  padding: 0.2rem 0.5rem;
+  font-size: 1.05rem;
+  padding: 0 0.2rem;
   min-width: 0;
 }
 .pmd-timer-panel.pmd-timer-compact .pmd-timer-aff {

@@ -7,6 +7,14 @@ see `DETAILED_CHANGELOG.md`.
 
 ## Unreleased
 
+### Fixed
+
+- **Open button on the web edition no longer silently drops your
+  selection.** Clicking the 📂 Open button, picking a file, and
+  ending up with nothing loaded — while `Ctrl-O` worked on the
+  same page — was a race in the file-picker cancellation
+  detection. Fixed by switching to the native `cancel` event.
+
 ## 0.1.0-alpha.2 — 2026-05-20
 
 ### Added

@@ -155,11 +155,14 @@ export class BrowserHost implements Host {
       input.value = '';
 
       let settled = false;
+      const cleanup = (): void => {
+        input.removeEventListener('change', onChange);
+        input.removeEventListener('cancel', onCancel);
+      };
       const onChange = async (): Promise<void> => {
         if (settled) return;
         settled = true;
-        input.removeEventListener('change', onChange);
-        window.removeEventListener('focus', onCancelMaybe);
+        cleanup();
         const file = input.files?.[0];
         if (!file) {
           resolve(null);
@@ -176,24 +179,26 @@ export class BrowserHost implements Host {
         }
       };
 
-      // Cancellation has no native event in browsers — the user
-      // closes the dialog and nothing fires. Listen for window
-      // `focus` (returns when the OS dialog closes); if no file was
-      // picked, resolve null.
-      const onCancelMaybe = (): void => {
-        window.setTimeout(() => {
-          if (settled) return;
-          if (!input.files || input.files.length === 0) {
-            settled = true;
-            input.removeEventListener('change', onChange);
-            window.removeEventListener('focus', onCancelMaybe);
-            resolve(null);
-          }
-        }, 200);
+      // `cancel` is the modern (Chrome 113+, Firefox 91+, Safari
+      // 16.4+) signal that the user closed the picker without
+      // picking anything. Before it existed we polled focus + a
+      // 200ms timeout, which raced the `change` event when the
+      // browser was slow to populate `input.files` after the dialog
+      // closed (especially when the dialog was opened by a button
+      // click rather than a keyboard shortcut — different focus
+      // path through the activeElement). The cancel event removes
+      // the race; if the browser is old enough to lack it, the
+      // promise just stays pending on cancel — minor leak, no
+      // false null resolve that drops a real selection.
+      const onCancel = (): void => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(null);
       };
 
       input.addEventListener('change', onChange);
-      window.addEventListener('focus', onCancelMaybe, { once: true });
+      input.addEventListener('cancel', onCancel);
       input.click();
     });
   }

@@ -7,6 +7,31 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Web-edition Open button: selection no longer silently dropped.**
+  Clicking the 📂 button on the web edition would open the OS
+  file picker, let the user pick a file, then do nothing. `Ctrl-O`
+  worked on the same page. Root cause: `BrowserHost.openOnce` had
+  a focus-event-plus-200ms-setTimeout heuristic to detect
+  cancellation — when the dialog closed and the window regained
+  focus, the timer fired 200ms later and checked `input.files`.
+  If the browser hadn't populated `input.files` by then (which
+  varies with the previously-focused element — the button vs.
+  editor — and with OS dialog implementation), the timer
+  resolved the promise to `null`, then the actual `change` event
+  fired but ran into `settled=true` and dropped on the floor.
+  Keyboard `Mod-O` happened to win the race; mouse-button click
+  reliably lost it on Chrome 148+ on Linux and on Zen (Firefox
+  fork). Fix: replace the focus-and-timeout polling with the
+  native `cancel` event (Chrome 113+, Firefox 91+, Safari 16.4+),
+  which fires only when the user actually dismisses the picker
+  without picking. No race. The byte-identical code in alpha.1
+  was already buggy; nothing changed in this file between
+  releases — what likely shifted was timing pressure elsewhere
+  on the page (timer UI mount, dark-mode boot, find-replace
+  decorations) that pushed the focus event past the
+  `input.files` population threshold often enough that the
+  symptom started manifesting reliably.
+
 ## 0.1.0-alpha.2 — 2026-05-20
 
 - **Nav-pane navigation: dramatically faster on big docs.**

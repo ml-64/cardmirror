@@ -6,6 +6,20 @@ internal refactors live in commit messages, not here.
 
 ## Unreleased
 
+- **Chrome scale — Mod-Alt-= / Mod-Alt-- / Mod-Alt-0.** Three
+  new keybindable commands (`chromeScaleUp` / `chromeScaleDown`
+  / `chromeScaleReset`) that scale the whole window — chrome
+  AND doc content together — the same way the browser's built-
+  in Ctrl-+ chord does. On Electron this drives Chromium's
+  `webFrame.setZoomFactor`, so layout reflows at the new
+  factor rather than just resizing pixels. Helpful on high-DPI
+  displays where the chrome reads too small, or low-DPI where
+  it crowds the editor. No-op on the web edition (use the
+  browser's own page-zoom). No ribbon button — keyboard-only
+  (the chord is shown in Settings → Keybindings and can be
+  rebound). The editor's existing `Mod--` / `Mod-=` zoom stays
+  separate, so you can dial doc content size up or down on top
+  of the page-zoom factor.
 - **Bug fix — Multi-pane → single-window switch was losing open
   docs.** Toggling from the three-pane workspace back to one-doc-
   per-window only restored the active pane; the others were

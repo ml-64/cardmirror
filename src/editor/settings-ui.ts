@@ -1394,7 +1394,7 @@ function buildTimerProfileDurationsEditor(): HTMLElement {
     const profileCfg = settings.get('timerProfiles')[active];
     const presets = profileCfg.speechPresets;
     for (let i = 0; i < 3; i++) {
-      const labels = ['Speech 1', 'Speech 2', 'Speech 3'];
+      const labels = ['Preset 1', 'Preset 2', 'Preset 3'];
       const field = makeField(
         labels[i]!,
         () => presets[i] ?? 0,

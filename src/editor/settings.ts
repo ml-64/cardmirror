@@ -46,11 +46,6 @@ const TRANSIENT_SETTING_KEYS = new Set<string>([
   // intent; on the web edition there's only one tab so it's
   // effectively a session preference.
   'navPaneVisible',
-  // Timer panel visibility is per-window: the user opens the timer
-  // strip in whichever window they're running the round from.
-  // Hiding the timer panel in one window shouldn't hide it in
-  // every window the user has open.
-  'timerVisible',
 ]);
 
 /** Reader profile for read-time estimates: name + words-per-minute. */
@@ -250,8 +245,11 @@ export interface Settings {
    *  to other windows — each window starts with the pane visible
    *  and the user can hide it independently. */
   navPaneVisible: boolean;
-  /** Built-in countdown timer settings. */
-  timerVisible: boolean;
+  /** Built-in countdown timer settings. (Panel visibility lives
+   *  in `timer-state.ts`, not here — shared via BroadcastChannel
+   *  so toggling the timer on in one window opens it in every
+   *  other open window too. Settings here are configuration, not
+   *  per-window UI state.) */
   /** Currently-active timer profile. All three profiles are
    *  user-customizable (see `timerProfiles`); there's no
    *  separate "custom" — edits go straight to the active
@@ -689,7 +687,6 @@ const DEFAULTS: Settings = {
   overrideShadingSlots: ['#d2d2d2'],
   customColorOverrides: {},
   navPaneVisible: true,
-  timerVisible: false,
   timerProfile: 'college',
   timerProfiles: {
     highSchool: { speechPresets: [3, 5, 8], prepMinutes: 8 },
@@ -1034,7 +1031,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'timerProfiles',
     label: 'Timer durations',
     description:
-      "Edit the active profile's three speech-preset durations (in minutes, biggest first — this becomes the top-right 9 / 6 / 3 buttons on the panel) and the per-side prep total. Changes save into the currently-selected profile only.",
+      "Edit the active profile's three preset durations (in minutes, biggest first — these become the top-right 9 / 6 / 3 buttons on the panel) and the per-side prep total. Changes save into the currently-selected profile only.",
     kind: 'timerProfileDurations',
     category: 'appearance',
   },
@@ -1442,7 +1439,6 @@ function sanitize(s: Settings): Settings {
     // dismissed it during the session (transient — see
     // TRANSIENT_SETTING_KEYS).
     navPaneVisible: s.navPaneVisible === false ? false : true,
-    timerVisible: !!s.timerVisible,
     timerProfile:
       s.timerProfile === 'highSchool' || s.timerProfile === 'pomodoro'
         ? s.timerProfile

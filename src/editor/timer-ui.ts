@@ -219,6 +219,10 @@ export function mountTimerUI(): void {
   }
 
   subscribeTimer(() => {
+    // Visibility lives in the timer state, so a cross-window
+    // broadcast of `visible` needs to flip `panel.hidden` here.
+    // Cheap to re-apply the whole chrome on any state change.
+    applyChrome();
     render();
     ensureTick();
   });
@@ -230,11 +234,10 @@ export function mountTimerUI(): void {
     // CSS rules key on `data-prep-label` to show / hide the
     // A: / N: prefix and the blue / red color treatment.
     panel.setAttribute('data-prep-label', settings.get('timerPrepLabel'));
-    panel.hidden = !settings.get('timerVisible');
-    // If the user just hid the timer, pause any running clock.
-    if (!settings.get('timerVisible') && getTimerState().running) {
-      pauseTimer();
-    }
+    // Visibility lives in the shared timer state (not settings)
+    // so it broadcasts across windows. The pause-on-hide
+    // behavior is handled inside `setTimerVisible` itself.
+    panel.hidden = !getTimerState().visible;
   }
   applyChrome();
   settings.subscribe(() => {

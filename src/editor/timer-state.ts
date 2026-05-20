@@ -49,6 +49,13 @@ export interface TimerState {
    *  to this). Read from settings; cached here so the action
    *  functions don't need a settings ref. */
   prepTotalMs: number;
+  /** Whether the timer panel is visible. Lives in the shared
+   *  timer state (not in settings) so toggling the panel on in
+   *  one window opens it in every other open window too — the
+   *  shared BroadcastChannel pipes it across. Survives close +
+   *  reopen via the same localStorage snapshot as the rest of
+   *  the timer state. */
+  visible: boolean;
 }
 
 const DEFAULT_PREP_MS = 10 * 60 * 1000;
@@ -62,6 +69,7 @@ function makeInitialState(): TimerState {
     affPrepBaseRemainingMs: DEFAULT_PREP_MS,
     negPrepBaseRemainingMs: DEFAULT_PREP_MS,
     prepTotalMs: DEFAULT_PREP_MS,
+    visible: false,
   };
 }
 
@@ -103,6 +111,7 @@ function sanitize(raw: Partial<TimerState>): TimerState {
     affPrepBaseRemainingMs: nonNegInt(raw.affPrepBaseRemainingMs, base.affPrepBaseRemainingMs),
     negPrepBaseRemainingMs: nonNegInt(raw.negPrepBaseRemainingMs, base.negPrepBaseRemainingMs),
     prepTotalMs: nonNegInt(raw.prepTotalMs, base.prepTotalMs),
+    visible: raw.visible === true,
   };
 }
 
@@ -262,4 +271,21 @@ export function setSpeechRemainingMs(ms: number): void {
 export function configurePrepTotal(prepTotalMs: number): void {
   if (state.prepTotalMs === prepTotalMs) return;
   setState({ prepTotalMs });
+}
+
+/** Toggle timer-panel visibility. Hiding the panel pauses any
+ *  running clock (matching the previous behavior the settings-
+ *  driven handler had — we don't want a clock to keep counting
+ *  down while the user can't see it). Broadcast over the shared
+ *  channel so toggling in one window opens / closes the panel in
+ *  every other open window too. */
+export function setTimerVisible(visible: boolean): void {
+  if (state.visible === visible) return;
+  if (!visible && state.running) {
+    // Pause first so the pause snapshot lands correctly, then
+    // flip visible. Two setState calls is fine — both go through
+    // the same persist + broadcast path.
+    pauseTimer();
+  }
+  setState({ visible });
 }

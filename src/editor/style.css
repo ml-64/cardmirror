@@ -5974,16 +5974,22 @@ html.pmd-emphasis-box .pmd-pane-editor .pmd-emphasis {
 .pmd-timer-panel {
   display: grid;
   grid-template-columns: auto auto auto auto auto;
-  grid-template-rows: 1fr 1fr;
-  gap: 0.15rem;
+  /* Each row matches one ribbon-button height (1.45rem) — same
+     rhythm as the ribbon-button-stack. Total height ≈ 2.92rem
+     (2 rows × 1.45rem + 2px gap), which lines up with the
+     formatting / cite / file-ops stacks. */
+  grid-template-rows: 1.45rem 1.45rem;
+  gap: 2px;
   flex: 0 0 auto;
+  /* Vertically center against the ribbon's own button stacks
+     rather than stretching to the ribbon's full 4rem height. */
+  align-self: center;
   /* Lives at the LEFT edge of the ribbon — separator on the
      right side instead of the left. */
   margin-right: 0.4rem;
   padding-right: 0.4rem;
   border-right: 1px solid var(--pmd-c-border-soft);
   align-items: stretch;
-  align-self: stretch;
   font-family: 'Calibri', 'Helvetica Neue', sans-serif;
 }
 .pmd-timer-panel[hidden] { display: none; }
@@ -5995,7 +6001,7 @@ html.pmd-emphasis-box .pmd-pane-editor .pmd-emphasis {
   cursor: pointer;
   font-family: inherit;
   font-weight: 600;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   color: var(--pmd-c-text);
   padding: 0 0.3rem;
   line-height: 1;
@@ -6016,26 +6022,26 @@ html.pmd-emphasis-box .pmd-pane-editor .pmd-emphasis {
   min-width: 1.2rem;
 }
 
-/* Big speech-timer display — col 2, both rows. Stays the largest
-   element in the panel since it's the round-clock readout, but
-   scaled to the ribbon's own typography so the panel doesn't
-   over-dominate. */
+/* Big speech-timer display — col 2, both rows. Spans the full
+   2.92rem panel height; font sized to fit comfortably inside
+   that with room for the border + a hair of vertical padding. */
 .pmd-timer-display {
   grid-column: 2;
   grid-row: 1 / span 2;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 4rem;
-  padding: 0 0.5rem;
+  min-width: 3.5rem;
+  padding: 0 0.4rem;
   border: 1px solid var(--pmd-c-border);
   border-radius: 3px;
   background: var(--pmd-c-bg);
   color: var(--pmd-c-text);
-  font-size: 1.45rem;
+  font-size: 1.2rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
+  line-height: 1;
   cursor: text;
   user-select: text;
 }

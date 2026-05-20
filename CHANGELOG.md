@@ -6,6 +6,15 @@ internal refactors live in commit messages, not here.
 
 ## Unreleased
 
+- **Bug fix — Multi-pane → single-window switch was losing open
+  docs.** Toggling from the three-pane workspace back to one-doc-
+  per-window only restored the active pane; the others were
+  silently dropped. Root cause was a journal-write race: two IPC
+  writes to the same crash-recovery file could land at once,
+  producing a valid-JSON-then-garbage file that the post-reload
+  reader threw out as corrupt. Writes are now serialized per uid
+  and committed via an atomic rename, so journals stay valid even
+  under concurrent edit-debounce + mode-switch traffic.
 - **Accessibility — Reduce motion.** Settings → Accessibility →
   Reduce motion: System / On / Off. System (default) follows the
   OS `prefers-reduced-motion` preference. On flattens all

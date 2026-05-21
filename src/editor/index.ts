@@ -1155,6 +1155,15 @@ if (navPanePullTab) {
 }
 applyNavPaneVisible(settings.get('navPaneVisible'));
 
+/** Apply the `formatNavPaneByType` setting. When off, adds the
+ *  `pmd-nav-flat` class to `<html>`; CSS rules in `style.css`
+ *  flatten the per-level font weights / sizes and the analytic-blue
+ *  label color so only indentation conveys hierarchy. */
+function applyFormatNavPaneByType(on: boolean): void {
+  document.documentElement.classList.toggle('pmd-nav-flat', !on);
+}
+applyFormatNavPaneByType(settings.get('formatNavPaneByType'));
+
 // Speech-doc buttons — multi-doc only (CSS hides them in
 // single-doc). All four route into the shell's ctx hooks. The new-
 // speech button uses ribbonContext directly because it works
@@ -1618,6 +1627,7 @@ settings.subscribe((s) => {
   applyReduceMotion(s.reduceMotion);
   applyReadMode(s.readMode);
   applyNavPaneVisible(s.navPaneVisible);
+  applyFormatNavPaneByType(s.formatNavPaneByType);
   applyZoom(s.zoomPct);
   applyChromeScale(s.chromeScalePct);
   applyDisplaySizes(s.displaySizes);

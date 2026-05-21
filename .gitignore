@@ -51,5 +51,7 @@ release/
 
 # Local-only running notes / wishlist / scratchpad files. WISHLIST.md
 # is the running queue of usability ideas and feedback to act on
-# before the next release.
+# before the next release. WISHLIST.assets/ holds screenshots and
+# other binary attachments referenced from the wishlist.
 WISHLIST.md
+WISHLIST.assets/

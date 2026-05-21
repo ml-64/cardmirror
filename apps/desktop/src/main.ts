@@ -32,6 +32,29 @@ import * as path from 'node:path';
 
 const DEV_SERVER_URL = 'http://localhost:5173';
 
+// macOS scroll-perf tuning. Reported symptom: on the same Apple
+// Silicon Mac, the web edition is lightning-fast and the packaged
+// `.dmg` build is materially slower (scrolling especially). The
+// renderer code is identical, so the gap is in the GPU /
+// compositor path Electron negotiates vs. the path the user's
+// Chrome takes for the web edition.
+//
+// `enable-zero-copy` lets the GPU upload raster tiles directly
+// from main memory instead of double-buffering through the CPU —
+// big win on Apple Silicon where the GPU shares system memory.
+// `ignore-gpu-blocklist` overrides Chromium's conservative GPU
+// blocklist so Apple Silicon devices that fall into a denied
+// bucket still get full hardware acceleration. Both are cheap
+// and reversible — flip them off if they regress anyone's machine.
+//
+// MUST run before `app.whenReady()` (and ideally before any
+// `BrowserWindow` is created) — Chromium reads the switches at
+// gpu-process startup.
+if (process.platform === 'darwin') {
+  app.commandLine.appendSwitch('enable-zero-copy');
+  app.commandLine.appendSwitch('ignore-gpu-blocklist');
+}
+
 // Start collecting crash minidumps as early as possible. We do
 // NOT upload them — `uploadToServer: false` keeps everything on
 // disk in `app.getPath('crashDumps')`. Users who hit a crash can
@@ -153,6 +176,15 @@ function createWindow(initialDoc?: InitialDocPayload): BrowserWindow {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // Chromium throttles JS / rAF in renderers whose windows are
+      // partially occluded or out of focus — defensible on a 50-tab
+      // browser, but here the user has typically one window with the
+      // doc they're editing, and macOS aggressively backgrounds apps
+      // that lose focus for even a moment (App Nap, occlusion
+      // detection, etc.). Keep the renderer at full throttle so
+      // scrolling / nav-pane interaction doesn't take an extra frame
+      // when the window happens to be behind another.
+      backgroundThrottling: false,
     },
   });
 

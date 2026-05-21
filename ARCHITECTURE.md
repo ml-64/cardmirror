@@ -1121,6 +1121,43 @@ one never touches the others. `font_color` round-trips as
 `<w:color w:val="…"/>` and writes `null` (the Automatic option) as
 "no mark" rather than explicit black.
 
+**`000000` is rendered as inherited, not as an inline style.** Word
+writes `w:color="000000"` on a large fraction of runs even when the
+user picked "Automatic" or never touched the color picker. The
+`font_color` mark imports those faithfully, but `toDOM` skips the
+inline `style="color: #000000"` for the `000000` sentinel and emits
+only `data-color="000000"`. This lets dark mode and the
+Accessibility-panel per-token text-color override beat what would
+otherwise be a hardcoded black. Round-trip is intact: the exporter
+reads `attrs.color` directly, and `parseDOM` reads from `data-color`.
+
+**Luminance bands give CSS arbitrary-color contrast control.**
+`colorBand(hex)` in `src/schema/marks.ts` classifies a 6-hex RGB
+into `dark` (perceived luminance `(0.299r + 0.587g + 0.114b) / 255 < 0.4`)
+or `light`. Both `font_color` and `shading` emit a `data-*-band`
+attribute on the rendered span. Downstream CSS rules read those
+attributes to mandate contrast:
+
+- `[data-shading-band]` rules force black/white text inside any
+  shading span based on the background's luminance. Mirrors what
+  `.pmd-highlight[data-highlight=yellow]` and siblings do for the
+  16 named highlight colors, but generalizes to the arbitrary
+  hexes shading carries.
+- `[data-color-band="dark"]` in dark mode + apply-to-document
+  overrides the run's inline `color:` to inherit `--pmd-c-text`,
+  so any text the user (or Word) marked with a color too dark to
+  read on `#1a1a1a` becomes readable. Three higher-specificity
+  rules reverse this override inside `.pmd-highlight`,
+  `[data-shading-band]`, and `<a>` containers — those scopes own
+  text color and would otherwise have their mandated contrast
+  clobbered by the override.
+
+Hyperlinks use a `--pmd-c-link` token: `#0563C1` in light mode (matches
+Word's canonical hyperlink blue), `#7AB0FF` in dark mode (sky blue,
+readable against `#1a1a1a`). `.ProseMirror a` applies the token via
+`!important` to beat the per-run `font_color` marks Word stamps onto
+each hyperlink run.
+
 **Note on default shading grey:** Verbatim's `HighlightToBackgroundColor`
 macro produces shading at RGB `D2D2D2`, which is close to but not
 identical to Word's `lightGray` highlight equivalent at `C0C0C0`

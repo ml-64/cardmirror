@@ -32,6 +32,27 @@ function namedStyleMark(): MarkSpec {
   };
 }
 
+/**
+ * Perceived-luminance bucket for a 6-hex RGB color (no leading `#`).
+ * `dark`/`light` straddle a 0.4 threshold on the YIQ-style luma
+ * approximation `(0.299r + 0.587g + 0.114b) / 255`. Used by
+ * `font_color` and `shading` to emit `data-*-band` attributes that
+ * downstream CSS rules read to force contrast against arbitrary
+ * background colors (shading rules always-on; font_color override
+ * dark-mode-only). Threshold picked so Word's hyperlink blue
+ * (`0563C1` ≈ 0.32), default black (`000000` = 0), and dark grays
+ * land in `dark`; mid-grays (`888888` ≈ 0.53) and lighter stay
+ * `light`. Invalid hex falls back to `dark` (caller fault).
+ */
+export function colorBand(hex: string): 'dark' | 'light' {
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return 'dark';
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum < 0.4 ? 'dark' : 'light';
+}
+
 export const marks: { [name: string]: MarkSpec } = {
   // -------- Outermost: per-run font size --------
   // `font_size` is listed first so it renders as the OUTERMOST DOM
@@ -265,14 +286,26 @@ export const marks: { [name: string]: MarkSpec } = {
         }),
       },
     ],
-    toDOM: (mark) => [
-      'span',
-      {
-        style: `background-color: #${String(mark.attrs['color'] ?? 'D2D2D2')}`,
-        'data-shading': String(mark.attrs['color'] ?? 'D2D2D2'),
-      },
-      0,
-    ],
+    toDOM: (mark) => {
+      const color = String(mark.attrs['color'] ?? 'D2D2D2');
+      // `data-shading-band` lets CSS pick a high-contrast text color
+      // for arbitrary shading hexes (highlight does the same per
+      // named color via `data-highlight=...`). Without it, a docx
+      // with yellow shading (FFFF00, from Verbatim's
+      // HighlightToBackgroundColor macro) would render the contained
+      // text in the themed text color — white in dark mode — on a
+      // bright yellow bg, which is unreadable. The band attribute
+      // forces black/white based on the shading's luminance.
+      return [
+        'span',
+        {
+          style: `background-color: #${color}`,
+          'data-shading': color,
+          'data-shading-band': colorBand(color),
+        },
+        0,
+      ];
+    },
   },
 
   highlight: {
@@ -332,14 +365,32 @@ export const marks: { [name: string]: MarkSpec } = {
         }),
       },
     ],
-    toDOM: (mark) => [
-      'span',
-      {
-        style: `color: #${String(mark.attrs['color'] ?? '000000')}`,
-        'data-color': String(mark.attrs['color'] ?? '000000'),
-      },
-      0,
-    ],
+    toDOM: (mark) => {
+      const color = String(mark.attrs['color'] ?? '000000');
+      // Two display-only adjustments encoded here, both designed to
+      // preserve round-trip (parseDOM reads `data-color`, exporter
+      // reads `attrs.color`):
+      //
+      //   1. `000000` ("default / Automatic" in Word) emits no
+      //      inline style. The run inherits the surrounding text
+      //      color, which means dark mode and per-token text-color
+      //      overrides actually take effect on the bulk of imported
+      //      body text. Light mode still reads near-black because
+      //      `--pmd-c-text` is near-black there.
+      //   2. `data-color-band="dark"|"light"` (from `colorBand()`)
+      //      lets the dark-mode CSS rule force dark-band font_color
+      //      runs to inherit, beating their inline `color:` style
+      //      via `!important`. Catches Word's hyperlink blue
+      //      (`0563C1`), user-picked dark grays / dark reds / etc.
+      //      that would be invisible against the dark surface, and
+      //      keeps mid/high-luminance choices intact.
+      const attrs: Record<string, string> = {
+        'data-color': color,
+        'data-color-band': colorBand(color),
+      };
+      if (color !== '000000') attrs['style'] = `color: #${color}`;
+      return ['span', attrs, 0];
+    },
   },
 
   /**

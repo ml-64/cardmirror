@@ -1,0 +1,54 @@
+name: macOS test build
+
+# Manually triggered macOS desktop build for testing — produces
+# arm64 and x64 `.dmg` installers and uploads them as workflow
+# artifacts that can be downloaded from the run page. Unlike the
+# tag-triggered `release.yml`, this one does NOT cut a GitHub
+# Release or publish anything; it's a fast iteration path for
+# verifying macOS-specific fixes (perf tuning, signing tweaks,
+# entitlements changes, etc.) on real Apple hardware without
+# going through a versioned release cycle.
+#
+# Run from the Actions tab → "macOS test build" → "Run workflow",
+# or via `gh workflow run mac-test-build.yml`.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build mac dmg
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install desktop dependencies
+        # Mirrors release.yml — apps/desktop intentionally isn't in
+        # the npm workspaces array because electron-builder's internal
+        # install step prunes hoisted dev-deps mid-build. Install
+        # separately.
+        run: npm --prefix apps/desktop ci
+
+      - name: Build desktop installer
+        # `dist` builds without publishing; `release` would push to
+        # GitHub Releases via GH_TOKEN, which we don't want here.
+        run: npm --prefix apps/desktop run dist
+
+      - name: Upload macOS dmg artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cardmirror-mac-dmg
+          path: apps/desktop/release/*.dmg
+          if-no-files-found: error
+          retention-days: 14

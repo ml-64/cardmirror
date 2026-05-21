@@ -245,6 +245,14 @@ export interface Settings {
    *  to other windows — each window starts with the pane visible
    *  and the user can hide it independently. */
   navPaneVisible: boolean;
+  /** Whether the nav pane styles entries by heading level / type
+   *  (default on). When on: top-level headings render bold, lower
+   *  levels in lighter weight / size, analytic entries in the
+   *  analytic-blue accent. When off: every entry renders in the
+   *  same weight, size, and color — only indentation conveys
+   *  hierarchy. Display-only; doesn't touch the underlying doc.
+   *  Symmetric in single-doc and multi-pane layouts. */
+  formatNavPaneByType: boolean;
   /** Built-in countdown timer settings. (Panel visibility lives
    *  in `timer-state.ts`, not here — shared via BroadcastChannel
    *  so toggling the timer on in one window opens it in every
@@ -696,6 +704,7 @@ const DEFAULTS: Settings = {
   overrideShadingSlots: ['#d2d2d2'],
   customColorOverrides: {},
   navPaneVisible: true,
+  formatNavPaneByType: true,
   timerProfile: 'college',
   timerProfiles: {
     highSchool: { speechPresets: [3, 5, 8], prepMinutes: 8 },
@@ -1004,6 +1013,14 @@ export const SETTING_METADATA: SettingMeta[] = [
     label: 'Show doc name in ribbon',
     description:
       "Off by default. When on, the active document's filename appears as a pill in the center of the ribbon — useful when the OS title bar is hidden, unstyled, or non-existent (tiling window managers, frameless windows, web embeds). Hidden in multi-pane mode because each per-pane chip already shows its slot's filename.",
+    kind: 'toggle',
+    category: 'appearance',
+  },
+  {
+    key: 'formatNavPaneByType',
+    label: 'Format nav pane entries by type',
+    description:
+      "On by default. When on, top-level headings render bold, lower levels in lighter weight and size, and analytic entries in the analytic-blue accent. Turn off for a uniform list where only indentation conveys hierarchy.",
     kind: 'toggle',
     category: 'appearance',
   },
@@ -1449,6 +1466,8 @@ function sanitize(s: Settings): Settings {
     // dismissed it during the session (transient — see
     // TRANSIENT_SETTING_KEYS).
     navPaneVisible: s.navPaneVisible === false ? false : true,
+    // formatNavPaneByType defaults to TRUE — current behavior.
+    formatNavPaneByType: s.formatNavPaneByType === false ? false : true,
     timerProfile:
       s.timerProfile === 'highSchool' || s.timerProfile === 'pomodoro'
         ? s.timerProfile

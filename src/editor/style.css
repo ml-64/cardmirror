@@ -162,6 +162,12 @@ button {
   --pmd-c-accent-soft: rgba(37, 99, 235, 0.12);
   --pmd-c-focus: #4a90e2;              /* focus rings on text inputs */
 
+  /* Hyperlink color inside the editor surface. Light-mode value
+     matches Word's canonical hyperlink blue so an imported doc
+     renders the same way as in Word. Dark mode overrides this to a
+     brighter sky blue (see :root[data-theme="dark"] below). */
+  --pmd-c-link: #0563C1;
+
   /* Status colors. Used by save / autosave / sync indicators. */
   --pmd-c-success: #16a34a;            /* "saved" green */
   --pmd-c-success-soft: rgba(22, 163, 74, 0.20); /* save-flash animation peak */
@@ -289,6 +295,17 @@ button {
    styles on `<html>`, which beat any CSS-rule specificity — so a
    user customization wins over the theme automatically. */
 :root[data-theme="dark"] {
+  /* Tell the browser to render native form controls (select
+     dropdowns, scrollbars, native date/color pickers, etc.) in
+     their dark variants. Without this, the popup `<option>` list
+     of a `<select>` is drawn with the OS's default light-mode
+     chrome — black text on a white background — which collides
+     with the dark CardMirror UI. We don't gate this on apply-to-
+     document because native form controls only appear in chrome
+     surfaces (settings dialog, color pickers, etc.), not in the
+     ProseMirror editor itself. */
+  color-scheme: dark;
+
   /* Surface */
   --pmd-c-bg: #1a1a1a;
   --pmd-c-bg-soft: #222;
@@ -428,6 +445,11 @@ button {
 
   /* On-accent overlay */
   --pmd-c-on-accent-overlay: rgba(255, 255, 255, 0.18);
+
+  /* Hyperlink — bright sky blue so links read against the dark
+     editor surface. Word's canonical #0563C1 has perceived
+     luminance ~0.32 and disappears against #1a1a1a. */
+  --pmd-c-link: #7AB0FF;
 }
 
 /* "Dark chrome, light document" mode. When the theme is dark BUT
@@ -446,6 +468,19 @@ button {
      `color` here re-roots inheritance for everything inside the
      editor. */
   color: var(--pmd-c-text);
+
+  /* Paint a solid white background under the document area. The
+     editor element is normally transparent (it inherits body's
+     `var(--pmd-c-bg)` paint), which means in dark-theme + apply-
+     to-doc-OFF the dark body bg shows through and the document
+     reads as black-on-dark — exactly the failure mode this rule
+     is trying to prevent. Redeclaring `--pmd-c-bg` to white at
+     the editor scope (below) only helps elements that opt in via
+     `background: var(--pmd-c-bg)`; the editor itself never does,
+     so we set the paint explicitly here. Use the same token name
+     so per-token overrides from Settings → Accessibility still
+     win. */
+  background: var(--pmd-c-bg);
 
   --pmd-c-bg: #fff;
   --pmd-c-bg-soft: #f7f7f8;
@@ -474,6 +509,12 @@ button {
   --pmd-c-table-header-bg: #f0f0f0;
   --pmd-c-table-resize-handle: #adf;
   --pmd-c-table-selected-cell: rgba(200, 200, 255, 0.4);
+  /* The sky-blue hyperlink color lives at :root[data-theme="dark"]
+     so it covers the document when apply-to-doc is ON. With it OFF
+     (this rule), the document area reads as paper — fall back to
+     Word's canonical hyperlink blue inside the editor so links
+     match what users see in Word. */
+  --pmd-c-link: #0563C1;
 }
 
 /* Scroll-padding on the root scroll container so the browser's
@@ -2026,6 +2067,96 @@ body.pmd-override-shading [data-shading] {
 .pmd-highlight[data-highlight="black"]       { background: #000000; color: #fff; }
 .pmd-highlight[data-highlight="none"]        { background: transparent; }
 
+/* Underline / emphasis (and cite under the citeUnderlined flag) own
+   `text-decoration: underline` as the OUTER span in the mark stack
+   (their schema order is before highlight / shading). The decoration
+   line is painted by THAT outer element, so its `text-decoration-
+   color` defaults to its own `color` — which in dark mode is the
+   themed light text. Inside a highlight or shading band, the inner
+   span has color #000 (light band) or #fff (dark band), but the
+   outer underline keeps painting with the body color → the
+   underline reads as a light line cutting through black-on-yellow
+   text. These `:has()` rules force the outer span's
+   `text-decoration-color` to match the band's mandated color so
+   the underline aligns with the text it underlines. */
+:is(.pmd-underline, .pmd-emphasis, #editor.pmd-cite-underlined .pmd-cite):is(
+  :has(.pmd-highlight[data-highlight="yellow"]),
+  :has(.pmd-highlight[data-highlight="green"]),
+  :has(.pmd-highlight[data-highlight="cyan"]),
+  :has(.pmd-highlight[data-highlight="magenta"]),
+  :has(.pmd-highlight[data-highlight="red"]),
+  :has(.pmd-highlight[data-highlight="lightGray"]),
+  :has([data-shading-band="light"])
+) {
+  text-decoration-color: #000;
+}
+:is(.pmd-underline, .pmd-emphasis, #editor.pmd-cite-underlined .pmd-cite):is(
+  :has(.pmd-highlight[data-highlight="blue"]),
+  :has(.pmd-highlight[data-highlight="darkBlue"]),
+  :has(.pmd-highlight[data-highlight="darkCyan"]),
+  :has(.pmd-highlight[data-highlight="darkGreen"]),
+  :has(.pmd-highlight[data-highlight="darkMagenta"]),
+  :has(.pmd-highlight[data-highlight="darkRed"]),
+  :has(.pmd-highlight[data-highlight="darkYellow"]),
+  :has(.pmd-highlight[data-highlight="darkGray"]),
+  :has(.pmd-highlight[data-highlight="black"]),
+  :has([data-shading-band="dark"])
+) {
+  text-decoration-color: #fff;
+}
+
+/* Shading is an arbitrary RGB background, so we can't enumerate the
+   16 well-known highlight cases above. Instead `font_color`'s
+   sibling logic in `src/schema/marks.ts` emits
+   `data-shading-band="light"|"dark"` based on the shading hex's
+   perceived luminance (threshold 0.4). These rules mandate text
+   color the same way the highlight rules do — black on light
+   backgrounds, white on dark — so a docx whose
+   HighlightToBackgroundColor macro converted yellow-highlight to
+   yellow-shading still reads correctly regardless of theme. Always
+   on (not dark-mode-gated): the shading background is doc data,
+   not chrome. */
+.ProseMirror [data-shading-band="light"] { color: #000; }
+.ProseMirror [data-shading-band="dark"]  { color: #fff; }
+
+/* Hyperlinks in the editor pick up the themed link color. The
+   `!important` beats the canonical `0563C1` font_color marks Word
+   stamps onto hyperlink runs at import time — those marks emit
+   inline `color: #0563C1`, which would otherwise render the Word
+   blue against dark backgrounds (~0.32 luminance against #1a1a1a).
+   Visited links share the same color since debate evidence isn't
+   really a browsing context. */
+.ProseMirror a,
+.ProseMirror a:visited {
+  color: var(--pmd-c-link) !important;
+}
+
+/* Visibility guarantee: in dark mode with "Apply theme to the
+   document area" enabled, any `font_color` mark whose color sits
+   in the "dark" luminance band (lum < 0.4 — see `colorBand()` in
+   `src/schema/marks.ts`) overrides to the themed text color so the
+   run is readable on the dark surface. Catches Word's hyperlink
+   blue, dark grays, and any user-picked color too dark to read on
+   `--pmd-c-bg`. `!important` beats the inline `color:` style the
+   mark emits. The narrower selector `.ProseMirror` keeps this from
+   leaking into chrome (settings dialogs, color pickers, etc.). */
+:root[data-theme="dark"][data-theme-doc="dark"] .ProseMirror [data-color-band="dark"] {
+  color: var(--pmd-c-text) !important;
+}
+
+/* Container scopes own text color inside their boundary, so a
+   dark-band font_color INSIDE a highlight, shading, or hyperlink
+   should NOT take the global override above — it should inherit
+   from the container's mandated color (black on yellow highlight,
+   sky-blue on a link, etc.). These rules carry an extra selector
+   so they out-specify the dark-band rule above and win the
+   cascade. */
+:root[data-theme="dark"][data-theme-doc="dark"] .ProseMirror .pmd-highlight [data-color-band="dark"],
+:root[data-theme="dark"][data-theme-doc="dark"] .ProseMirror [data-shading-band] [data-color-band="dark"],
+:root[data-theme="dark"][data-theme-doc="dark"] .ProseMirror a [data-color-band="dark"] {
+  color: inherit !important;
+}
+
 /* ProseMirror selection visibility */
 .ProseMirror:focus { outline: none; }
 
@@ -2239,6 +2370,14 @@ body.pmd-nav-resize-active {
 .pmd-nav-list {
   flex: 1 1 auto;
   overflow-y: auto;
+  /* Don't promote leftover scroll delta to the editor underneath.
+     Without `contain`, scrolling past the nav pane's top/bottom
+     limit chains into the body's scroll container — and once the
+     browser locks the editor as the gesture's target, reversing
+     direction stays on the editor until the user fully stops
+     scrolling. `contain` cuts the chain at this element's
+     boundary, so each scroll surface owns its own pane. */
+  overscroll-behavior: contain;
   /* Leave room on the right so the scrollbar doesn't run into the handle. */
   padding-right: 8px;
   list-style: none;
@@ -2525,6 +2664,46 @@ body.pmd-nav-resize-active {
    color as in the editor surface so changing it propagates everywhere. */
 .pmd-nav-type-analytic .pmd-nav-label       { color: var(--pmd-color-analytic); }
 .pmd-nav-type-analytic:hover .pmd-nav-label { color: var(--pmd-color-analytic); }
+
+/* `formatNavPaneByType: false` flattens the nav pane to a uniform
+   list — same weight, size, and color across every level — so only
+   indentation distinguishes hierarchy. The toggle in Settings →
+   Appearance writes `html.pmd-nav-flat` (or removes it) via
+   `applyFormatNavPaneByType` in `index.ts`. Padding-left rules
+   are NOT overridden — indentation is the surviving hierarchy cue.
+   Same selectors as the per-level rules above so cascade order /
+   specificity wins for the override. The dark-mode "force white"
+   block further down still wins in dark mode because it carries
+   the theme-attr selector (higher specificity), which is
+   intentional — flat + dark both want uniform color anyway. */
+html.pmd-nav-flat .pmd-nav-level-1,
+html.pmd-nav-flat .pmd-nav-level-2,
+html.pmd-nav-flat .pmd-nav-level-3,
+html.pmd-nav-flat .pmd-nav-level-4 {
+  font-weight: normal;
+  font-size: 0.85rem;
+  color: var(--pmd-c-text);
+}
+html.pmd-nav-flat .pmd-nav-type-analytic .pmd-nav-label,
+html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
+  color: inherit;
+}
+
+/* Dark mode flattens the nav-pane to pure-white text on the dark
+   surface — the per-level greys and the analytic blue read as
+   inconsistent dimmer entries against the dark chrome, and the
+   empty-state message disappears entirely at faint-grey. The nav
+   pane is chrome (not gated by `themeAppliesToDocument`) so this
+   only watches `data-theme`. The "format entries by type" toggle
+   in the wishlist will let users opt back in when shipped. Covers
+   both the single-doc nav panel and the multi-pane nav rail. */
+:root[data-theme="dark"] :is(.pmd-nav-panel, .pmd-multi-nav),
+:root[data-theme="dark"] :is(.pmd-nav-panel, .pmd-multi-nav) .pmd-nav-empty,
+:root[data-theme="dark"] :is(.pmd-nav-panel, .pmd-multi-nav) .pmd-nav-level-4,
+:root[data-theme="dark"] :is(.pmd-nav-panel, .pmd-multi-nav) .pmd-nav-type-analytic .pmd-nav-label,
+:root[data-theme="dark"] :is(.pmd-nav-panel, .pmd-multi-nav) .pmd-nav-type-analytic:hover .pmd-nav-label {
+  color: var(--pmd-c-text-strong);
+}
 
 /* ---------------------------------------------- Read mode
 
@@ -3062,6 +3241,13 @@ body.pmd-nav-resize-active {
   border-radius: 3px;
   padding: 0.2rem 0.4rem;
   background: var(--pmd-c-bg);
+  /* Explicit text color so the displayed value reads against the
+     themed bg. Without this the browser's user-agent default takes
+     over (often near-black) and disappears in dark mode. The popup
+     `<option>` list is drawn by the browser using `color-scheme`
+     (set on :root[data-theme="dark"] below), which keeps the
+     menu options readable too. */
+  color: var(--pmd-c-text);
 }
 
 .pmd-line-height-input {
@@ -5680,6 +5866,10 @@ body.pmd-multi-doc #word-count-display {
   min-width: 0;
   overflow-x: hidden;
   overflow-y: auto;
+  /* Same scroll-chain rationale as `.pmd-nav-list` — keep
+     scrolling past the pane's end from bleeding into the multi-
+     pane row or whichever ancestor would otherwise pick it up. */
+  overscroll-behavior: contain;
   position: relative;
 }
 .pmd-pane-editor {

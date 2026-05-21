@@ -2,14 +2,16 @@
  * Keyboard-shortcut reference modal. A read-only "cheat sheet" view
  * of the ribbon's bound F-keys / Mod-keys, grouped conceptually.
  *
- * The button source-of-truth lives in `ribbon-commands.ts`
- * (DEFAULT_RIBBON_KEYS + RIBBON_COMMAND_LABELS). When we add a
- * rebinding UI later, the reference modal can switch to reading the
- * live overrides and stay accurate without per-binding edits here.
+ * The command source-of-truth is `RIBBON_COMMAND_IDS` in
+ * `ribbon-commands.ts`. Every command in that registry MUST appear
+ * in exactly one group below — a module-init assertion enforces
+ * this so the cheat sheet can't silently drift out of sync when a
+ * new bindable action is added to the registry.
  */
 
 import {
   DEFAULT_RIBBON_KEYS,
+  RIBBON_COMMAND_IDS,
   RIBBON_COMMAND_LABELS,
   formatKeyForDisplay,
   type RibbonCommandId,
@@ -24,7 +26,7 @@ interface ShortcutGroup {
 const GROUPS: ShortcutGroup[] = [
   {
     title: 'File',
-    commands: ['newDocument', 'openFile', 'saveAs'],
+    commands: ['newDocument', 'openFile', 'save', 'saveAs', 'toggleAutosave'],
   },
   {
     title: 'Speech',
@@ -41,11 +43,26 @@ const GROUPS: ShortcutGroup[] = [
   },
   {
     title: 'Character styles',
-    commands: ['applyCite', 'applyUnderline', 'applyEmphasis', 'applyHighlight', 'applyShading'],
+    commands: [
+      'applyCite',
+      'applyUnderline',
+      'applyEmphasis',
+      'applyHighlight',
+      'applyShading',
+      'applyFontColor',
+    ],
   },
   {
     title: 'Inline formatting',
-    commands: ['toggleBold', 'toggleItalic', 'toggleStrikethrough', 'toggleSuperscript', 'toggleSubscript'],
+    commands: [
+      'toggleBold',
+      'toggleItalic',
+      'toggleStrikethrough',
+      'toggleSuperscript',
+      'toggleSubscript',
+      'adjustFontSizeUp',
+      'adjustFontSizeDown',
+    ],
   },
   {
     title: 'Condense',
@@ -56,6 +73,7 @@ const GROUPS: ShortcutGroup[] = [
       'condenseWithWarning',
       'uncondense',
       'toggleCase',
+      'toggleParagraphIntegrity',
     ],
   },
   {
@@ -66,6 +84,7 @@ const GROUPS: ShortcutGroup[] = [
       'shrink',
       'copyPreviousCite',
       'createReference',
+      'insertImage',
     ],
   },
   {
@@ -75,11 +94,46 @@ const GROUPS: ShortcutGroup[] = [
       'standardizeShading',
       'highlightToShading',
       'shadingToHighlight',
+      'togglePaintbrushHighlight',
+      'togglePaintbrushShading',
     ],
   },
   {
+    title: 'Color pickers & menus',
+    commands: [
+      'openHighlightPicker',
+      'openShadingPicker',
+      'openFontColorPicker',
+      'openFontSizePicker',
+      'openDocToolsMenu',
+      'openCardToolsMenu',
+      'openTableMenu',
+    ],
+  },
+  {
+    title: 'Find',
+    commands: ['openFind', 'openFindReplace', 'openFindByProximity'],
+  },
+  {
     title: 'View',
-    commands: ['toggleReadMode', 'wordCountSelection', 'openShortcutsReference'],
+    commands: [
+      'toggleReadMode',
+      'toggleNavPane',
+      'wordCountSelection',
+      'openSettings',
+      'openShortcutsReference',
+    ],
+  },
+  {
+    title: 'Zoom & scale',
+    commands: [
+      'zoomIn',
+      'zoomOut',
+      'zoomReset',
+      'chromeScaleUp',
+      'chromeScaleDown',
+      'chromeScaleReset',
+    ],
   },
   {
     title: 'Comments',
@@ -117,6 +171,40 @@ const GROUPS: ShortcutGroup[] = [
     ],
   },
 ];
+
+// Drift guard: every `RibbonCommandId` must appear in exactly one
+// group above. If a new command is added to the registry and someone
+// forgets to update GROUPS, this throws at module load time — fail
+// loud instead of silently dropping rows from the cheat sheet.
+(function assertGroupsCoverRegistry(): void {
+  const placed = new Set<string>();
+  const duplicates: string[] = [];
+  for (const group of GROUPS) {
+    for (const id of group.commands) {
+      if (placed.has(id)) duplicates.push(id);
+      placed.add(id);
+    }
+  }
+  const missing = RIBBON_COMMAND_IDS.filter((id) => !placed.has(id));
+  const extra = [...placed].filter(
+    (id) => !(RIBBON_COMMAND_IDS as readonly string[]).includes(id),
+  );
+  const problems: string[] = [];
+  if (missing.length > 0) {
+    problems.push(`missing from GROUPS: ${missing.join(', ')}`);
+  }
+  if (extra.length > 0) {
+    problems.push(`in GROUPS but not in RIBBON_COMMAND_IDS: ${extra.join(', ')}`);
+  }
+  if (duplicates.length > 0) {
+    problems.push(`appear in multiple groups: ${duplicates.join(', ')}`);
+  }
+  if (problems.length > 0) {
+    throw new Error(
+      `reference-ui GROUPS / RIBBON_COMMAND_IDS mismatch:\n  - ${problems.join('\n  - ')}`,
+    );
+  }
+})();
 
 class ReferenceModal {
   private overlay: HTMLDivElement;

@@ -56,7 +56,10 @@
       "category": "public.app-category.productivity",
       "target": [
         { "target": "dmg", "arch": ["x64", "arm64"] }
-      ]
+      ],
+      "extendInfo": {
+        "NSAppSleepDisabled": true
+      }
     },
     "win": {
       "target": [

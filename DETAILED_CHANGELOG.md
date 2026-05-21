@@ -7,6 +7,253 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Keyboard Shortcuts cheat sheet caught up with the keybindings
+  registry.** The `GROUPS` array in `src/editor/reference-ui.ts`
+  was hand-maintained and had drifted behind the registry — alpha.2
+  added twenty-some new bindable commands (the twelve previously
+  click-only ribbon actions plus `zoomIn` / `zoomOut` / `zoomReset` /
+  `chromeScaleUp` / `chromeScaleDown` / `chromeScaleReset` /
+  `togglePaintbrushHighlight` / `togglePaintbrushShading` /
+  `openFind` / `openFindReplace` / `openFindByProximity` /
+  `toggleNavPane`) and none of them appeared in the cheat sheet.
+  Two changes:
+
+  1. **Expanded GROUPS to cover every `RIBBON_COMMAND_ID`.** Added
+     three new categories — `Color pickers & menus`, `Find`,
+     `Zoom & scale` — and slotted the missing commands into
+     existing categories (`save` and `toggleAutosave` into File,
+     `insertImage` into Editing utilities, paintbrush toggles into
+     Highlight tools, the picker openers into the new Color pickers
+     & menus group, etc.).
+  2. **Module-init drift guard** asserts every `RIBBON_COMMAND_ID`
+     appears in exactly one group. Throws on load if anyone adds a
+     new command to the registry and forgets the cheat-sheet
+     update, or accidentally lists the same command in two groups.
+     Error message names the missing / duplicated / extra ids so
+     the fix is obvious from the stack trace.
+
+  Verified end-to-end via CDP: 86 rows across 17 groups (was 14
+  groups and a smaller subset before; the previous version was
+  missing ~26 commands). Module init returned `ok` rather than
+  throwing, confirming the assertion accepts the current registry.
+  Unbound commands continue to display `—` (we briefly shipped
+  `(no shortcut)` instead; reverted at user request because it was
+  too noisy with ~46 unbound commands).
+
+- **New setting: Format nav pane entries by type** (Settings →
+  Appearance, default on). Wishlist follow-up to the dark-mode
+  nav-pane flatten-to-white tweak: some users find the per-level
+  font weight cascade (700 → 600 → 500 → normal) and the analytic-
+  blue label accent noisy and prefer a uniform list keyed only on
+  indentation. Implementation:
+  - New `formatNavPaneByType: boolean` field on `Settings`,
+    default `true`, sanitized in `loadSettings` so missing-or-
+    truthy is treated as on and explicit-`false` as off.
+  - `SETTING_METADATA` entry under category `appearance` next to
+    `showDocNameChip`, so it lands in Settings → Appearance with
+    the other nav / chrome toggles.
+  - `applyFormatNavPaneByType(on)` in `index.ts` toggles
+    `html.pmd-nav-flat` (class present when the toggle is OFF;
+    parallels `pmd-doc-name-chip-on` / `pmd-nav-hidden`). Called
+    at module init and from the settings subscriber so live
+    toggling works.
+  - CSS rules in `style.css` near the existing per-level rules:
+    when `html.pmd-nav-flat` is set, `.pmd-nav-level-{1,2,3,4}`
+    collapse to `font-weight: normal`, `font-size: 0.85rem`,
+    `color: var(--pmd-c-text)`, and
+    `.pmd-nav-type-analytic .pmd-nav-label` inherits instead of
+    forcing the analytic-blue accent. Padding-left rules are
+    untouched — indentation is the surviving hierarchy cue.
+  - The dark-mode nav-pane-flatten-to-white rule still wins
+    inside dark mode because it carries the higher-specificity
+    `:root[data-theme="dark"] :is(.pmd-nav-panel, .pmd-multi-nav)`
+    chain — both rules want uniform color anyway, so the cascade
+    interaction is by design.
+  Verified end-to-end via CDP on the 1NC v. Dartmouth doc: with
+  `pmd-nav-flat` set, level-1 / 2 / 3 entries all report
+  `font-weight: 400`, `font-size: 13.6px`; default state has 700 /
+  600 / 500.
+
+- **Scroll chaining from the nav pane no longer bleeds into the
+  editor.** With the pointer over the nav pane, scrolling past its
+  top or bottom limit would propagate the leftover wheel delta to
+  the body's scroll container (single-doc) or the multi-pane row.
+  Once the browser picked the editor as the gesture's scroll
+  target, reversing direction kept scrolling the editor until the
+  user paused fully and started a new gesture. Fix: add
+  `overscroll-behavior: contain` on the two `overflow-y: auto`
+  containers that own the nav and pane scrolls — `.pmd-nav-list`
+  and `.pmd-pane-body` (multi-pane). `contain` cuts the scroll
+  chain at the element's boundary, which also kills the "sticky
+  target" follow-up because the chain never starts. Single-doc
+  editor scrolls on the body / html, which has no ancestor scroll
+  container to chain into, so no symmetric change needed there.
+  Verified: `getComputedStyle(.pmd-nav-list).overscrollBehaviorY ===
+  "contain"` post-fix.
+
+- **Dark mode: end-to-end readability guarantee on imported docs.**
+  Reported against the Health Care Topic Area Paper and 1NC v.
+  Dartmouth CG docxs: with Settings → Appearance → Theme: Dark
+  and "Apply theme to the document area" enabled, large swaths
+  of body text were invisible (literal black on dark), shading-
+  background text was invisible (themed white on yellow shading
+  from Verbatim's `HighlightToBackgroundColor` macro), and
+  hyperlinks were either browser-default `#0000EE` blue or
+  Word's `#0563C1` — neither readable on `#1a1a1a`. Four
+  coordinated changes in `src/schema/marks.ts` and
+  `src/editor/style.css`:
+
+  1. **`font_color="000000"` skip-inline-style.** The
+     `000000` sentinel emits only `data-color="000000"` (no
+     `style="color: #000000"`). The run inherits the
+     surrounding text color: near-black via `--pmd-c-text` in
+     light mode, `#e6e6e6` in dark mode, whatever the user
+     picked in the per-token-override panel.
+
+  2. **`colorBand(hex)` helper + `data-color-band` /
+     `data-shading-band` attributes.** New exported helper
+     classifies a 6-hex RGB into `dark` (perceived luminance
+     `(0.299r + 0.587g + 0.114b) / 255 < 0.4`) or `light`.
+     `font_color` and `shading` `toDOM` each emit a band
+     attribute on the rendered span. Threshold tuned so the
+     common Word sentinels — `000000` (lum 0), `0563C1`
+     hyperlink blue (~0.32), dark grays / reds — land in
+     `dark`, and mid-gray (`888888` ~0.53) onward stays
+     `light` (user-intentional choices preserved).
+
+  3. **Shading mandates contrast like highlight does.** CSS:
+     `.ProseMirror [data-shading-band="light"] { color: #000; }`
+     and the dark counterpart. Mirrors the per-named-color
+     rules on `.pmd-highlight` for arbitrary hex shading.
+     Always-on (not dark-mode-gated) because shading is doc
+     data and needs contrast in any theme.
+
+  4. **`--pmd-c-link` token + dark-band override + container
+     scoping.** Light mode `#0563C1` (matches Word); dark
+     mode `#7AB0FF` (bright sky blue, ~0.71 luminance).
+     `.ProseMirror a` uses the token with `!important` so it
+     beats the canonical Word-blue `font_color` marks Word
+     stamps onto hyperlink runs. In dark mode + apply-to-doc,
+     `[data-color-band="dark"]` falls back to `--pmd-c-text`
+     via `!important`, catching dark-band font_color marks
+     anywhere in the doc. Three higher-specificity rules
+     reverse the override inside `.pmd-highlight`,
+     `[data-shading-band]`, and `<a>` so those containers'
+     mandated colors win (otherwise the override would make
+     yellow-shaded text white-on-yellow, etc.).
+
+  Round-trip unchanged: exporter reads `attrs.color`,
+  importer / `parseDOM` read `data-color` / `data-shading`,
+  neither touches inline style or `data-*-band`.
+
+  Verified end-to-end via CDP on the 1NC v. Dartmouth doc:
+  108/108 shading runs compute high-contrast (`color: #000` on
+  the yellow shading), all 503 highlight runs compute
+  high-contrast per their named highlight, 9/16 link runs
+  render in sky blue and 7 render black because they sit
+  inside `.pmd-highlight` spans where black-on-yellow contrast
+  takes priority over link visibility (acceptable — the
+  highlight rule already preserves readability and the link
+  is still clickable). Six new test cases in
+  `tests/schema/schema.test.ts` lock the contracts: the
+  `000000` style skip, the `data-color-band` luminance buckets
+  (`000000`/`0563C1`/`FF0000` → `dark`; `888888`/`FFFFFF`/
+  `FFFF00` → `light`), and the shading band attribute on
+  `toDOM`.
+
+- **Underline color matches text color inside highlights and
+  shading.** Follow-up to the dark-mode-readability work above.
+  `.pmd-underline` / `.pmd-emphasis` are outer to highlight /
+  shading in the mark stack (underline_mark at schema position 117,
+  highlight at 311, shading at 271 — earlier-defined marks render
+  outermost in the DOM). The text-decoration line is painted by the
+  outermost element, and its `text-decoration-color` defaults to
+  that element's `color` — which in dark mode is the themed light
+  body text. So an underlined-highlighted run renders as black text
+  on yellow (correct), with a white underline cutting through it
+  (wrong). Added two `:has()` rule sets in `style.css` that set
+  `text-decoration-color` on `.pmd-underline` / `.pmd-emphasis` (and
+  `.pmd-cite` under the `citeUnderlined` flag) when they contain a
+  highlight or shading band: black for light-band containers
+  (yellow / green / cyan / magenta / red / lightGray highlight,
+  `data-shading-band="light"`), white for dark-band containers
+  (blue / darkBlue / darkCyan / darkGreen / darkMagenta / darkRed
+  / darkYellow / darkGray / black highlight, `data-shading-band="dark"`).
+  Verified on 1NC v. Dartmouth: 232 underline-inside-highlight/shading
+  spans now paint `rgb(0, 0, 0)` underlines (correct against the
+  yellow backgrounds in that doc); plain underlines outside any
+  band still paint with themed body color so they read as light on
+  the dark surface.
+
+- **Native form controls render in dark mode.** The body-font
+  dropdown in Settings → Appearance was painting its `<select>`
+  with `var(--pmd-c-bg)` (dark in dark mode) but had no explicit
+  text `color`, and the dropdown popup was being drawn by the
+  browser in its OS-default light style — black option text on
+  white in a UI surrounded by dark chrome. Two fixes: (1) set
+  `color: var(--pmd-c-text)` on `.pmd-body-font-select` so the
+  collapsed value is readable; (2) declare `color-scheme: dark`
+  on `:root[data-theme="dark"]` so the browser draws every
+  native form control (popup option lists, scrollbars, native
+  date/color pickers, etc.) in its dark variant. Not gated on
+  apply-to-document — native form controls only appear in chrome
+  surfaces, never inside the ProseMirror editor, so the
+  doc-area-stays-light mode doesn't need a light counterpart.
+  Verified: `getComputedStyle(html).colorScheme === "dark"` and
+  the select reports `color: rgb(230, 230, 230)` /
+  `background: rgb(26, 26, 26)` in dark mode.
+
+- **Sky-blue hyperlink color is now gated on apply-to-document.**
+  Follow-up to the readability-guarantee work: the dark-mode
+  `--pmd-c-link: #7AB0FF` override was set at `:root[data-theme=
+  "dark"]` scope and so applied to the editor whenever the theme
+  was dark — including when "Apply theme to the document area" was
+  OFF and the document was rendering as light paper. Word's
+  canonical hyperlink blue (`#0563C1`) is the right color against
+  a white doc, so the sky-blue override leaked the wrong palette.
+  Fix: add `--pmd-c-link: #0563C1` to the existing
+  `:root[data-theme="dark"]:not([data-theme-doc="dark"]) :is(#editor,
+  .pmd-pane-editor)` rule that already re-declares the other light-
+  mode tokens for the editor scope when apply-to-doc is off. The
+  chrome scope keeps `#7AB0FF` in dark mode (no chrome surface
+  actually uses the token, but the symmetry is correct). Verified
+  via CDP: dark + off → editor link computes `rgb(5, 99, 193)`;
+  dark + on → editor link computes `rgb(122, 176, 255)`.
+
+- **"Dark chrome, light document" mode actually paints the document
+  area white.** The CSS rule that scopes light-mode-token redeclarations
+  inside `:is(#editor, .pmd-pane-editor)` under
+  `:root[data-theme="dark"]:not([data-theme-doc="dark"])` redefined
+  `--pmd-c-bg: #fff` at the editor scope, but nothing in that rule
+  actually applied the token to the editor's own paint — `#editor` /
+  `.pmd-pane-editor` carry no `background` declaration of their own,
+  so they inherited body's `background: var(--pmd-c-bg)` which
+  resolves to `#1a1a1a` in dark mode. The editor read as black-on-
+  dark even though the user explicitly opted OUT of "Apply theme to
+  the document area." Added `background: var(--pmd-c-bg)` to the
+  same rule so the scoped `--pmd-c-bg: #fff` actually paints. The
+  body / ribbon / nav / status-bar chrome around the editor stays
+  dark because their backgrounds resolve `--pmd-c-bg` from the root
+  scope (`#1a1a1a`) — the redeclare only escapes into the editor
+  scope. Per-token Accessibility-panel overrides of `--pmd-c-bg`
+  still win because the rule uses the token, not a literal hex.
+
+- **Nav pane reads in solid white in dark mode.** The per-level grey
+  cascade (level-4 → `--pmd-c-text-muted`, level-1/2/3 → inherited
+  body text) and the analytic-blue label (`--pmd-color-analytic`)
+  rendered as inconsistent dim entries against the dark chrome
+  surface, and the "No headings." empty-state message disappeared
+  into the background at `--pmd-c-text-faint` (#7a7a7a in dark
+  mode). Added a dark-mode-scoped block that sets `color:
+  var(--pmd-c-text-strong)` on the nav-panel container, the empty
+  state, the level-4 entries, and the analytic label / hover —
+  covering both single-doc (`.pmd-nav-panel`) and multi-pane
+  (`.pmd-multi-nav`) layouts. Light mode is unchanged. The
+  in-flight wishlist item "Setting: disable nav-pane formatting"
+  will let users opt out of the per-type formatting in light mode
+  too when shipped; this fix is the dark-mode-specific tactical
+  flatten.
+
 - **Web-edition Open button: selection no longer silently dropped.**
   Clicking the 📂 button on the web edition would open the OS
   file picker, let the user pick a file, then do nothing. `Ctrl-O`

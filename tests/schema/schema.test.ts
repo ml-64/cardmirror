@@ -244,6 +244,65 @@ describe('marks', () => {
     expect(json).toBeDefined();
   });
 
+  it('font_color toDOM omits inline style for the 000000 sentinel', () => {
+    const markBlack = schema.marks['font_color']!.create({ color: '000000' });
+    const markColored = schema.marks['font_color']!.create({ color: 'FF0000' });
+    const [, attrsBlack] = markBlack.type.spec.toDOM!(markBlack, true) as [
+      string,
+      Record<string, string>,
+      number,
+    ];
+    const [, attrsColored] = markColored.type.spec.toDOM!(markColored, true) as [
+      string,
+      Record<string, string>,
+      number,
+    ];
+    expect(attrsBlack['data-color']).toBe('000000');
+    expect(attrsBlack['style']).toBeUndefined();
+    expect(attrsColored['data-color']).toBe('FF0000');
+    expect(attrsColored['style']).toBe('color: #FF0000');
+  });
+
+  it('font_color toDOM emits a luminance band for dark-mode contrast', () => {
+    // Threshold check — anything below perceived-luminance 0.4 is `dark`.
+    const cases: { color: string; expected: 'dark' | 'light' }[] = [
+      { color: '000000', expected: 'dark' },   // pure black
+      { color: '0563C1', expected: 'dark' },   // Word's hyperlink blue (~0.32)
+      { color: 'FF0000', expected: 'dark' },   // pure red (~0.30)
+      { color: '888888', expected: 'light' },  // mid gray (~0.53)
+      { color: 'FFFFFF', expected: 'light' },  // pure white
+      { color: 'FFFF00', expected: 'light' },  // bright yellow
+    ];
+    for (const { color, expected } of cases) {
+      const mark = schema.marks['font_color']!.create({ color });
+      const [, attrs] = mark.type.spec.toDOM!(mark, true) as [
+        string,
+        Record<string, string>,
+        number,
+      ];
+      expect(attrs['data-color-band'], `${color} should be ${expected}`).toBe(expected);
+    }
+  });
+
+  it('shading toDOM emits a luminance band so CSS can pick contrast', () => {
+    const lightShading = schema.marks['shading']!.create({ color: 'FFFF00' });
+    const darkShading = schema.marks['shading']!.create({ color: '000080' });
+    const [, lightAttrs] = lightShading.type.spec.toDOM!(lightShading, true) as [
+      string,
+      Record<string, string>,
+      number,
+    ];
+    const [, darkAttrs] = darkShading.type.spec.toDOM!(darkShading, true) as [
+      string,
+      Record<string, string>,
+      number,
+    ];
+    expect(lightAttrs['data-shading']).toBe('FFFF00');
+    expect(lightAttrs['data-shading-band']).toBe('light');
+    expect(darkAttrs['data-shading']).toBe('000080');
+    expect(darkAttrs['data-shading-band']).toBe('dark');
+  });
+
   it('font_family stores a font name', () => {
     const text = schema.text('Arial text', [
       schema.marks['font_family']!.create({ name: 'Arial' }),

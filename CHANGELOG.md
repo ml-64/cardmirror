@@ -7,13 +7,66 @@ see `DETAILED_CHANGELOG.md`.
 
 ## Unreleased
 
+### Added
+
+- **Setting: Format nav pane entries by type** (Settings →
+  Appearance, on by default). Turn off for a uniform nav-pane
+  list where only indentation conveys hierarchy — no bold
+  top-level headings, no analytic-blue accent, no per-level
+  size shifts. Display-only; the underlying doc is untouched.
+
 ### Fixed
 
+- **Keyboard Shortcuts cheat sheet now lists every bindable
+  action.** The reference modal was hand-maintained and had
+  fallen behind the keybindings registry — twenty-plus
+  commands added in alpha.2 (zoom, chrome scale, paintbrush
+  toggles, find, font color, the four picker openers, the
+  three tools menus, and several others) weren't appearing.
+  Now drives off the full registry and won't silently drift
+  out of sync again.
+- **Scrolling past the nav pane's top or bottom no longer
+  scrolls the editor.** The wheel-event chain now stops at the
+  nav pane's boundary, which also fixes the follow-up bug where
+  reversing scroll direction kept scrolling the editor instead
+  of the nav pane.
 - **Open button on the web edition no longer silently drops your
   selection.** Clicking the 📂 Open button, picking a file, and
   ending up with nothing loaded — while `Ctrl-O` worked on the
   same page — was a race in the file-picker cancellation
   detection. Fixed by switching to the native `cancel` event.
+- **Dark mode now guarantees readable text everywhere.** Three
+  related fixes that together make dark-mode-with-apply-to-doc
+  actually usable on real Verbatim docs:
+  - Runs that Word writes with an explicit "default black" color
+    (`w:color="000000"`) used to stay literally black, leaving
+    large swaths of body text invisible against the dark
+    surface. Now they inherit the themed text color and flip
+    light.
+  - Shading (Verbatim's "protected highlight" — yellow, grey,
+    etc.) now forces text contrast like highlights already did:
+    black on light shading, white on dark shading, regardless
+    of theme.
+  - Hyperlinks use a bright sky blue in dark mode (Word's
+    `#0563C1` is too dark to read on a dark background).
+  - Beyond those: any text color you (or Word) wrote that's
+    too dark to read against the dark surface — Word's
+    hyperlink blue, deep grays, dark reds — falls back to the
+    themed text color. Turn off "Apply theme to the document
+    area" if you'd rather see the original colors.
+  - Underlines under highlighted / shaded text now match the
+    text color (black on light backgrounds, white on dark),
+    instead of staying themed-white and cutting through the
+    black text like a faded slash.
+  - The nav pane flattens to white in dark mode — the
+    per-level greys and analytic-blue cues read as
+    inconsistent against the dark chrome.
+  - "Dark chrome, light document" mode (dark theme with
+    "Apply theme to the document area" OFF — the default)
+    now actually paints the document area white. Previously
+    the editor element had no background of its own and was
+    showing the dark chrome's color through it, defeating
+    the whole point of leaving "apply to document" off.
 
 ## 0.1.0-alpha.2 — 2026-05-20
 

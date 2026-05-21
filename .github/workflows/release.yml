@@ -104,15 +104,28 @@ jobs:
         # workflow), update its notes in place from CHANGELOG so a
         # re-trigger after a CHANGELOG fix actually refreshes the
         # draft.
+        #
+        # Pre-release detection: SemVer treats any tag with a `-`
+        # after the version (e.g., `v0.1.0-alpha.3`, `v1.2.0-rc.1`,
+        # `v0.1.0-beta`) as a pre-release. Pass `--prerelease` so
+        # GitHub flags it accordingly in the Releases UI and
+        # auto-update consumers know not to treat it as stable.
+        # Stable tags (`v1.0.0`) skip the flag.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${GITHUB_REF_NAME}"
+          # The tag is `vX.Y.Z[-prerelease]`; check for `-` after `v`.
+          PRERELEASE_FLAG=""
+          if [[ "${TAG#v}" == *-* ]]; then
+            PRERELEASE_FLAG="--prerelease"
+            echo "Detected pre-release tag $TAG — applying --prerelease."
+          fi
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --notes-file release-notes.md
+            gh release edit "$TAG" --notes-file release-notes.md $PRERELEASE_FLAG
             echo "Updated existing release $TAG with refreshed notes."
           else
-            gh release create "$TAG" --draft --title "$TAG" --notes-file release-notes.md
+            gh release create "$TAG" --draft --title "$TAG" --notes-file release-notes.md $PRERELEASE_FLAG
             echo "Created draft release $TAG."
           fi
 

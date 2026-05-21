@@ -5522,6 +5522,14 @@ body.pmd-multi-doc {
   overflow: hidden;
 }
 body.pmd-multi-doc #app {
+  /* Push `#app` below the fixed-position ribbon. Single-doc gets
+   * this from its `body:not(.pmd-multi-doc) #app` rule (which uses
+   * `position: fixed; top: var(--ribbon-height)`), but multi-doc
+   * stays in normal flow and needs the explicit margin. The
+   * `height: calc(100vh - ribbon - status)` below already accounts
+   * for the status bar, so no `margin-bottom` is needed — #app
+   * naturally ends above the fixed status bar. */
+  margin-top: var(--ribbon-height);
   /* The hidden single-doc nav panel reserved `var(--nav-width)`
    * of left margin. In multi-doc mode the new nav rail sits
    * at the window edge and is sized by its own dataset. */

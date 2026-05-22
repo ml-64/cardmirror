@@ -3090,7 +3090,25 @@ export type RibbonCommandId =
   | 'openFontSizePicker'
   | 'openDocToolsMenu'
   | 'openCardToolsMenu'
-  | 'openTableMenu';
+  | 'openTableMenu'
+  // Multi-pane workspace navigation. All seven listed here for
+  // user-rebindability via Settings → Keybindings; the shell
+  // owns the implementations and the global keydown handler in
+  // editor/index.ts dispatches when the key fires. No-ops in
+  // single-doc mode.
+  | 'focusSlot1'
+  | 'focusSlot2'
+  | 'focusSlot3'
+  | 'sendDocToSlot1'
+  | 'sendDocToSlot2'
+  | 'sendDocToSlot3'
+  | 'toggleSlotExpand'
+  // Smart close — closes the focused slot's visible doc in
+  // multi-pane mode; falls through to the standard window-close
+  // prompt otherwise. Menu accelerator (Ctrl+W) stays
+  // hardcoded as a discoverability cue; this registry entry is
+  // the user-rebindable layer.
+  | 'closeDocOrWindow';
 
 export const STRUCTURAL_RIBBON_COMMAND_IDS: StructuralRibbonCommandId[] = [
   'setPocket',
@@ -3185,6 +3203,14 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'openDocToolsMenu',
   'openCardToolsMenu',
   'openTableMenu',
+  'focusSlot1',
+  'focusSlot2',
+  'focusSlot3',
+  'sendDocToSlot1',
+  'sendDocToSlot2',
+  'sendDocToSlot3',
+  'toggleSlotExpand',
+  'closeDocOrWindow',
 ];
 
 export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
@@ -3275,6 +3301,14 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   openDocToolsMenu: 'Open Doc Tools Menu',
   openCardToolsMenu: 'Open Card Tools Menu',
   openTableMenu: 'Open Table Menu',
+  focusSlot1: 'Focus Slot 1',
+  focusSlot2: 'Focus Slot 2',
+  focusSlot3: 'Focus Slot 3',
+  sendDocToSlot1: 'Send Doc to Slot 1',
+  sendDocToSlot2: 'Send Doc to Slot 2',
+  sendDocToSlot3: 'Send Doc to Slot 3',
+  toggleSlotExpand: 'Toggle Slot Expand / Restore',
+  closeDocOrWindow: 'Close Doc or Window',
 };
 
 /**
@@ -3416,6 +3450,14 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   openDocToolsMenu: '',
   openCardToolsMenu: '',
   openTableMenu: '',
+  focusSlot1: 'Mod-1',
+  focusSlot2: 'Mod-2',
+  focusSlot3: 'Mod-3',
+  sendDocToSlot1: 'Mod-Shift-1',
+  sendDocToSlot2: 'Mod-Shift-2',
+  sendDocToSlot3: 'Mod-Shift-3',
+  toggleSlotExpand: 'Mod-Shift-f',
+  closeDocOrWindow: 'Mod-w',
 };
 
 /**
@@ -3966,6 +4008,20 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
         ctx.openTableMenu();
         return true;
       };
+    // Multi-pane workspace commands are dispatched via
+    // `runViewlessRibbon` in `editor/index.ts` (they don't read
+    // PM state or dispatch transactions). Return a no-op
+    // PM Command so PM's keymap doesn't claim the key but also
+    // doesn't crash; the viewless path is what actually fires.
+    case 'focusSlot1':
+    case 'focusSlot2':
+    case 'focusSlot3':
+    case 'sendDocToSlot1':
+    case 'sendDocToSlot2':
+    case 'sendDocToSlot3':
+    case 'toggleSlotExpand':
+    case 'closeDocOrWindow':
+      return () => false;
   }
 }
 
@@ -4088,7 +4144,17 @@ export function ribbonKeyStringFor(e: KeyboardEvent): string {
   if (e.ctrlKey || e.metaKey) parts.push('Mod');
   if (e.altKey) parts.push('Alt');
   if (e.shiftKey) parts.push('Shift');
-  parts.push(e.key);
+  // Normalize digits via `e.code` so `Mod-Shift-1` matches even
+  // though Shift+1 produces `e.key === '!'` on US layouts (and
+  // layout-specific shifted chars elsewhere). For non-digits keep
+  // `e.key` — letters get the same character regardless of Shift
+  // (uppercased), and PM-style keymap matching already accounts
+  // for shifted symbol keys like `=` / `+`.
+  if (/^Digit[0-9]$/.test(e.code)) {
+    parts.push(e.code.slice(5));
+  } else {
+    parts.push(e.key);
+  }
   return parts.join('-');
 }
 

@@ -1885,6 +1885,16 @@ const VIEWLESS_RIBBON_COMMANDS = new Set<RibbonCommandId>([
   // Toggling the nav-pane visibility only flips a transient
   // setting + body class; works without an active doc.
   'toggleNavPane',
+  // Multi-pane workspace commands — fire on the shell, not a
+  // doc. View-less so they work even when no slot has a doc.
+  'focusSlot1',
+  'focusSlot2',
+  'focusSlot3',
+  'sendDocToSlot1',
+  'sendDocToSlot2',
+  'sendDocToSlot3',
+  'toggleSlotExpand',
+  'closeDocOrWindow',
 ]);
 
 function runViewlessRibbon(id: RibbonCommandId): void {
@@ -1900,6 +1910,48 @@ function runViewlessRibbon(id: RibbonCommandId): void {
     case 'zoomOut': ribbonContext.zoomOut(); return;
     case 'zoomReset': ribbonContext.zoomReset(); return;
     case 'toggleNavPane': ribbonContext.toggleNavPane(); return;
+    // Multi-pane workspace navigation. Each dispatches into the
+    // shell via dynamic import — keeps single-doc bundles free
+    // of the shell's deps. All no-op in single-doc mode (the
+    // shell module-level state is null until the user enables
+    // multi-doc).
+    case 'focusSlot1': void runMultiPane('focusSlot', 0); return;
+    case 'focusSlot2': void runMultiPane('focusSlot', 1); return;
+    case 'focusSlot3': void runMultiPane('focusSlot', 2); return;
+    case 'sendDocToSlot1': void runMultiPane('sendDocToSlot', 0); return;
+    case 'sendDocToSlot2': void runMultiPane('sendDocToSlot', 1); return;
+    case 'sendDocToSlot3': void runMultiPane('sendDocToSlot', 2); return;
+    case 'toggleSlotExpand': void runMultiPane('toggleSlotExpand', 0); return;
+    case 'closeDocOrWindow':
+      void (async () => {
+        const { tryCloseVisibleInFocusedSlot } = await import(
+          './multi-pane-shell.js'
+        );
+        const consumed = await tryCloseVisibleInFocusedSlot();
+        if (!consumed) await handleUserCloseRequest();
+      })();
+      return;
+  }
+}
+
+/** Dispatch a multi-pane action by name. Single-doc returns
+ *  silently. Encapsulated as a helper so the case bodies in
+ *  `runViewlessRibbon` above stay tidy. */
+async function runMultiPane(
+  action: 'focusSlot' | 'sendDocToSlot' | 'toggleSlotExpand',
+  slotIdx: 0 | 1 | 2,
+): Promise<void> {
+  const m = await import('./multi-pane-shell.js');
+  switch (action) {
+    case 'focusSlot':
+      m.focusSlotByIndex(slotIdx);
+      return;
+    case 'sendDocToSlot':
+      m.sendVisibleToSlotByIndex(slotIdx);
+      return;
+    case 'toggleSlotExpand':
+      m.toggleFocusedSlotExpand();
+      return;
   }
 }
 

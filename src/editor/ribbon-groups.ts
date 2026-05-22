@@ -141,6 +141,19 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
     commands: ['toggleCommentsVisible', 'addCommentToSelection'],
   },
   {
+    title: 'Multi-pane workspace',
+    commands: [
+      'focusSlot1',
+      'focusSlot2',
+      'focusSlot3',
+      'sendDocToSlot1',
+      'sendDocToSlot2',
+      'sendDocToSlot3',
+      'toggleSlotExpand',
+      'closeDocOrWindow',
+    ],
+  },
+  {
     title: 'AI',
     commands: ['aiAskAboutSelection', 'aiCreateCite'],
   },

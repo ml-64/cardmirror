@@ -999,32 +999,18 @@ class MultiPaneShell {
     // chord presses for the duration of the user's Ctrl hold.
     this.docSwitcher = new DocSwitcherOverlay();
 
-    // Mod-1 / Mod-2 / Mod-3 focus the corresponding slot's pane.
-    // Listener is on `window` (not the editor's PM keymap) so the
-    // shortcut works even when no pane currently has keyboard
-    // focus. We `preventDefault` to suppress the browser's
-    // "switch tab" default — these are inside our app shell so
-    // tab-switching wouldn't make sense.
-    window.addEventListener('keydown', this.onSlotShortcutKey);
-
     // Mod-Tab / Mod-Shift-Tab cycle the visible doc within the
-    // focused slot's stack. Companion shortcut to the slot-focus
-    // chords above. In the Electron desktop, Mod-Tab passes
-    // through to the renderer normally (Electron windows don't
-    // have tabs to switch between) so this listener fires
-    // reliably. In a real browser, Ctrl-Tab is reserved for the
-    // browser's own tab cycling and the renderer never sees the
-    // keydown — web-edition users get Ctrl-Alt-Tab via a
-    // separate path (see `onDocCycleKey` body).
-    window.addEventListener('keydown', this.onDocCycleKey);
-    // Mod-Shift-F toggles expand-mode on the focused slot. Mirrors
-    // the per-slot chip expand button (⛶). Keystroke chord matches
-    // the convention "Mod-Shift-letter for toggle of a structural
-    // view mode."
-    window.addEventListener('keydown', this.onExpandToggleKey);
-    // Companion keyup for the doc-switcher overlay: Ctrl/Meta
-    // release commits the highlighted candidate; Escape cancels.
-    window.addEventListener('keyup', this.onDocCycleKeyUp);
+    // focused slot via the doc-switcher overlay (Alt+Tab-style
+    // hold-and-press). Listener stays on `window` instead of
+    // going through the ribbon-keymap path the other multi-pane
+    // shortcuts use, because the overlay needs to track the
+    // modifier hold and respond on keyup — which the discrete
+    // single-press ribbon path cant model. The other multi-pane
+    // shortcuts (slot focus, send-to-slot, expand toggle, smart
+    // close) all go through the ribbon registry and are
+    // user-rebindable in Settings → Keybindings.
+    window.addEventListener("keydown", this.onDocCycleKey);
+    window.addEventListener("keyup", this.onDocCycleKeyUp);
 
     // Drag-hover focus + post-drop collapse:
     //
@@ -1184,51 +1170,6 @@ class MultiPaneShell {
     this.scheduleSyncAllCardIntrinsicWidths();
   };
 
-  /** Mod-1 / Mod-2 / Mod-3 → focus slot N. Mod-Shift-1 / -2 / -3 →
-   *  send the focused slot's visible doc to slot N (a "send to
-   *  slot" gesture — closes the doc-on-source flow but keeps the
-   *  view live, mounts it into the target slot's stack). Skips
-   *  Alt-modified chords (those stay available for other
-   *  purposes). */
-  private onSlotShortcutKey = (e: KeyboardEvent): void => {
-    if (e.defaultPrevented) return;
-    const hasMod = (e.ctrlKey || e.metaKey) && !e.altKey;
-    if (!hasMod) return;
-    // Use `e.code` (physical key) not `e.key` (rendered char) so
-    // Shift-modified chords work: Shift+1 makes `e.key === '!'`
-    // on a US keyboard, but `e.code` stays `'Digit1'` regardless
-    // of modifier state. Locale-independent too.
-    let idx = -1;
-    if (e.code === 'Digit1') idx = 0;
-    else if (e.code === 'Digit2') idx = 1;
-    else if (e.code === 'Digit3') idx = 2;
-    if (idx < 0) return;
-    const targetSlotId = SLOT_IDS[idx]!;
-    const targetSlot = this.slots[targetSlotId];
-    e.preventDefault();
-    if (e.shiftKey) {
-      // Mod-Shift-N → send focused slot's visible doc to slot N.
-      // No-op if the focused slot has no visible doc or if the
-      // target is the focused slot itself.
-      if (!this.focusedSlot || this.focusedSlot === targetSlot) return;
-      const record = this.focusedSlot.releaseVisible();
-      if (!record) return;
-      targetSlot.push(record);
-      targetSlot.visible?.view.focus();
-      return;
-    }
-    // Mod-N → focus target slot.
-    if (targetSlot.stack.length === 0) return;
-    // If a slot is currently expanded, Mod-N moves the expansion to
-    // the target slot (so the keyboard stays useful in expand mode).
-    if (this.expandedSlot && this.expandedSlot !== targetSlot) {
-      this.setExpandedSlot(targetSlot);
-    } else {
-      this.focusSlot(targetSlot);
-    }
-    targetSlot.visible?.view.focus();
-  };
-
   /** Ctrl-Tab / Ctrl-Shift-Tab → open the doc-switcher overlay for
    *  the focused slot. While Ctrl is held, each Tab advances the
    *  highlighted candidate by one (Shift+Tab reverses); releasing
@@ -1257,21 +1198,6 @@ class MultiPaneShell {
     }
   };
 
-  /** Mod-Shift-F → toggle expand-mode on the focused slot. Mirrors
-   *  the chip's ⛶ expand button. No-op when no slot is focused
-   *  (e.g., all slots empty). Uses `e.code === 'KeyF'` (not
-   *  `e.key === 'F'`) for the same shift-shadowing reason that
-   *  motivated the Digit1/2/3 switch on the slot chords. */
-  private onExpandToggleKey = (e: KeyboardEvent): void => {
-    if (e.defaultPrevented) return;
-    if (e.code !== 'KeyF') return;
-    if (!((e.ctrlKey || e.metaKey) && e.shiftKey) || e.altKey) return;
-    const slot = this.focusedSlot;
-    if (!slot) return;
-    e.preventDefault();
-    this.toggleExpanded(slot);
-  };
-
   /** Companion to `onDocCycleKey` — when Ctrl (or Meta) is released
    *  while the doc-switcher overlay is open, commit the highlighted
    *  candidate (= make it the slot's visible doc) and close the
@@ -1288,6 +1214,39 @@ class MultiPaneShell {
       this.docSwitcher.cancel();
     }
   };
+
+  /** Focus the slot at `idx` (0/1/2). Used by the `focusSlotN`
+   *  ribbon commands. If a slot is currently expanded, this moves
+   *  the expansion to the target (matching the legacy window
+   *  listener's behavior). */
+  focusSlotByIndex(idx: 0 | 1 | 2): void {
+    const slot = this.slots[SLOT_IDS[idx]!];
+    if (slot.stack.length === 0) return;
+    if (this.expandedSlot && this.expandedSlot !== slot) {
+      this.setExpandedSlot(slot);
+    } else {
+      this.focusSlot(slot);
+    }
+    slot.visible?.view.focus();
+  }
+
+  /** Send the focused slot's visible doc to the slot at `idx`
+   *  (0/1/2). Used by the `sendDocToSlotN` ribbon commands. */
+  sendVisibleToSlotByIndex(idx: 0 | 1 | 2): void {
+    const targetSlot = this.slots[SLOT_IDS[idx]!];
+    if (!this.focusedSlot || this.focusedSlot === targetSlot) return;
+    const record = this.focusedSlot.releaseVisible();
+    if (!record) return;
+    targetSlot.push(record);
+    targetSlot.visible?.view.focus();
+  }
+
+  /** Toggle expand-mode on the focused slot. Used by the
+   *  `toggleSlotExpand` ribbon command. */
+  toggleFocusedSlotExpand(): void {
+    if (!this.focusedSlot) return;
+    this.toggleExpanded(this.focusedSlot);
+  }
 
   /** Smart-close gesture: if the focused slot has a visible doc,
    *  close it (prompting for unsaved-changes confirmation via
@@ -1844,6 +1803,30 @@ let shell: MultiPaneShell | null = null;
  *  returns false. */
 export function isMultiPaneActive(): boolean {
   return shell !== null;
+}
+
+/** Focus the slot at `idx` (0/1/2). No-op in single-doc mode, or
+ *  when the target slot has no docs loaded. Used by the
+ *  `focusSlotN` ribbon commands. */
+export function focusSlotByIndex(idx: 0 | 1 | 2): void {
+  if (!shell) return;
+  shell.focusSlotByIndex(idx);
+}
+
+/** Send the focused slot's visible doc to the slot at `idx`
+ *  (0/1/2). No-op when no slot is focused, when the focused slot
+ *  has no visible doc, or when the target is the focused slot
+ *  itself. Used by the `sendDocToSlotN` ribbon commands. */
+export function sendVisibleToSlotByIndex(idx: 0 | 1 | 2): void {
+  if (!shell) return;
+  shell.sendVisibleToSlotByIndex(idx);
+}
+
+/** Toggle expand-mode on the focused slot. No-op when no slot is
+ *  focused. Used by the `toggleSlotExpand` ribbon command. */
+export function toggleFocusedSlotExpand(): void {
+  if (!shell) return;
+  shell.toggleFocusedSlotExpand();
 }
 
 /** If the multi-pane shell is active AND the focused slot has a

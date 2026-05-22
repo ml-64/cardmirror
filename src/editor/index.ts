@@ -2657,6 +2657,18 @@ function mountView(doc: PMNode, threads: Thread[] = []): void {
         const id = threadIdAtCursor(next);
         commentsColumn.setActiveThread(id);
       }
+      // Caret-tracking for the nav pane: highlight the heading whose
+      // section contains the cursor. Gate on selection-position
+      // change (cheap) so a transaction that only mutated content
+      // away from the cursor doesn't pay the find-heading walk.
+      // `prevState.selection.from !== next.selection.from` rather
+      // than `prevState.selection !== next.selection` because a
+      // selection object can be a new instance (after doc map) for
+      // the same effective caret position; we only care about the
+      // position itself.
+      if (prevState.selection.from !== next.selection.from) {
+        navPanel.setCaretHeading(next.selection.from);
+      }
     },
   });
   // Hydrate comments plugin state from the import. A separate

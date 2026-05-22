@@ -749,6 +749,44 @@ export class NavigationPanel {
     this.applySelectionClasses();
   }
 
+  /**
+   * Caret-tracking entry point. Called from the editor's
+   * `dispatchTransaction` whenever the caret position changes. Finds
+   * the heading whose section contains `pos` (= largest
+   * `entry.pos <= pos`) and updates the nav-pane highlight to point
+   * at it. No-op if the resulting selection would match the current
+   * one. Always sets a single selection — explicit multi-select via
+   * Ctrl/Shift-click is intentionally collapsed on the next caret
+   * movement, matching user intuition that the nav-pane reflects
+   * "where the cursor is."
+   *
+   * Iterates `liEntries` (the currently-rendered nav items) rather
+   * than walking the doc — cheap (O(N_visible_headings), typically a
+   * few hundred at most) and uses the positions that are already
+   * cached alongside the DOM. Positions can drift slightly between
+   * doc edits and the next debounced `update()` (~200ms); the
+   * highlight may briefly point at a stale neighbor in that window,
+   * which is acceptable for a visual indicator.
+   *
+   * Doesn't auto-scroll the nav pane to bring the highlight into
+   * view — that'd dominate scroll behavior for users who scroll the
+   * editor freely. Add later if it turns out to be desired.
+   */
+  setCaretHeading(pos: number): void {
+    let best: HeadingEntry | null = null;
+    for (const entry of this.liEntries.values()) {
+      if (entry.id == null) continue;
+      if (entry.pos > pos) continue;
+      if (best === null || entry.pos > best.pos) best = entry;
+    }
+    if (best === null) {
+      this.clearSelection();
+      return;
+    }
+    if (this.selectedIds.size === 1 && this.selectedIds.has(best.id!)) return;
+    this.selectSingle(best);
+  }
+
   private handleShiftClick(entry: HeadingEntry): void {
     if (entry.id == null) return;
     if (!this.currentDoc) {

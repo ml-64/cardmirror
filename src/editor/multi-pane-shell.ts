@@ -1038,10 +1038,14 @@ class MultiPaneShell {
     if (e.defaultPrevented) return;
     const hasMod = (e.ctrlKey || e.metaKey) && !e.altKey;
     if (!hasMod) return;
+    // Use `e.code` (physical key) not `e.key` (rendered char) so
+    // Shift-modified chords work: Shift+1 makes `e.key === '!'`
+    // on a US keyboard, but `e.code` stays `'Digit1'` regardless
+    // of modifier state. Locale-independent too.
     let idx = -1;
-    if (e.key === '1') idx = 0;
-    else if (e.key === '2') idx = 1;
-    else if (e.key === '3') idx = 2;
+    if (e.code === 'Digit1') idx = 0;
+    else if (e.code === 'Digit2') idx = 1;
+    else if (e.code === 'Digit3') idx = 2;
     if (idx < 0) return;
     const targetSlotId = SLOT_IDS[idx]!;
     const targetSlot = this.slots[targetSlotId];

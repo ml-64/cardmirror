@@ -7,6 +7,61 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Layer 2 (mouse-selection state machine) from the Word-
+  selection spec.** New `src/editor/word-selection-plugin.ts`
+  implements the click + drag + shift+click contract:
+
+  - **Single click.** Anchor = a point (the click position).
+    Granularity = character, dynamic. Dragging within the
+    click's enclosing unit (W0) keeps character granularity
+    and the selection is exactly `point..activeEnd`. Dragging
+    PAST W0's boundary upgrades to word granularity and pulls
+    the rest of W0 into the selection (anchor unit becomes W0
+    in full); subsequent extension proceeds by full units.
+    Reversing back inside W0 downgrades to character granularity
+    and snaps back to `point..activeEnd`.
+  - **Double click.** Anchor = the Layer 1 query unit (with
+    trailing-space absorption). Granularity = word, fixed.
+    Drag extends by bare units (only the initiating click
+    absorbs trailing space; subsequent units do NOT). The
+    anchor unit stays fully selected even when the drag
+    reverses direction.
+  - **Shift+click.** Same operation as drag: moves the active
+    end under the current anchor + granularity. After a
+    double-click, shift+click extends by word. After a single
+    click, follows the dynamic single-click rule. Shift+
+    double-click and shift+triple-click are no-ops per spec.
+  - **Triple click.** Anchor = the containing textblock range,
+    granularity = paragraph (fixed). Drag extends one whole
+    paragraph at a time; the anchor paragraph stays fully
+    selected when the drag reverses. Shift+click after a
+    triple-click extends paragraph-by-paragraph — same
+    mechanism as the drag.
+
+  The earlier `triple-click-drag-plugin.ts` has been removed —
+  its drag-extension logic is folded into the unified state
+  machine, and dispatches now carry the
+  `pmd:word-selection-plugin` meta so the `apply` hook doesn't
+  treat them as external selection changes (which would have
+  invalidated the freshly-set paragraph anchor before the next
+  shift+click could read it).
+
+  The plugin tracks a module-level `currentAnchor` so shift+
+  click after a gesture remembers granularity. An external
+  selection-changing transaction (typing, arrow keys,
+  programmatic dispatch) marks the anchor stale via a
+  `selectionSet`-watching `apply` hook; the next shift+click
+  rebuilds a fresh point anchor from PM's
+  `selection.anchor`. Dispatches set a
+  `pmd:word-selection-plugin` meta on each transaction so we
+  can tell ours apart from external ones.
+
+  Atom inline-nodes (images) skip the plugin so PM's default
+  NodeSelection still fires on image clicks. `event.preventDefault()`
+  on mousedown blocks the browser's default focus transfer in
+  the no-op-selection case (single-click at an existing caret
+  spot); `view.focus()` is called explicitly to compensate.
+
 - **Layer 1 (word-break iterator) + Layer 3 (formatting trim)
   from the Word-selection spec.** Spec lives at
   `~/Downloads/word-selection-behavior.md`; this commit lands

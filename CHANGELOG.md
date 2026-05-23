@@ -140,6 +140,21 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Changed
 
+- **Mouse selection now uses Word's selection state machine.**
+  Double-click selects a unit (word + trailing space, with the
+  spec's class rules — `don't` selects as one word, `U.S.A.` as
+  three) and dragging extends word-by-word with the original
+  word staying fully selected when the drag reverses. Single-
+  click + drag starts character-granularity; pulling past the
+  clicked word's boundary upgrades to word granularity (and
+  pulls the rest of that word in); pulling back inside
+  downgrades to character. Triple-click selects a paragraph;
+  dragging extends paragraph-by-paragraph, and shift+click
+  after a triple-click extends paragraph-by-paragraph the same
+  way (matching triple-click + drag). Shift+click after a
+  single or double click extends with whatever granularity was
+  set (drag and shift+click are the same operation). Shift+
+  double-click and shift+triple-click are no-ops.
 - **Word-selection behavior now follows Word's actual rules instead
   of the browser's regex-style word boundaries.** Affects double-
   click-to-select-word (browser default still drives the gesture,

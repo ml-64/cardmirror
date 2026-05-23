@@ -68,7 +68,7 @@ import { buildPastePlugin } from './paste-plugin.js';
 import { buildImageNodeFromBlob, insertImageNode } from './image-insert.js';
 import { imageContextMenuPlugin } from './image-context-menu-plugin.js';
 import { linkContextMenuPlugin } from './link-context-menu-plugin.js';
-import { tripleClickDragPlugin } from './triple-click-drag-plugin.js';
+import { wordSelectionPlugin } from './word-selection-plugin.js';
 import { highlightFrequencyPlugin } from './highlight-frequency-plugin.js';
 import { editorDragSurface } from './drag-editor-surface.js';
 import {
@@ -2646,7 +2646,14 @@ export function buildEditorPlugins(): Plugin[] {
     }),
     imageContextMenuPlugin,
     linkContextMenuPlugin,
-    tripleClickDragPlugin,
+    // Word-style mouse-selection state machine: owns single-,
+    // double-, and triple-click + drag + shift+click. Lets PM
+    // place the caret on single-click (preventDefault on the
+    // mousedown elsewhere) and lets PM run its default triple-
+    // click textblock select; the plugin just records the
+    // anchor + granularity so subsequent drag and shift+click
+    // extend by the right unit.
+    wordSelectionPlugin,
     highlightFrequencyPlugin,
     // When `enableTextDragDrop` is off, swallow the browser's
     // `dragstart` on the editor's contenteditable so the user

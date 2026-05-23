@@ -5,8 +5,8 @@
  * straight to JSON with a small format envelope, persist it as-is,
  * and parse it back without any conversion loss. Files saved this
  * way preserve everything the schema can express (including things
- * docx round-trip drops or rewrites — comment `kind: 'ai'`,
- * structural intent that Word style-guessing can't recover, etc.).
+ * docx round-trip drops or rewrites — structural intent that
+ * Word style-guessing can't recover, etc.).
  *
  * Users still get full `.docx` support for sharing with Verbatim
  * teammates; `.cmir` is the long-term canonical form for docs that

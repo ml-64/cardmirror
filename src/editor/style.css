@@ -4612,15 +4612,6 @@ body.pmd-comments-resize-active {
   font-weight: 600;
   flex: 1 1 auto;
 }
-.pmd-comment-kind-tag {
-  margin-left: 0.35rem;
-  padding: 0.05rem 0.4rem;
-  background: var(--pmd-c-comment-thread-soft);
-  color: var(--pmd-c-comment-thread-text);
-  border-radius: 3px;
-  font-size: 0.7rem;
-  font-weight: 600;
-}
 .pmd-comment-date {
   color: var(--pmd-c-text-muted);
   font-size: 0.75rem;

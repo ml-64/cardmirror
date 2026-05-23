@@ -119,6 +119,20 @@ see `DETAILED_CHANGELOG.md`.
   so the column's background fills the visible area even when
   the doc has nothing in it.
 
+### Changed
+
+- **AI comments are now identified by name and initials, not by
+  an invisible flag** — the initials badge always reads `AI`, and
+  the author name has `(AI)` appended (e.g. `Clod (AI)` when a
+  custom persona name is set). Previously the AI-ness lived on a
+  `kind` field that didn't survive a docx round-trip, so AI
+  comments lost their purple styling after being saved to Word
+  and re-opened. The new identifiers ride along through docx
+  naturally. The small "AI" tag that used to appear next to the
+  author name is gone — redundant now that `(AI)` is in the
+  name itself. Existing AI comments saved before this change
+  still display as AI through a legacy back-compat check.
+
 ### Removed
 
 - **Bottom-left collapse/expand toggle in the comments column**

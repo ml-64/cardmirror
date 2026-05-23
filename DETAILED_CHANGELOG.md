@@ -7,6 +7,25 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **AI-comment identification moved from `kind: 'ai'` to a
+  round-trip-safe shape: fixed `'AI'` initials + a `(AI)` suffix
+  on the author name.** The `kind` field doesn't survive a docx
+  round-trip — Word has no concept of AI vs human, so when a doc
+  is saved as docx and re-imported, every comment comes back as
+  `kind: 'human'`. AI comments lost their purple-badge styling
+  in the process. New AI comments now carry the AI marker in
+  fields that DO round-trip: `initials: 'AI'` (regardless of
+  persona) and an author name like `Clod (AI)` (or just `'AI'`
+  when no custom persona is set — no double-suffix). A new
+  `isAiComment(comment)` helper recognizes either signal and
+  drives the existing `.pmd-comment-ai` purple styling path.
+  The helper also honors legacy `kind: 'ai'` so comments saved
+  before this change keep their styling. New AI comments are
+  written with `kind: 'human'`. The small inline "AI" tag that
+  used to sit next to the author name has been removed —
+  redundant with the `(AI)` suffix that's now baked into the
+  name. CSS class `.pmd-comment-kind-tag` deleted.
+
 - **Multi-pane workspace shortcuts moved into the ribbon
   registry; all rebindable via Settings → Keybindings.** Eight
   new `RibbonCommandId`s with defaults matching what shipped

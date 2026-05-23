@@ -31,7 +31,6 @@ import {
   activitiesForNow,
   pickRandomActivity,
   personalizeActivity,
-  personaInitials,
   PRONOUN_PRESETS,
   type AiPersona,
 } from './ai/clod.js';
@@ -88,6 +87,41 @@ import {
   type Comment,
   type Thread,
 } from './comments-plugin.js';
+
+/** Suffix appended to an AI comment's author name. Combined with
+ *  fixed `'AI'` initials, gives us a round-trip-safe way to identify
+ *  AI comments after docx export (which drops the `kind` flag). See
+ *  `isAiComment`. */
+const AI_NAME_SUFFIX = ' (AI)';
+
+/** Recognize an AI comment from fields that survive docx round-trip
+ *  (Word has no concept of AI vs human, so the schema's `kind`
+ *  field is dropped on docx export and restored as `'human'` on
+ *  re-import). New AI comments carry `initials: 'AI'` and an
+ *  author name ending with `(AI)` — either signal is sufficient.
+ *  `kind === 'ai'` is kept as a legacy back-compat fallback so
+ *  comments saved before this switch (and round-tripped via
+ *  `.cmir`, which preserves `kind`) still display as AI. */
+function isAiComment(comment: { author: string; initials: string; kind?: Comment['kind'] }): boolean {
+  if (comment.initials.trim().toUpperCase() === 'AI') return true;
+  if (comment.author.trim().endsWith('(AI)')) return true;
+  return comment.kind === 'ai';
+}
+
+/** Build the author name we write into a freshly-minted AI comment.
+ *  When Clod is enabled, suffix the persona name with `(AI)` so the
+ *  AI-ness is identifiable from the name field alone after a docx
+ *  round-trip. When Clod is off, the name is already `'AI'` — no
+ *  suffix needed, and `'AI (AI)'` would look silly. */
+function aiAuthorName(): string {
+  const useClod = settings.get('clodEnabled');
+  if (!useClod) return 'AI';
+  const persona = getAiPersona();
+  const base = persona.name.trim() || 'AI';
+  if (base.endsWith('(AI)')) return base; // defensive: don't double-suffix
+  if (base === 'AI') return base;
+  return `${base}${AI_NAME_SUFFIX}`;
+}
 
 export class CommentsColumn {
   private readonly root: HTMLElement;
@@ -653,7 +687,7 @@ export class CommentsColumn {
     const root = thread.comments[0]!;
     // Existing `.pmd-comment-ai .pmd-comment-initials` rule paints
     // the badge purple when this class is on the parent block.
-    if (root.kind === 'ai') block.classList.add('pmd-comment-ai');
+    if (isAiComment(root)) block.classList.add('pmd-comment-ai');
     const badge = document.createElement('span');
     badge.className = 'pmd-comment-initials';
     fillBadge(badge, root.author, root.initials);
@@ -674,19 +708,20 @@ export class CommentsColumn {
   }
 
   private renderAiThinkingPlaceholder(): HTMLElement {
-    const useClod = settings.get('clodEnabled');
-    const persona = getAiPersona();
     const block = document.createElement('div');
     block.className = 'pmd-comment-reply pmd-comment-ai pmd-comment-ai-thinking';
     const header = document.createElement('header');
     header.className = 'pmd-comment-header';
     const badge = document.createElement('span');
     badge.className = 'pmd-comment-initials';
-    badge.textContent = useClod ? personaInitials(persona.name) : 'AI';
+    // Match what the real AI comment will carry — fixed 'AI'
+    // initials + author with the `(AI)` suffix — so the placeholder
+    // doesn't visually jump when the response arrives.
+    badge.textContent = 'AI';
     header.appendChild(badge);
     const name = document.createElement('span');
     name.className = 'pmd-comment-author';
-    name.textContent = useClod ? persona.name : 'AI';
+    name.textContent = aiAuthorName();
     header.appendChild(name);
     block.appendChild(header);
     const body = document.createElement('div');
@@ -870,7 +905,12 @@ export class CommentsColumn {
   private renderComment(thread: Thread, comment: Comment, isRoot: boolean): HTMLElement {
     const block = document.createElement('div');
     block.className = isRoot ? 'pmd-comment-root' : 'pmd-comment-reply';
-    if (comment.kind === 'ai') block.classList.add('pmd-comment-ai');
+    // Purple-badge styling is driven by `isAiComment` now (initials
+    // + name-suffix detection), not by the `kind` field which
+    // doesn't round-trip through docx. The inline "AI" tag that
+    // used to sit next to the author name is gone — redundant
+    // with the `(AI)` suffix that's now baked into the name.
+    if (isAiComment(comment)) block.classList.add('pmd-comment-ai');
 
     const header = document.createElement('header');
     header.className = 'pmd-comment-header';
@@ -881,12 +921,6 @@ export class CommentsColumn {
     const name = document.createElement('span');
     name.className = 'pmd-comment-author';
     name.textContent = comment.author || 'Unknown';
-    if (comment.kind === 'ai') {
-      const tag = document.createElement('span');
-      tag.className = 'pmd-comment-kind-tag';
-      tag.textContent = 'AI';
-      name.appendChild(tag);
-    }
     header.appendChild(name);
     if (comment.date) {
       const date = document.createElement('span');
@@ -949,7 +983,7 @@ export class CommentsColumn {
     if (!settings.get('aiFeaturesEnabled')) return;
     const updatedThread = getCommentsState(view.state).threads.get(threadId);
     if (!updatedThread) return;
-    const hasAiHistory = updatedThread.comments.some((c) => c.kind === 'ai');
+    const hasAiHistory = updatedThread.comments.some((c) => isAiComment(c));
     if (hasAiHistory || hasAiMention(text)) {
       this.invokeAi(threadId);
     }
@@ -995,19 +1029,24 @@ export class CommentsColumn {
     // empty-root thread that was opened then closed).
     const messages = thread.comments.flatMap((c, i): { role: 'user' | 'assistant'; content: string }[] => {
       if (!c.text.trim()) return [];
-      if (c.kind === 'ai') {
+      if (isAiComment(c)) {
         return [{ role: 'assistant', content: c.text }];
       }
-      const isFirstUserTurn = !thread.comments.slice(0, i).some((p) => p.kind === 'human' && p.text.trim());
+      const isFirstUserTurn = !thread.comments.slice(0, i).some((p) => !isAiComment(p) && p.text.trim());
       const content = isFirstUserTurn ? formatExplainPrompt(c.text, promptCtx) : c.text;
       return [{ role: 'user', content }];
     });
     if (messages.length === 0) return;
 
-    const useClod = settings.get('clodEnabled');
-    const persona = getAiPersona();
-    const aiAuthor = useClod ? persona.name : 'AI';
-    const aiInitials = useClod ? personaInitials(persona.name) : 'AI';
+    // Identity for the AI comment: fixed `'AI'` initials and an
+    // author name that either is `'AI'` (no persona) or ends with
+    // `(AI)` (persona enabled). Both signals survive docx
+    // round-trip; `isAiComment` keys off either to apply purple
+    // styling on re-import. The old `kind: 'ai'` flag is no
+    // longer used as the AI marker (it's stripped by Word) — new
+    // AI comments are written with `kind: 'human'`.
+    const aiAuthor = aiAuthorName();
+    const aiInitials = 'AI';
 
     this.aiInFlight.add(threadId);
     // Force the AI thread to be the active (expanded) one for the
@@ -1034,7 +1073,9 @@ export class CommentsColumn {
           initials: aiInitials,
           date: new Date().toISOString(),
           text: reply.text.trim(),
-          kind: 'ai',
+          // Always `'human'` on new comments — AI-ness is encoded in
+          // `author` + `initials` so it survives docx round-trip.
+          kind: 'human',
           parentId: threadId,
         };
         const v2 = this.getView();

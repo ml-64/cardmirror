@@ -378,7 +378,19 @@ function horizontalCommandPair(
  *  of the paragraph CONTAINING the corresponding selection edge,
  *  instead of computing the destination from the head (which can
  *  carry the caret into the adjacent paragraph). Shift-extend
- *  variants are unaffected. */
+ *  variants are unaffected.
+ *
+ *  Down-side asymmetry: after Ctrl+Shift+Down, `selection.$to`
+ *  lands at `parentOffset === 0` of the paragraph BELOW the last
+ *  visually-selected paragraph (because `destNextParaStart` walks
+ *  to the next paragraph's START, not the current paragraph's
+ *  end). Snapping to `corner.end()` there would carry the cursor
+ *  to the end of a paragraph the user didn't see selected. When
+ *  that's the case, fall back to the end of the previous
+ *  textblock — the actual last visibly-selected paragraph. The
+ *  symmetric Up case doesn't arise via Ctrl+Shift+Up because
+ *  `destPrevParaStart` lands inside the textblock (at its
+ *  content-start), not past it. */
 function verticalCommandPair(
   computeDest: (state: EditorState) => number | null,
   paraEdge: 'from-start' | 'to-end',
@@ -389,8 +401,14 @@ function verticalCommandPair(
       const corner =
         paraEdge === 'from-start' ? state.selection.$from : state.selection.$to;
       if (!corner.parent.isTextblock) return base.move(state, dispatch);
+      let dest: number;
+      if (paraEdge === 'to-end' && corner.parentOffset === 0) {
+        const prev = prevTextblock(state.doc, corner.start());
+        dest = prev ? prev.end : corner.end();
+      } else {
+        dest = paraEdge === 'from-start' ? corner.start() : corner.end();
+      }
       if (!dispatch) return true;
-      const dest = paraEdge === 'from-start' ? corner.start() : corner.end();
       dispatch(
         state.tr
           .setSelection(TextSelection.create(state.doc, dest))

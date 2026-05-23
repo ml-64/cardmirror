@@ -156,6 +156,21 @@ in each release, see `CHANGELOG.md`.
   existing extend semantics by passing through to the base
   command pair.
 
+  Down-side asymmetry: after `Ctrl-Shift-ArrowDown`,
+  `selection.$to` lands at `parentOffset === 0` of the
+  paragraph BELOW the last visually-selected paragraph
+  (`destNextParaStart` walks to the next paragraph's START,
+  not the current one's end). A naïve `$to.end()` snap there
+  would carry the cursor to the end of a paragraph the user
+  never saw as part of the selection. When the down-side
+  corner is at `parentOffset === 0`, the fix falls back to
+  `prevTextblock(doc, corner.start()).end` — the end of the
+  last *visibly* selected paragraph. The symmetric Up case
+  doesn't arise via `Ctrl-Shift-ArrowUp` because
+  `destPrevParaStart` lands inside the upper textblock (at its
+  content-start, not past it), so `selection.$from` is always
+  inside the visual selection.
+
 ## 0.1.0-alpha.4 — 2026-05-22
 
 - **Layer 2 (keyboard navigation keymap) from the Word-selection

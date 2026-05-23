@@ -196,6 +196,26 @@ describe('Ctrl+Up / Ctrl+Down with a non-empty selection', () => {
     expect(sel.from).toBe(b2);
   });
 
+  it('Ctrl+Down after Ctrl+Shift+Down → end of last VISIBLY selected paragraph, not the one below it', () => {
+    // Real-world flow: cursor mid body 1, Ctrl+Shift+Down extends
+    // selection to start of body 2 (head at parentOffset 0 of body 2).
+    // Then plain Ctrl+Down. Without the fix, snapping to $to's
+    // paragraph end would land at the end of body 2 — past where the
+    // user could see the selection ending. The fix is to fall back
+    // to the end of the previous textblock (body 1).
+    const doc = buildDoc();
+    const b1 = findTextStart(doc, 'first body text');
+    const b2 = findTextStart(doc, 'second body text');
+    // Selection produced by Ctrl+Shift+Down: anchor mid-body-1, head
+    // at start of body 2 (parentOffset 0).
+    const state = stateWith(doc, b1 + 3, b2);
+    const next = press(state, 'ArrowDown', { ctrl: true });
+    expect(next).not.toBeNull();
+    const sel = next!.selection;
+    expect(sel.empty).toBe(true);
+    expect(sel.from).toBe(b1 + 'first body text'.length);
+  });
+
   it('Ctrl+Shift+Down with selection still extends as before (not collapsed)', () => {
     const doc = buildDoc();
     const b1 = findTextStart(doc, 'first body text');

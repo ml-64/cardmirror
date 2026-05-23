@@ -140,6 +140,34 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Changed
 
+- **Keyboard navigation now uses Word's per-unit nav.**
+  - `Ctrl+Left` / `Ctrl+Right` (`Alt+Left/Right` on Mac): jump
+    to the start of the previous / next unit using the
+    spec-compatible word iterator (so `don't` is one unit,
+    `U.S.A.` is three, `user_name` is two). Trailing space
+    absorbs into the unit it follows, so one `Ctrl+Right` from
+    the start of `help to` lands just before `to`, and the
+    symmetric `Ctrl+Left` rewinds. With an existing selection
+    and no Shift, `Ctrl+Left/Right` collapses to the
+    appropriate edge (same as plain Left/Right) instead of
+    jumping by a unit — matches Word. Shift-variants extend.
+  - `Ctrl+Up` (`Alt+Up`): go to the start of the current
+    paragraph; if already there, the previous paragraph (Word's
+    asymmetric "stop on current first" behavior).
+  - `Ctrl+Down` (`Alt+Down`): go to the start of the next
+    paragraph.
+  - `PageUp`: same shape as `Ctrl+Up` but at the heading level —
+    go to the start of the current heading marker (the most
+    recently passed pocket / hat / block / tag / analytic);
+    if already there, the previous heading marker. Useful for
+    skipping over body content to land on the next structural
+    anchor.
+  - `PageDown`: go to the start of the next heading marker.
+  - All paired with `Shift+` variants that extend the selection
+    instead of collapsing.
+  - `Home / End` (visual line start / end) and `Ctrl+Home /
+    Ctrl+End` (doc start / end) are left on the browser default,
+    which already matches the spec.
 - **Mouse selection now uses Word's selection state machine.**
   Double-click selects a unit (word + trailing space, with the
   spec's class rules — `don't` selects as one word, `U.S.A.` as

@@ -69,6 +69,7 @@ import { buildImageNodeFromBlob, insertImageNode } from './image-insert.js';
 import { imageContextMenuPlugin } from './image-context-menu-plugin.js';
 import { linkContextMenuPlugin } from './link-context-menu-plugin.js';
 import { wordSelectionPlugin } from './word-selection-plugin.js';
+import { wordSelectionKeymap } from './word-selection-keymap.js';
 import { highlightFrequencyPlugin } from './highlight-frequency-plugin.js';
 import { editorDragSurface } from './drag-editor-surface.js';
 import {
@@ -2621,6 +2622,13 @@ export function buildEditorPlugins(): Plugin[] {
     keymap(
       buildRibbonKeymap(settings.get('ribbonKeyOverrides'), ribbonContext),
     ),
+    // Word-style nav: Ctrl+Left/Right (units), Ctrl+Up/Down
+    // (paragraphs, asymmetric Ctrl+Up), PageUp/PageDown
+    // (headings, asymmetric PageUp). Shift+ variants extend. See
+    // `word-selection-keymap.ts`. Sits ABOVE baseKeymap so its
+    // Ctrl+Arrow / PageUp/Down bindings take precedence over
+    // anything baseKeymap defines (and the browser default).
+    wordSelectionKeymap,
     keymap(baseKeymap),
     readModePlugin,
     commentsPlugin,

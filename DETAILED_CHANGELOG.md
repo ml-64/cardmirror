@@ -7,6 +7,39 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Layer 2 (keyboard navigation keymap) from the Word-selection
+  spec.** New `src/editor/word-selection-keymap.ts` adds bindings
+  that override the browser's regex-style word iteration:
+
+  - `Ctrl-ArrowLeft / Ctrl-ArrowRight` (`Alt-` variants for Mac)
+    → start of previous / next unit. Walks the textblock's
+    per-position class map using `classifyChar` from
+    `word-break.ts`, so `don't` is one unit, `U.S.A.` is three.
+    Cross-textblock: at offset 0 jumps to the start of the
+    previous textblock's LAST unit; at offset == content.size
+    jumps to the next textblock's first unit start.
+  - `Ctrl-ArrowUp / Ctrl-ArrowDown` (`Alt-` variants on Mac) →
+    start of current / next paragraph. Asymmetric: Ctrl+Up has
+    an intermediate stop at the current paragraph's start
+    (matching Word); Ctrl+Down skips straight to the next
+    paragraph with no equivalent stop at the current
+    paragraph's end.
+  - `PageUp / PageDown` → previous / next heading marker. Same
+    shape as Ctrl+Up/Down but using `collectHeadings`'s set
+    (pocket / hat / block / tag / analytic from
+    `headings.ts:TYPE_TO_LEVEL`). PageUp is asymmetric the same
+    way Ctrl+Up is — first stop at the current heading's
+    start, then the previous heading on a subsequent press.
+  - `Shift-` variants of every move command extend the
+    selection (anchor pinned, head moves) so the keymap
+    naturally pairs with the mouse state machine.
+
+  The keymap sits ABOVE `baseKeymap` in the plugin list so its
+  Ctrl+Arrow / PageUp/Down bindings take precedence. `Home`,
+  `End`, `Ctrl+Home`, `Ctrl+End` are deliberately left on the
+  browser default — visual-line and doc start/end already match
+  the spec.
+
 - **Layer 2 (mouse-selection state machine) from the Word-
   selection spec.** New `src/editor/word-selection-plugin.ts`
   implements the click + drag + shift+click contract:

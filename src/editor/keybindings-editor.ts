@@ -328,30 +328,17 @@ export function buildKeybindingsEditor(): HTMLElement {
     return row;
   }
 
-  /** Closest scrolling ancestor of the editor wrap (the Settings
-   *  dialog's tab panel). Capture before `innerHTML = ''` rebuilds
-   *  the list — once cleared, the wrap can't tell us its parent's
-   *  scroll position via any computed property because the DOM is
-   *  the same. We just need to restore it afterward. */
-  function findScrollAncestor(): HTMLElement | null {
-    let el: HTMLElement | null = wrap.parentElement;
-    while (el) {
-      const overflow = getComputedStyle(el).overflowY;
-      if (overflow === 'auto' || overflow === 'scroll') return el;
-      el = el.parentElement;
-    }
-    return null;
-  }
-
   function render(): void {
     exitCapture();
-    // Preserve the surrounding scroll position so rebinds don't
-    // snap the user back to the top after every chip change. The
-    // wrap itself is replaced via innerHTML, but the scrolling
-    // container (the Settings tab panel) is an ancestor whose
-    // scrollTop we can save and restore around the rebuild.
-    const scroller = findScrollAncestor();
-    const savedScrollTop = scroller ? scroller.scrollTop : 0;
+    // Preserve scroll position so rebinds don't snap the user
+    // back to the top after every chip change. The scroll
+    // container is the `.pmd-keybindings-list` element INSIDE
+    // `wrap` (it owns `overflow-y: auto; max-height: 360px`), and
+    // it gets fully replaced by the rebuild — so we snapshot the
+    // OLD list's scrollTop before clearing, then assign to the
+    // NEW list once it exists.
+    const oldList = wrap.querySelector<HTMLElement>('.pmd-keybindings-list');
+    const savedScrollTop = oldList ? oldList.scrollTop : 0;
     wrap.innerHTML = '';
 
     const help = document.createElement('p');
@@ -405,9 +392,10 @@ export function buildKeybindingsEditor(): HTMLElement {
     // change while a filter was active).
     applyFilter();
 
-    // Restore the scroll position after the rebuild lays out, so
-    // the user lands back where they were rather than at the top.
-    if (scroller) scroller.scrollTop = savedScrollTop;
+    // Restore the new list's scrollTop to the old one's so the
+    // user lands back where they were rather than at the top.
+    const newList = wrap.querySelector<HTMLElement>('.pmd-keybindings-list');
+    if (newList) newList.scrollTop = savedScrollTop;
   }
 
   // Re-render on any override change (writes from chip × / + / ↺ /

@@ -39,6 +39,65 @@ in each release, see `CHANGELOG.md`.
   buffer (which measures `column-gap` from a sample panel)
   picks up the new value automatically.
 
+- **Ribbon tooltip system unified behind a controller +
+  `ribbonTooltipMode` setting.** Previously, ribbon button
+  tooltips were a patchwork: the formatting / cite panel buttons
+  re-derived their title from `primaryKeyFor` in
+  `applyFormattingPanel` (so they tracked rebinds), the autosave
+  and plain-paste buttons set their titles imperatively with the
+  shortcut hardcoded into the string, and most other ribbon
+  buttons had a static `title="..."` in `index.html` that never
+  updated. Dropdown menu items (Doc / Card / Table) had no
+  tooltips at all.
+
+  New `src/editor/ribbon-tooltips.ts` exports a
+  `registerRibbonTooltip({ el, commandId?, label?, kind? })`
+  function. The controller stores targets in an array; every
+  call to `reapplyAllRibbonTooltips()` walks the array and
+  recomputes each title from
+  `(settings.ribbonTooltipMode, settings.ribbonKeyOverrides)`.
+  Compose rules:
+
+  | mode       | button                        | menu item        |
+  | ---------- | ----------------------------- | ---------------- |
+  | `none`     | (no title)                    | (no title)       |
+  | `tooltip`  | `Label`                       | (no title)       |
+  | `shortcut` | `Shortcut` or empty           | `Shortcut` or empty |
+  | `both`     | `Label (Shortcut)` or `Label` | `Shortcut` or empty |
+
+  Menu items never repeat their visible menu-row label; only
+  the current shortcut shows up on hover (per user spec).
+
+  Wiring: `index.ts` registers every top-level ribbon button by
+  id in one block near the end of init, using
+  `RIBBON_COMMAND_LABELS` + the command id to derive the label
+  by default and an optional explicit label override for state-
+  aware buttons (autosave, plain-paste explainer). The
+  formatting-panel loop registers its 10 buttons inline.
+  `doc-menu-ui.ts` accepts an optional `commandId` field on
+  `DocMenuItem` and registers each matching menu button with
+  `kind: 'menuItem'`; the close path unregisters them so the
+  controller's array doesn't accumulate stale refs across
+  many open / close cycles. `applyFormattingPanel` keeps
+  ownership of the visible textContent (label vs shortcut vs
+  both, driven by `formattingPanelMode`), but no longer sets
+  `title` — the controller handles that. Same for the autosave
+  and plain-paste state callbacks (they call
+  `registerRibbonTooltip` with the updated state-derived
+  label).
+
+  Subscriber hookup: `reapplyAllRibbonTooltips()` is called
+  from the settings subscriber's `applyAll` so any change to
+  `ribbonTooltipMode` or `ribbonKeyOverrides` flows through
+  every registered target in one pass.
+
+  Setting metadata: `ribbonTooltipMode` lives at the top of
+  Appearance with `kind: 'ribbonTooltipMode'`, a new
+  `buildRibbonTooltipModeEditor` in `settings-ui.ts` (a plain
+  `<select>` with four options, default `both`), and
+  `sanitizeRibbonTooltipMode` in `settings.ts` to validate
+  persisted values.
+
 - **UI font is now configurable via Settings → Accessibility →
   "Interface font."** The chrome was previously pinned to
   `'Calibri', 'Helvetica Neue', sans-serif` in every surface that

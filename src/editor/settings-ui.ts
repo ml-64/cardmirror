@@ -475,6 +475,8 @@ class SettingsModal {
       return row;
     } else if (meta.kind === 'formattingPanelMode') {
       label.appendChild(buildFormattingPanelModeEditor());
+    } else if (meta.kind === 'ribbonTooltipMode') {
+      label.appendChild(buildRibbonTooltipModeEditor());
     } else if (meta.kind === 'multiDocLayoutMode') {
       row.appendChild(text);
       row.appendChild(buildMultiDocLayoutModeEditor());
@@ -1331,6 +1333,28 @@ function buildReadersEditor(): HTMLElement {
   onDetached(wrap, () => unsubscribe());
 
   return wrap;
+}
+
+function buildRibbonTooltipModeEditor(): HTMLElement {
+  const select = document.createElement('select');
+  select.className = 'pmd-formatting-panel-mode-select';
+  const options: { value: 'none' | 'tooltip' | 'shortcut' | 'both'; label: string }[] = [
+    { value: 'both', label: 'Label and shortcut' },
+    { value: 'tooltip', label: 'Label only' },
+    { value: 'shortcut', label: 'Shortcut only' },
+    { value: 'none', label: 'No tooltips' },
+  ];
+  for (const o of options) {
+    const opt = document.createElement('option');
+    opt.value = o.value;
+    opt.textContent = o.label;
+    if (o.value === settings.get('ribbonTooltipMode')) opt.selected = true;
+    select.appendChild(opt);
+  }
+  select.addEventListener('change', () => {
+    settings.set('ribbonTooltipMode', select.value as 'none' | 'tooltip' | 'shortcut' | 'both');
+  });
+  return select;
 }
 
 function buildFormattingPanelModeEditor(): HTMLElement {

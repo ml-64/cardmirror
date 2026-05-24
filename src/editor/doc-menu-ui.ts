@@ -10,9 +10,20 @@
  */
 
 import type { EditorView } from 'prosemirror-view';
+import {
+  registerRibbonTooltip,
+  unregisterRibbonTooltip,
+} from './ribbon-tooltips.js';
+import type { RibbonCommandId } from './ribbon-commands.js';
 
 export interface DocMenuItem {
   label: string;
+  /** Optional ribbon command id — when provided, the menu item
+   *  registers with the ribbon-tooltip controller so the item's
+   *  title attribute carries the current keybinding (or is empty
+   *  per the user's `ribbonTooltipMode`). Menu items never repeat
+   *  the label in the tooltip; only the shortcut. */
+  commandId?: RibbonCommandId;
   /** Returns whether the action ran (currently informational only;
    *  the menu always closes after click). */
   run: (view: EditorView) => void;
@@ -29,6 +40,12 @@ let onDocKey: ((e: KeyboardEvent) => void) | null = null;
 
 function closeMenu(): void {
   if (!openMenuEl) return;
+  // Drop tooltip refs to the menu's buttons before detaching, so
+  // the controller's targets array doesn't accumulate stale
+  // entries across many open / close cycles.
+  for (const btn of openMenuEl.querySelectorAll<HTMLElement>('.pmd-doc-menu-item')) {
+    unregisterRibbonTooltip(btn);
+  }
   openMenuEl.remove();
   openMenuEl = null;
   if (onDocPointerDown) document.removeEventListener('pointerdown', onDocPointerDown);
@@ -67,6 +84,9 @@ export function openDocMenu(
         closeMenu();
         view?.focus();
       });
+      if (item.commandId) {
+        registerRibbonTooltip({ el: btn, commandId: item.commandId, kind: 'menuItem' });
+      }
       menu.appendChild(btn);
     }
     if (i < sections.length - 1) {

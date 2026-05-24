@@ -83,6 +83,10 @@ import {
 } from './tag-keymap.js';
 import { indentParagraph, outdentParagraph } from './indent-keymap.js';
 import {
+  registerRibbonTooltip,
+  reapplyAllRibbonTooltips,
+} from './ribbon-tooltips.js';
+import {
   buildRibbonKeymap,
   getRibbonCommand,
   formatKeyForDisplay,
@@ -981,14 +985,17 @@ if (docMenuBtn) {
         items: [
           {
             label: 'Convert Analytics to Tags',
+            commandId: 'convertAnalyticsToTags',
             run: () => runRibbon('convertAnalyticsToTags'),
           },
           {
             label: 'Fix Formatting Gaps',
+            commandId: 'fixFormattingGaps',
             run: () => runRibbon('fixFormattingGaps'),
           },
           {
             label: 'Remove Hyperlinks',
+            commandId: 'removeHyperlinks',
             run: () => runRibbon('removeHyperlinks'),
           },
         ],
@@ -998,10 +1005,12 @@ if (docMenuBtn) {
         items: [
           {
             label: 'Standardize Highlighting',
+            commandId: 'standardizeHighlight',
             run: () => runRibbon('standardizeHighlight'),
           },
           {
             label: 'Standardize Background Color',
+            commandId: 'standardizeShading',
             run: () => runRibbon('standardizeShading'),
           },
         ],
@@ -1011,6 +1020,7 @@ if (docMenuBtn) {
         items: [
           {
             label: 'Select Similar Formatting',
+            commandId: 'selectSimilar',
             run: () => runRibbon('selectSimilar'),
           },
         ],
@@ -1030,16 +1040,16 @@ if (tableMenuBtn) {
       {
         title: 'Table',
         items: [
-          { label: 'Insert Table (3×3)', run: () => runRibbon('insertTable') },
-          { label: 'Insert Row Above', run: () => runRibbon('addRowBefore') },
-          { label: 'Insert Row Below', run: () => runRibbon('addRowAfter') },
-          { label: 'Insert Column Left', run: () => runRibbon('addColumnBefore') },
-          { label: 'Insert Column Right', run: () => runRibbon('addColumnAfter') },
-          { label: 'Delete Row', run: () => runRibbon('deleteTableRow') },
-          { label: 'Delete Column', run: () => runRibbon('deleteTableColumn') },
-          { label: 'Merge Cells', run: () => runRibbon('mergeTableCells') },
-          { label: 'Split Cell', run: () => runRibbon('splitTableCell') },
-          { label: 'Delete Table', run: () => runRibbon('deleteTable') },
+          { label: 'Insert Table (3×3)', commandId: 'insertTable', run: () => runRibbon('insertTable') },
+          { label: 'Insert Row Above', commandId: 'addRowBefore', run: () => runRibbon('addRowBefore') },
+          { label: 'Insert Row Below', commandId: 'addRowAfter', run: () => runRibbon('addRowAfter') },
+          { label: 'Insert Column Left', commandId: 'addColumnBefore', run: () => runRibbon('addColumnBefore') },
+          { label: 'Insert Column Right', commandId: 'addColumnAfter', run: () => runRibbon('addColumnAfter') },
+          { label: 'Delete Row', commandId: 'deleteTableRow', run: () => runRibbon('deleteTableRow') },
+          { label: 'Delete Column', commandId: 'deleteTableColumn', run: () => runRibbon('deleteTableColumn') },
+          { label: 'Merge Cells', commandId: 'mergeTableCells', run: () => runRibbon('mergeTableCells') },
+          { label: 'Split Cell', commandId: 'splitTableCell', run: () => runRibbon('splitTableCell') },
+          { label: 'Delete Table', commandId: 'deleteTable', run: () => runRibbon('deleteTable') },
         ],
       },
     ]);
@@ -1079,20 +1089,23 @@ if (cardMenuBtn) {
       {
         title: 'Condense',
         items: [
-          { label: 'Condense', run: () => runRibbon('condenseDefault') },
+          { label: 'Condense', commandId: 'condenseDefault', run: () => runRibbon('condenseDefault') },
           {
             label: 'Condense without paragraph integrity',
+            commandId: 'condenseNoIntegrity',
             run: () => runRibbon('condenseNoIntegrity'),
           },
           {
             label: 'Condense with pilcrows',
+            commandId: 'condenseNoIntegrityWithPilcrows',
             run: () => runRibbon('condenseNoIntegrityWithPilcrows'),
           },
           {
             label: 'Condense with warning',
+            commandId: 'condenseWithWarning',
             run: () => runRibbon('condenseWithWarning'),
           },
-          { label: 'Uncondense', run: () => runRibbon('uncondense') },
+          { label: 'Uncondense', commandId: 'uncondense', run: () => runRibbon('uncondense') },
         ],
       },
       {
@@ -1100,6 +1113,7 @@ if (cardMenuBtn) {
         items: [
           {
             label: 'Create Reference',
+            commandId: 'createReference',
             run: () => runRibbon('createReference'),
           },
         ],
@@ -1109,10 +1123,12 @@ if (cardMenuBtn) {
         items: [
           {
             label: 'Highlight to Background',
+            commandId: 'highlightToShading',
             run: () => runRibbon('highlightToShading'),
           },
           {
             label: 'Background to Highlight',
+            commandId: 'shadingToHighlight',
             run: () => runRibbon('shadingToHighlight'),
           },
         ],
@@ -1334,6 +1350,7 @@ for (const [id, btnId] of Object.entries(FORMATTING_PANEL_BUTTONS) as [Formattin
     view.focus();
   });
   formattingPanelBtnRefs.push({ id, btn });
+  registerRibbonTooltip({ el: btn, commandId: id });
 }
 
 function applyFormattingPanel(
@@ -1361,7 +1378,6 @@ function applyFormattingPanel(
       primaryKeyFor(id, settings.get('ribbonKeyOverrides')),
     );
     const shortLabel = FORMATTING_PANEL_SHORT_LABEL[id];
-    const fullLabel = RIBBON_COMMAND_LABELS[id];
     // ' · ' matches the separator used in the status-bar read-time
     // display, so the visual rhythm is consistent across the chrome.
     btn.textContent =
@@ -1370,7 +1386,10 @@ function applyFormattingPanel(
         : mode === 'both' && keyDisplay
         ? `${shortLabel} · ${keyDisplay}`
         : shortLabel;
-    btn.title = keyDisplay ? `${fullLabel} (${keyDisplay})` : fullLabel;
+    // Title is managed by the ribbon-tooltip controller (registered
+    // for these buttons above) — `reapplyAllRibbonTooltips()` runs
+    // from the settings subscriber whenever the relevant inputs
+    // (ribbonTooltipMode, ribbonKeyOverrides) change.
   }
 }
 
@@ -1687,6 +1706,7 @@ settings.subscribe((s) => {
   );
   applyBodyFont(s.bodyFont);
   applyUiFont(s.uiFont);
+  reapplyAllRibbonTooltips();
   applyLineHeight(s.lineHeight);
   applyFormattingPanel(s.formattingPanelMode, s.formattingPanelPreview, s.showCharacterStyles);
   syncParagraphIntegrityBtn();
@@ -1875,6 +1895,71 @@ if (timerToggleBtn) {
     setTimerVisible(!getTimerStateNow().visible);
   });
 }
+
+// Register every top-level ribbon button with the tooltip
+// controller. Formatting / cite panel buttons were already
+// registered earlier (in the formattingPanelBtnRefs loop). For
+// buttons whose tooltip is state-aware (autosave shows different
+// text when on / off), the corresponding state-update callback
+// re-pokes the controller below so the new text flows through
+// the current ribbonTooltipMode.
+{
+  const byId = (id: string): HTMLElement | null => document.getElementById(id);
+  const button = (
+    id: string,
+    commandId: Parameters<typeof registerRibbonTooltip>[0]['commandId'],
+    label?: string,
+  ): void => {
+    const el = byId(id);
+    if (el) registerRibbonTooltip({ el, commandId, label });
+  };
+  button('open-btn', 'openFile');
+  button('new-btn', 'newDocument');
+  button('export-btn', 'save');
+  button('settings-btn', 'openSettings');
+  button('reference-btn', 'openShortcutsReference');
+  button('read-mode-btn', 'toggleReadMode');
+  button('nav-pane-toggle-btn', 'toggleNavPane');
+  button('comments-toggle-btn', 'toggleCommentsVisible');
+  button('add-comment-btn', 'addCommentToSelection');
+  button('highlight-btn', 'applyHighlight');
+  button('highlight-picker-btn', 'openHighlightPicker', 'Highlight color');
+  button('shading-btn', 'applyShading');
+  button('shading-picker-btn', 'openShadingPicker', 'Background color');
+  button('fontcolor-btn', 'applyFontColor');
+  button('fontcolor-picker-btn', 'openFontColorPicker', 'Font color');
+  button('font-size-up-btn', 'adjustFontSizeUp');
+  button('font-size-down-btn', 'adjustFontSizeDown');
+  button('font-size-picker-btn', 'openFontSizePicker', 'Font size');
+  button('doc-menu-btn', 'openDocToolsMenu', 'Document utilities');
+  button('card-menu-btn', 'openCardToolsMenu', 'Card utilities');
+  button('table-menu-btn', 'openTableMenu', 'Table operations');
+  button('image-btn', 'insertImage');
+  button('superscript-btn', 'toggleSuperscript');
+  button('subscript-btn', 'toggleSubscript');
+  button('strikethrough-btn', 'toggleStrikethrough');
+  button('paragraph-integrity-btn', 'toggleParagraphIntegrity');
+  button(
+    'plain-paste-toggle-btn',
+    'pasteAsText',
+    'Paste plain text — when on, Ctrl/Cmd+V pastes unformatted text',
+  );
+  button('new-speech-btn', 'newSpeechDocument');
+  button('mark-active-as-speech-btn', 'markActiveAsSpeech');
+  button('send-to-speech-cursor-btn', 'sendToSpeechAtCursor');
+  button('send-to-speech-end-btn', 'sendToSpeechAtEnd');
+  // Targets without a ribbon-command id — pass a label only.
+  // Title appears in `tooltip` and `both` modes; absent in
+  // `shortcut` (no shortcut to show) and `none`.
+  const timerEl = byId('timer-toggle-btn');
+  if (timerEl) registerRibbonTooltip({ el: timerEl, label: 'Show / hide the timer panel' });
+  // Autosave is state-aware — start from whatever the HTML
+  // initial-paint title is; the state-update site below
+  // re-registers with the live state-derived text.
+  const autosaveEl = byId('autosave-btn');
+  if (autosaveEl) registerRibbonTooltip({ el: autosaveEl, label: autosaveEl.title || 'Autosave' });
+}
+
 applyReadMode(settings.get('readMode'));
 applyZoom(settings.get('zoomPct'));
 applyChromeScale(settings.get('chromeScalePct'));
@@ -2070,9 +2155,11 @@ syncParagraphIntegrityBtn();
 if (plainPasteToggleBtn) {
   plainPasteToggleBtn.addEventListener('mousedown', (e) => e.preventDefault());
   plainPasteToggleBtn.addEventListener('click', () => runRibbon('pasteAsText'));
-  if (getHost().kind === 'electron') {
-    plainPasteToggleBtn.title = 'Paste plain text (F2)';
-  }
+  // Title is owned by the ribbon-tooltip controller (registered
+  // with the `pasteAsText` command id below); the controller
+  // appends the current keybinding when ribbonTooltipMode is
+  // `both` or `shortcut`. The HTML's longer explainer is the
+  // initial-paint fallback before the controller takes over.
 }
 
 // ---- Font-size input + dropdown ----
@@ -3588,24 +3675,28 @@ function refreshAutosaveBtn(): void {
   if (!autosaveBtn) return;
   const on = autosaveStateForActive();
   autosaveBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  let label: string;
   if (!on) {
-    autosaveBtn.title = 'Autosave is off — click to turn on';
+    label = 'Autosave is off — click to turn on';
     autosaveBtn.dataset['autosaveEffective'] = 'false';
-    return;
-  }
-  const file = activeFile();
-  const effective = file.format === 'cmir' && !!file.handle;
-  autosaveBtn.dataset['autosaveEffective'] = effective ? 'true' : 'false';
-  if (effective) {
-    autosaveBtn.title = 'Autosave is on — saves to .cmir every few seconds after edits';
-  } else if (file.format === 'docx') {
-    autosaveBtn.title =
-      'Autosave is on, but only fires for .cmir files (this doc is .docx). ' +
-      'Save As to .cmir to enable.';
   } else {
-    autosaveBtn.title =
-      'Autosave is on, but this doc has not been saved yet. Save once to enable.';
+    const file = activeFile();
+    const effective = file.format === 'cmir' && !!file.handle;
+    autosaveBtn.dataset['autosaveEffective'] = effective ? 'true' : 'false';
+    if (effective) {
+      label = 'Autosave is on — saves to .cmir every few seconds after edits';
+    } else if (file.format === 'docx') {
+      label =
+        'Autosave is on, but only fires for .cmir files (this doc is .docx). ' +
+        'Save As to .cmir to enable.';
+    } else {
+      label = 'Autosave is on, but this doc has not been saved yet. Save once to enable.';
+    }
   }
+  // Route through the tooltip controller so the current
+  // ribbonTooltipMode (none / tooltip / shortcut / both) governs
+  // whether this state-aware text actually appears.
+  registerRibbonTooltip({ el: autosaveBtn, label });
 }
 
 if (autosaveBtn) {

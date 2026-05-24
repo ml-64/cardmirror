@@ -9,6 +9,20 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Added
 
+- **Ribbon tooltips are now configurable** in Settings →
+  Appearance → "Ribbon tooltips," with four modes:
+  - **Label and shortcut** (default) — `Apply Tag Style (F7)`.
+  - **Label only** — just the action name.
+  - **Shortcut only** — just `F7`; buttons without a shortcut
+    show no tooltip.
+  - **No tooltips** — disables ribbon tooltips entirely.
+  
+  The displayed shortcut now tracks user rebinds (Settings →
+  Keybindings) for every ribbon button, not just the
+  formatting-panel buttons. Dropdown menu items (Doc / Card /
+  Table) now also expose the current shortcut on hover —
+  shortcut-only on those, since the menu label already says
+  what the action does.
 - **Interface font is now configurable** in Settings →
   Accessibility → "Interface font." Pick any of the body-font
   picker's familiar groups (readability fonts, Office defaults,

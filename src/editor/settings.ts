@@ -423,6 +423,19 @@ export interface Settings {
    */
   bodyFont: string;
   /**
+   * What to show in ribbon tooltips. Four modes:
+   *   - `none`      — no tooltips on any ribbon button.
+   *   - `tooltip`   — label only (e.g., "Apply Tag Style"). Dropdown
+   *                   menu items get NO tooltip (the menu item label
+   *                   already states what it does).
+   *   - `shortcut`  — only the current keyboard shortcut (e.g., "F7").
+   *                   Buttons / items without a shortcut get no tooltip.
+   *   - `both`      — label + shortcut (e.g., "Apply Tag Style (F7)").
+   *                   Dropdown items still show shortcut-only because
+   *                   their label is already in the menu.
+   */
+  ribbonTooltipMode: 'none' | 'tooltip' | 'shortcut' | 'both';
+  /**
    * User-interface font family. Applied as `--pmd-ui-font` on
    * documentElement; flows into every UI surface (ribbon, dialogs,
    * nav pane, comments column, etc.). Empty string keeps the
@@ -777,6 +790,7 @@ const DEFAULTS: Settings = {
   displayColors: { ...DEFAULT_DISPLAY_COLORS },
   bodyFont: 'Times New Roman',
   uiFont: '',
+  ribbonTooltipMode: 'both',
   lineHeight: 1.3,
   lineHeightCite: 1.2,
   lineHeightTag: 1.2,
@@ -869,6 +883,7 @@ export interface SettingMeta {
     | 'displayColors'
     | 'bodyFont'
     | 'uiFont'
+    | 'ribbonTooltipMode'
     | 'lineHeights'
     | 'formattingPanelMode'
     | 'headingMode'
@@ -1186,6 +1201,14 @@ export const SETTING_METADATA: SettingMeta[] = [
     description:
       'Line-spacing multiplier per paragraph type (unitless × font-size).',
     kind: 'lineHeights',
+    category: 'appearance',
+  },
+  {
+    key: 'ribbonTooltipMode',
+    label: 'Ribbon tooltips',
+    description:
+      'What hovering a ribbon button reveals. "Both" shows the action label and its current keyboard shortcut. "Label only" hides the shortcut. "Shortcut only" hides the label and is recommended for users who already know what each button does but still want a key reminder. "None" disables ribbon tooltips entirely. Dropdown menu items (Doc / Card / Table menus, etc.) always show shortcut-only — the menu label already says what the action does.',
+    kind: 'ribbonTooltipMode',
     category: 'appearance',
   },
   {
@@ -1557,6 +1580,7 @@ function sanitize(s: Settings): Settings {
     displayColors: sanitizeDisplayColors(s.displayColors),
     bodyFont: sanitizeBodyFont(s.bodyFont),
     uiFont: sanitizeUiFont(s.uiFont),
+    ribbonTooltipMode: sanitizeRibbonTooltipMode(s.ribbonTooltipMode),
     lineHeight: sanitizeLineHeight(s.lineHeight, DEFAULTS.lineHeight),
     lineHeightCite: sanitizeLineHeight(s.lineHeightCite, DEFAULTS.lineHeightCite),
     lineHeightTag: sanitizeLineHeight(s.lineHeightTag, DEFAULTS.lineHeightTag),
@@ -1985,6 +2009,15 @@ function sanitizeUiFont(raw: unknown): string {
   // quote / comma stripping as `sanitizeBodyFont`.
   if (typeof raw !== 'string') return DEFAULTS.uiFont;
   return raw.replace(/["',]/g, '').trim();
+}
+
+function sanitizeRibbonTooltipMode(
+  raw: unknown,
+): 'none' | 'tooltip' | 'shortcut' | 'both' {
+  if (raw === 'none' || raw === 'tooltip' || raw === 'shortcut' || raw === 'both') {
+    return raw;
+  }
+  return DEFAULTS.ribbonTooltipMode;
 }
 
 function sanitizeDisplayTypography(raw: unknown): DisplayTypography {

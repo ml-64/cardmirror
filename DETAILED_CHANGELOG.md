@@ -7,6 +7,18 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Ribbon panel column gaps normalized to 3px across the
+  board.** An audit found two outliers among the ~10 ribbon
+  panels: `.ribbon-color-panel` used `gap: 2px 4px` (claimed
+  intentional for split-button readability) and
+  `.ribbon-format-menu-panel` used a uniform `gap: 2px`, while
+  every other panel used `gap: 2px 3px`. Both are now `gap: 2px
+  3px` so adjacent buttons sit at the same visual rhythm
+  regardless of which panel they live in. Row gaps were
+  already a uniform 2px and are unchanged. The ribbon overflow
+  buffer (which measures `column-gap` from a sample panel)
+  picks up the new value automatically.
+
 - **UI font is now configurable via Settings → Accessibility →
   "Interface font."** The chrome was previously pinned to
   `'Calibri', 'Helvetica Neue', sans-serif` in every surface that

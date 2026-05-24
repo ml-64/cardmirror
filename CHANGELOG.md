@@ -45,6 +45,12 @@ see `DETAILED_CHANGELOG.md`.
   when there's nothing more to scroll in its direction. When
   the tabs fit, the arrows disappear entirely. No native
   scrollbar.
+- **Ribbon panel button gaps are now consistent** across every
+  multi-button panel. The color panel was 4px and the
+  format-menu panel (Table / image / sub / sup / strike) was
+  2px while every other panel used 3px; both now use 3px so
+  the spacing rhythm reads the same from left to right. Row
+  gaps were already a uniform 2px and are unchanged.
 - **Ribbon panels now collapse one panel sooner**, so the
   rightmost visible panel no longer sits flush against the
   right-pinned buttons (timer / settings / reference). The

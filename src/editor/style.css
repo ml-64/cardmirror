@@ -872,7 +872,7 @@ body.pmd-host-browser #autosave-btn { display: none; }
   grid-template-columns: auto auto;
   grid-template-rows: 1.45rem 1.45rem;
   grid-auto-flow: column;
-  gap: 2px 4px;
+  gap: 2px 3px;
   align-content: center;
   padding-left: 0.5rem;
   margin-left: 0.25rem;
@@ -3616,7 +3616,7 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   grid-template-columns: repeat(3, 1.45rem);
   grid-template-rows: 1.45rem 1.45rem;
   align-content: center;
-  gap: 2px;
+  gap: 2px 3px;
   padding-left: 0.5rem;
   margin-left: 0.25rem;
   border-left: 1px solid var(--pmd-c-border-soft);

@@ -3647,11 +3647,15 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 
 .ribbon-format-inline-row {
   /* Span all three top-row columns so the 3 glyphs sit under the
-     Table + image cluster as a unified second row. */
+     Table + image cluster as a unified second row. Column-gap
+     matches the parent panel's `gap: 2px 3px` so the x² / x₂ / S
+     glyphs line up vertically under the Table-spans-2 + image
+     cluster above — otherwise row 2's tighter 2px gap pulls the
+     row's right edge in by 2px relative to row 1. */
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: repeat(3, 1.45rem);
-  gap: 2px;
+  gap: 2px 3px;
 }
 
 #ribbon .ribbon-format-inline-btn {

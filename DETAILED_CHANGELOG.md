@@ -14,13 +14,23 @@ in each release, see `CHANGELOG.md`.
   literally exceeded its available width. The visible artifact:
   just before the next panel hid, the rightmost panel button
   collided with the right-pinned timer button (no visible gap).
-  Now an `overflowBuffer` is measured from a sample panel's
+
+  Naïvely subtracting a buffer from `clientWidth` in that
+  predicate doesn't work — `.ribbon-center` is `flex: 1 1 auto`,
+  so when the ribbon isn't actually overflowing the center grows
+  to fill remaining space and `scrollWidth === clientWidth`. The
+  buffered predicate would therefore fire unconditionally and
+  hide every panel.
+
+  Instead, measure the actual visual gap: take
+  `ribbon-right.left − ribbon-left.right`, subtract any visible
+  center-section content (the doc-name chip, when shown), and
+  trigger when that remaining free space drops below the buffer.
+  The buffer itself is read once at init from a sample panel's
   computed `column-gap` (cite-panel / formatting-panel / color-
-  panel — all use 3-4px gaps; fallback 4) and subtracted from
-  `clientWidth` in the predicate, so a panel is hidden one gap-
-  width before the actual overflow point. The un-hide branch
+  panel — all use 3-4px gaps; fallback 4). The un-hide branch
   uses the same predicate, so the trigger is symmetric — panels
-  also wait one extra gap of growing room before reappearing,
+  wait one extra gap of growing room before reappearing,
   preventing flicker right at the threshold.
 
 - **Layer 3 trailing-space trim no longer eats a whitespace-only

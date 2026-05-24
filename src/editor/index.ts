@@ -1744,14 +1744,25 @@ function initRibbonResizer(): void {
       if (el) el.style.display = visible ? '' : 'none';
     }
   }
-  // Reserve a small buffer at the right edge so the last visible
-  // panel doesn't sit flush against whatever's pinned to the
-  // ribbon's right side (timer button, etc.). The buffer is sized
-  // to match the column-gap inside a panel — same spacing the
-  // intra-panel buttons get between each other — so the "rightmost
-  // panel ↔ pinned-right element" gap reads as the same visual
-  // unit. Measured from a sample panel's computed `column-gap`;
-  // falls back to 4px if the sample isn't in the DOM yet.
+  // Reserve a small buffer between the rightmost visible panel
+  // (in `.ribbon-left`) and the pinned-right elements (in
+  // `.ribbon-right`, e.g. timer toggle). Without the buffer the
+  // rightmost panel button can sit flush against the timer button
+  // just before the next panel hides. The buffer matches the
+  // column-gap inside a panel — same spacing intra-panel buttons
+  // get from each other — so the visual rhythm reads as the same
+  // unit on both sides.
+  //
+  // Can't piggyback on `scrollWidth > clientWidth + 1` for this:
+  // `.ribbon-center` is `flex: 1 1 auto`, so when the ribbon
+  // isn't actually overflowing, the center grows to fill remaining
+  // space and `scrollWidth === clientWidth`. Subtracting a buffer
+  // from `clientWidth` in that predicate would fire the overflow
+  // trigger unconditionally and hide every panel. Instead, measure
+  // the actual visual gap between `.ribbon-left`'s right edge and
+  // `.ribbon-right`'s left edge, minus any visible center content
+  // (doc-name chip) — that's the real free space and shrinks
+  // monotonically as panels are added back.
   function measureIntraPanelGap(): number {
     for (const id of ['cite-panel', 'formatting-panel', 'color-panel']) {
       const el = document.getElementById(id);
@@ -1764,8 +1775,25 @@ function initRibbonResizer(): void {
     return 4;
   }
   const overflowBuffer = measureIntraPanelGap();
-  const isOverflowing = (): boolean =>
-    ribbon.scrollWidth > ribbon.clientWidth - overflowBuffer + 1;
+  const leftSection = ribbon.querySelector<HTMLElement>('.ribbon-left');
+  const rightSection = ribbon.querySelector<HTMLElement>('.ribbon-right');
+  const centerSection = ribbon.querySelector<HTMLElement>('.ribbon-center');
+  const isOverflowing = (): boolean => {
+    if (!leftSection || !rightSection) {
+      // Structure not present (shouldn't happen, but defensive):
+      // fall back to the old true-overflow check.
+      return ribbon.scrollWidth > ribbon.clientWidth + 1;
+    }
+    const leftRight = leftSection.getBoundingClientRect().right;
+    const rightLeft = rightSection.getBoundingClientRect().left;
+    let centerWidth = 0;
+    if (centerSection) {
+      for (const child of Array.from(centerSection.children)) {
+        centerWidth += (child as HTMLElement).getBoundingClientRect().width;
+      }
+    }
+    return rightLeft - leftRight - centerWidth < overflowBuffer;
+  };
   let reflowing = false;
   function reflow(): void {
     if (reflowing) return;

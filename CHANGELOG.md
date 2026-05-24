@@ -28,6 +28,17 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Fixed
 
+- **F9 / F10 / F11 (and the other formatting commands) now
+  format a deliberately-selected trailing space instead of
+  no-op-ing.** The Layer 3 trim that shaves the absorbed
+  trailing space off a word selection used to fire even when
+  the entire selection was whitespace, turning the operating
+  range into empty and causing the command to no-op. The trim
+  now skips when the range minus its trailing space has no
+  non-space content — so selecting just ` ` (or any all-
+  whitespace run) formats the spaces. Selections with word
+  content still get exactly one trailing space shaved, same as
+  before.
 - **AI cite creator always lands the formatted cite in its own
   paragraph.** Previously, if the selection ended mid-paragraph
   or spanned a paragraph break, the formatted cite would inherit

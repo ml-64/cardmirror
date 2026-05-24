@@ -2456,6 +2456,116 @@ describe('applyHighlight (F11)', () => {
   it('default key binding: F11 → applyHighlight', () => {
     expect(DEFAULT_RIBBON_KEYS['applyHighlight']).toBe('F11');
   });
+
+  // ---- Layer 3 trailing-space trim cases ---------------------------
+  //
+  // The formatting-pipeline trim shaves ONE trailing space from the
+  // selection's right edge when there's word/punct content elsewhere
+  // in the range (un-doing the spec's word-unit absorption). When the
+  // range is entirely whitespace, the trim must NOT fire — otherwise
+  // the user can't deliberately format a trailing space.
+
+  function highlightedOffsets(
+    doc: import('prosemirror-model').Node,
+    text: string,
+  ): Set<number> {
+    const out = new Set<number>();
+    let foundBlock: import('prosemirror-model').Node | null = null;
+    doc.descendants((n) => {
+      if (foundBlock) return false;
+      if (n.isTextblock && n.textContent === text) {
+        foundBlock = n;
+        return false;
+      }
+      return true;
+    });
+    if (!foundBlock) return out;
+    let off = 0;
+    (foundBlock as import('prosemirror-model').Node).forEach((child) => {
+      if (child.isText) {
+        const t = child.text ?? '';
+        const hl = child.marks.find((m) => m.type.name === 'highlight');
+        for (let i = 0; i < t.length; i++) {
+          if (hl) out.add(off + i);
+        }
+        off += t.length;
+      } else {
+        off += child.nodeSize;
+      }
+    });
+    return out;
+  }
+
+  it('range "word ": trim shaves the trailing space → only "word" highlighted', () => {
+    const doc = makeDoc([cardWithChildren(tag('T'), cardBody('word here'))]);
+    let start = -1;
+    doc.descendants((n, p) => {
+      if (n.isText && n.text === 'word here') start = p;
+      return true;
+    });
+    const base = EditorState.create({ doc });
+    // Selection covers "word " (5 chars: word + trailing space).
+    const state = base.apply(
+      base.tr.setSelection(TextSelection.create(base.doc, start, start + 5)),
+    );
+    const next = apply(state, applyHighlight(() => 'yellow'));
+    expect(next).not.toBeNull();
+    // Trim shaved the space; only offsets 0..3 (w/o/r/d) carry highlight.
+    expect(highlightedOffsets(next!.doc, 'word here')).toEqual(new Set([0, 1, 2, 3]));
+  });
+
+  it('range " " (single trailing space only): trim does NOT fire → the space gets highlighted', () => {
+    const doc = makeDoc([cardWithChildren(tag('T'), cardBody('word here'))]);
+    let start = -1;
+    doc.descendants((n, p) => {
+      if (n.isText && n.text === 'word here') start = p;
+      return true;
+    });
+    const base = EditorState.create({ doc });
+    // Selection covers just the space at offset 4.
+    const state = base.apply(
+      base.tr.setSelection(TextSelection.create(base.doc, start + 4, start + 5)),
+    );
+    const next = apply(state, applyHighlight(() => 'yellow'));
+    expect(next).not.toBeNull();
+    expect(highlightedOffsets(next!.doc, 'word here')).toEqual(new Set([4]));
+  });
+
+  it('range "  " (whitespace-only): trim does NOT fire → both spaces highlighted', () => {
+    const doc = makeDoc([cardWithChildren(tag('T'), cardBody('word  here'))]);
+    let start = -1;
+    doc.descendants((n, p) => {
+      if (n.isText && n.text === 'word  here') start = p;
+      return true;
+    });
+    const base = EditorState.create({ doc });
+    // Selection covers the two spaces (offsets 4..6).
+    const state = base.apply(
+      base.tr.setSelection(TextSelection.create(base.doc, start + 4, start + 6)),
+    );
+    const next = apply(state, applyHighlight(() => 'yellow'));
+    expect(next).not.toBeNull();
+    expect(highlightedOffsets(next!.doc, 'word  here')).toEqual(new Set([4, 5]));
+  });
+
+  it('range "word  " (word + 2 trailing spaces): trim shaves ONE → "word " highlighted', () => {
+    // Rule 3: the trim is monotonic — always one trailing space when
+    // there's any non-space content in the range.
+    const doc = makeDoc([cardWithChildren(tag('T'), cardBody('word  here'))]);
+    let start = -1;
+    doc.descendants((n, p) => {
+      if (n.isText && n.text === 'word  here') start = p;
+      return true;
+    });
+    const base = EditorState.create({ doc });
+    // Selection covers "word  " (offsets 0..6).
+    const state = base.apply(
+      base.tr.setSelection(TextSelection.create(base.doc, start, start + 6)),
+    );
+    const next = apply(state, applyHighlight(() => 'yellow'));
+    expect(next).not.toBeNull();
+    expect(highlightedOffsets(next!.doc, 'word  here')).toEqual(new Set([0, 1, 2, 3, 4]));
+  });
 });
 
 // ---- applyShading (Mod-F11) ----

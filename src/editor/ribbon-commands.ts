@@ -768,14 +768,18 @@ function wordRangeAtCursor(state: EditorState): { from: number; to: number } | n
 }
 
 /** Layer 3 formatting trim — strip ONE trailing space character
- *  from the end of each range. The Word-selection spec rule: a
- *  formatting operation never applies to the selection's trailing
- *  space. (Word's word-unit absorption pulls the space adjacent
- *  to a word into the selection on double-click; the formatting
- *  layer un-applies that absorption for the rightmost char only.)
+ *  from the end of each range, UNLESS the range minus that
+ *  trailing space is entirely whitespace. The trim un-does Word-
+ *  unit absorption (double-click and `Ctrl-Shift-Right` each pull
+ *  a single trailing space onto the right edge of the selection);
+ *  it must NOT also block the user from deliberately formatting a
+ *  whitespace-only selection — e.g., shift-arrowing across a
+ *  single space they want highlighted.
  *
  *  Single-char trim: a multi-unit selection like `word word word `
  *  loses the final space but keeps its internal spaces formatted.
+ *  Selecting just ` ` (a single space) or `   ` (whitespace only)
+ *  is left intact so the format applies to the whole range.
  *  Spec: see `word-selection-behavior.md` Layer 3. */
 function trimRangesForFormatting(
   doc: PMNode,
@@ -790,9 +794,35 @@ function trimRangesForFormatting(
       return { from, to };
     }
     if (last.length === 0) return { from, to };
-    if (classifyChar(last) === 'space') return { from, to: to - 1 };
-    return { from, to };
+    if (classifyChar(last) !== 'space') return { from, to };
+    if (!hasNonSpaceChar(doc, from, to - 1)) return { from, to };
+    return { from, to: to - 1 };
   });
+}
+
+/** True iff `[from, to)` contains at least one text character
+ *  that doesn't classify as `'space'`. Walks text leaves; ignores
+ *  block boundaries and non-text leaves. Used by the formatting
+ *  trim to decide whether shaving the trailing space would leave
+ *  any "real" content behind. */
+function hasNonSpaceChar(doc: PMNode, from: number, to: number): boolean {
+  if (from >= to) return false;
+  let found = false;
+  doc.nodesBetween(from, to, (node, pos) => {
+    if (found) return false;
+    if (!node.isText) return true;
+    const text = node.text ?? '';
+    const localStart = Math.max(0, from - pos);
+    const localEnd = Math.min(text.length, to - pos);
+    for (let i = localStart; i < localEnd; i++) {
+      if (classifyChar(text[i] ?? '') !== 'space') {
+        found = true;
+        return false;
+      }
+    }
+    return false;
+  });
+  return found;
 }
 
 /** Drop-in for `getOperatingRanges` in formatting-command sites:

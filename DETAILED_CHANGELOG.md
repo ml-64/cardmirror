@@ -7,6 +7,32 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Layer 3 trailing-space trim no longer eats a whitespace-only
+  selection.** The `trimRangesForFormatting` in
+  `ribbon-commands.ts` used to shave one trailing space from
+  every range whose last char was a space, regardless of what
+  else was in the range. For an explicitly-selected single space
+  (or any whitespace-only run), the shave produced an empty
+  range and F9 / F10 / F11 / cite / underline / shading all
+  no-op'd silently — there was no way to format a deliberately-
+  selected trailing space.
+
+  New rule (the spec calls it Rule 3): trim the trailing space
+  iff `[from, to - 1]` contains at least one non-space text
+  character. Monotonic — when there's word content, exactly one
+  trailing space is always shaved; when the range is whitespace
+  only, nothing is shaved. New `hasNonSpaceChar(doc, from, to)`
+  helper walks text leaves between the positions and short-
+  circuits on the first non-space char (per `classifyChar` from
+  `word-break.ts`). Considered Rule 2 ("trim iff the char at
+  `to - 2` isn't a space"), which lets the user deliberately
+  format multi-trailing-space tails after a word — rejected for
+  the surprising toggle (adding one more trailing space to your
+  selection flips whether the others get formatted). Rule 3 is
+  predictable; the rare multi-trailing-space case can be worked
+  around by selecting one char past the spaces or by selecting
+  just the spaces.
+
 - **AI cite creator now guarantees the cite stands alone in its
   own paragraph.** Refactor of `applyCiteToSelection` in
   `ai/cite-creator.ts` into a (testable) `buildCiteTransaction`

@@ -39,6 +39,10 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
     ],
   },
   {
+    title: 'Dropzone',
+    commands: ['sendToDropzone'],
+  },
+  {
     title: 'Structural styles',
     commands: ['setPocket', 'setHat', 'setBlock', 'setTag', 'setAnalytic', 'setUndertag'],
   },

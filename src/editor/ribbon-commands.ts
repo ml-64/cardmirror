@@ -3302,6 +3302,7 @@ export type RibbonCommandId =
   | 'markActiveAsSpeech'
   | 'sendToSpeechAtCursor'
   | 'sendToSpeechAtEnd'
+  | 'sendToDropzone'
   | 'insertImage'
   | 'zoomIn'
   | 'zoomOut'
@@ -3418,6 +3419,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'markActiveAsSpeech',
   'sendToSpeechAtCursor',
   'sendToSpeechAtEnd',
+  'sendToDropzone',
   'insertImage',
   'zoomIn',
   'zoomOut',
@@ -3519,6 +3521,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   markActiveAsSpeech: 'Mark / Unmark Active Doc as the Speech Doc',
   sendToSpeechAtCursor: 'Send to Speech (At Cursor)',
   sendToSpeechAtEnd: 'Send to Speech (At End)',
+  sendToDropzone: 'Send to Dropzone',
   insertImage: 'Insert Image at Cursor',
   zoomIn: 'Zoom In',
   zoomOut: 'Zoom Out',
@@ -3640,6 +3643,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   // Keybindings.
   sendToSpeechAtCursor: '`',
   sendToSpeechAtEnd: 'Alt-`',
+  sendToDropzone: 'Mod-`',
   newSpeechDocument: '',
   markActiveAsSpeech: '',
   insertImage: '',
@@ -3784,6 +3788,7 @@ export interface RibbonContext {
   markActiveAsSpeech: () => void;
   sendToSpeechAtCursor: () => void;
   sendToSpeechAtEnd: () => void;
+  sendToDropzone: () => void;
   /** Open the file picker that prompts for an image to insert at
    *  the editor's current cursor. Pasting an image from the
    *  clipboard goes through paste-plugin instead — no ctx hook
@@ -3872,6 +3877,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   newSpeechDocument: () => {},
   markActiveAsSpeech: () => {},
   sendToSpeechAtCursor: () => {},
+  sendToDropzone: () => {},
   sendToSpeechAtEnd: () => {},
   insertImage: () => {},
   zoomIn: () => {},
@@ -4112,6 +4118,12 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.sendToSpeechAtEnd();
+        return true;
+      };
+    case 'sendToDropzone':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.sendToDropzone();
         return true;
       };
     case 'insertImage':

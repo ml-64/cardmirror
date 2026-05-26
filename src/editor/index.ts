@@ -32,6 +32,7 @@ import {
 } from './speech-doc-registry.js';
 import {
   sendToSpeech as runSendToSpeech,
+  resolveSendSlice,
   installIncomingSpeechSliceHandler,
 } from './speech-doc-send.js';
 import { promptForText } from './text-prompt.js';
@@ -39,6 +40,7 @@ import { openDocMenu } from './doc-menu-ui.js';
 import { createReference } from './create-reference.js';
 import { showToast } from './toast.js';
 import { openSelectSpeechDocModal } from './select-speech-doc-ui.js';
+import { dropzoneStore } from './dropzone-store.js';
 import {
   settings,
   condenseWarningCloseFor,
@@ -230,6 +232,31 @@ function toggleMarkSingleDocAsSpeech(): void {
  *  renderer) or route via main (speech doc is in another window). */
 function runSingleDocSendToSpeech(sourceView: EditorView, atEnd: boolean): void {
   runSendToSpeech(sourceView, atEnd);
+}
+
+/** Send-to-dropzone for any view: mirrors send-to-speech's
+ *  source-resolution (explicit selection if present, else the
+ *  enclosing card / analytic_unit / heading) but routes the
+ *  resulting slice into the dropzone shelf instead of a speech
+ *  doc. The store handles the cross-window broadcast — every
+ *  nav-pane bubble updates immediately. Exported for the multi-
+ *  pane shell, which calls this with its focused-slot view. */
+export async function sendViewToDropzone(sourceView: EditorView): Promise<void> {
+  const slice = resolveSendSlice(sourceView);
+  if (!slice) return;
+  const first = slice.content.firstChild;
+  const type = first ? first.type.name : 'text';
+  const text = slice.content.textBetween(0, slice.content.size, ' ', ' ').trim();
+  const label = text
+    ? (text.length > 120 ? text.slice(0, 118) + '…' : text)
+    : `(${type})`;
+  await dropzoneStore.add({
+    id: `dz-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    label,
+    type,
+    sliceJson: slice.toJSON(),
+    createdAt: Date.now(),
+  });
 }
 
 /** Single-doc new-speech-document. Verbatim's `NewSpeech` prompts
@@ -435,6 +462,7 @@ let multiDocNewSpeechDocument: (() => void) | null = null;
 let multiDocMarkActiveAsSpeech: (() => void) | null = null;
 let multiDocSendToSpeechAtCursor: (() => void) | null = null;
 let multiDocSendToSpeechAtEnd: (() => void) | null = null;
+let multiDocSendToDropzone: (() => void) | null = null;
 /** Filename plumbing for Save-As. In single-doc mode the module's
  *  `currentDocFilename` is the source of truth; in multi-doc each
  *  pane owns its own filename, so the shell installs these hooks
@@ -494,6 +522,7 @@ export function enableMultiDocMode(opts: {
   markActiveAsSpeech?: () => void;
   sendToSpeechAtCursor?: () => void;
   sendToSpeechAtEnd?: () => void;
+  sendToDropzone?: () => void;
   getFocusedFilename?: () => string | null;
   setFocusedFilename?: (name: string) => void;
   getFocusedFile?: () => { filename: string; handle: unknown | null; format: 'cmir' | 'docx' | null } | null;
@@ -523,6 +552,7 @@ export function enableMultiDocMode(opts: {
   multiDocMarkActiveAsSpeech = opts.markActiveAsSpeech ?? null;
   multiDocSendToSpeechAtCursor = opts.sendToSpeechAtCursor ?? null;
   multiDocSendToSpeechAtEnd = opts.sendToSpeechAtEnd ?? null;
+  multiDocSendToDropzone = opts.sendToDropzone ?? null;
   multiDocGetFocusedFilename = opts.getFocusedFilename ?? null;
   multiDocSetFocusedFilename = opts.setFocusedFilename ?? null;
   multiDocGetFocusedFile = opts.getFocusedFile ?? null;
@@ -725,6 +755,13 @@ const ribbonContext: RibbonContext = {
       return;
     }
     if (view) runSingleDocSendToSpeech(view, true);
+  },
+  sendToDropzone: () => {
+    if (multiDocSendToDropzone) {
+      multiDocSendToDropzone();
+      return;
+    }
+    if (view) void sendViewToDropzone(view);
   },
   insertImage: () => {
     if (!view) return;

@@ -73,6 +73,7 @@ import {
   commentsColumn,
   getCommentsColumnEl,
   notifyCommentsForActiveTransaction,
+  sendViewToDropzone,
 } from './index.js';
 
 type SlotId = 'slot1' | 'slot2' | 'slot3';
@@ -1894,6 +1895,16 @@ class MultiPaneShell {
    *  doc. `atEnd` controls the insertion point — true → after the
    *  doc-end, false → at the speech doc's current cursor. Verbatim:
    *  `Paperless.SendToSpeech PasteAtEnd:=true|false`. */
+  /** Send the focused slot's selection (or enclosing card / heading
+   *  when no selection) to the cross-window dropzone shelf.
+   *  Mirrors `sendToSpeech`'s source-resolution; the destination
+   *  is the shelf, broadcast via `dropzoneStore`. */
+  sendToDropzone(): void {
+    const sourceRec = this.focusedSlot?.visible;
+    if (!sourceRec) return;
+    void sendViewToDropzone(sourceRec.view);
+  }
+
   sendToSpeech(atEnd: boolean): void {
     const sourceRec = this.focusedSlot?.visible;
     if (!sourceRec) return;
@@ -2201,6 +2212,7 @@ export function mountMultiPaneShell(): void {
     markActiveAsSpeech: () => shell!.markFocusedAsSpeech(),
     sendToSpeechAtCursor: () => shell!.sendToSpeech(false),
     sendToSpeechAtEnd: () => shell!.sendToSpeech(true),
+    sendToDropzone: () => shell!.sendToDropzone(),
     getFocusedFilename: () => shell!.getFocusedFilename(),
     setFocusedFilename: (name) => shell!.setFocusedFilename(name),
     getFocusedFile: () => shell!.getFocusedFile(),

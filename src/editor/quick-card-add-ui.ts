@@ -1,0 +1,285 @@
+/**
+ * Quick Card — Add dialog.
+ *
+ * Promise-based modal (like `openSaveAs`): resolves with the chosen
+ * name + tags, or `null` if cancelled. Shown after the user invokes
+ * "Add quick card" on a non-empty selection. The name field is
+ * pre-filled with the smallest enclosing heading (computed by the
+ * caller); tags are entered as chips with suggestions drawn from the
+ * existing tag universe.
+ *
+ * Validation (the duplicate-name-only-if-tags-differ rule) is supplied
+ * by the caller via `validate`; a non-null return is shown inline and
+ * keeps the dialog open.
+ */
+
+import { normalizeTag } from './quick-cards-store.js';
+
+export interface QuickCardAddResult {
+  name: string;
+  /** Display-cased tags, de-duplicated by normalized form. */
+  tags: string[];
+}
+
+export interface QuickCardAddOptions {
+  /** Pre-fill for the name field (smallest enclosing heading text). */
+  initialName: string;
+  /** Distinct existing tags (display casing) for suggestions. */
+  existingTags: string[];
+  /** Return an error message to show inline (and keep the dialog
+   *  open), or null if the name+tags are acceptable. */
+  validate?: (name: string, tags: string[]) => string | null;
+}
+
+export function openQuickCardAdd(
+  opts: QuickCardAddOptions,
+): Promise<QuickCardAddResult | null> {
+  return new Promise((resolve) => {
+    new QuickCardAddModal(opts, resolve);
+  });
+}
+
+class QuickCardAddModal {
+  private readonly overlay: HTMLDivElement;
+  private readonly dialog: HTMLDivElement;
+  private nameInput!: HTMLInputElement;
+  private tagInput!: HTMLInputElement;
+  private chipsEl!: HTMLDivElement;
+  private suggestionsEl!: HTMLDivElement;
+  private errorEl!: HTMLDivElement;
+  private settled = false;
+  /** Committed tags, ordered; deduped by normalized form. */
+  private tags: string[] = [];
+
+  constructor(
+    private readonly opts: QuickCardAddOptions,
+    private readonly settle: (r: QuickCardAddResult | null) => void,
+  ) {
+    this.overlay = document.createElement('div');
+    this.overlay.className = 'pmd-qc-add-overlay';
+    this.dialog = document.createElement('div');
+    this.dialog.className = 'pmd-qc-add-dialog';
+    this.overlay.appendChild(this.dialog);
+    this.overlay.addEventListener('click', (e) => {
+      if (e.target === this.overlay) this.cancel();
+    });
+    document.addEventListener('keydown', this.handleKey, true);
+
+    this.render();
+    document.body.appendChild(this.overlay);
+
+    requestAnimationFrame(() => {
+      this.nameInput.focus();
+      this.nameInput.select();
+    });
+  }
+
+  private handleKey = (e: KeyboardEvent): void => {
+    if (this.settled) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      this.cancel();
+    }
+  };
+
+  private render(): void {
+    const header = document.createElement('header');
+    header.className = 'pmd-qc-add-header';
+    const title = document.createElement('h2');
+    title.textContent = 'Add Quick Card';
+    header.appendChild(title);
+    this.dialog.appendChild(header);
+
+    const form = document.createElement('form');
+    form.className = 'pmd-qc-add-body';
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      this.confirm();
+    });
+
+    // Name
+    const nameField = document.createElement('label');
+    nameField.className = 'pmd-qc-add-field';
+    const nameLabel = document.createElement('span');
+    nameLabel.className = 'pmd-qc-add-field-label';
+    nameLabel.textContent = 'Name';
+    nameField.appendChild(nameLabel);
+    this.nameInput = document.createElement('input');
+    this.nameInput.type = 'text';
+    this.nameInput.className = 'pmd-qc-add-input';
+    this.nameInput.value = this.opts.initialName;
+    this.nameInput.spellcheck = false;
+    this.nameInput.autocomplete = 'off';
+    // Enter in the name field saves (fast path: pre-filled name → Enter).
+    // Tab moves to tags for those who want to add them.
+    nameField.appendChild(this.nameInput);
+    form.appendChild(nameField);
+
+    // Tags
+    const tagsField = document.createElement('div');
+    tagsField.className = 'pmd-qc-add-field';
+    const tagsLabel = document.createElement('span');
+    tagsLabel.className = 'pmd-qc-add-field-label';
+    tagsLabel.textContent = 'Tags';
+    tagsField.appendChild(tagsLabel);
+
+    this.chipsEl = document.createElement('div');
+    this.chipsEl.className = 'pmd-qc-add-chips';
+    tagsField.appendChild(this.chipsEl);
+
+    this.tagInput = document.createElement('input');
+    this.tagInput.type = 'text';
+    this.tagInput.className = 'pmd-qc-add-input pmd-qc-add-tag-input';
+    this.tagInput.placeholder = 'Add a tag…';
+    this.tagInput.spellcheck = false;
+    this.tagInput.autocomplete = 'off';
+    this.tagInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ',') {
+        // Commit the typed tag; if empty, fall through to save.
+        if (this.tagInput.value.trim()) {
+          e.preventDefault();
+          this.commitTag(this.tagInput.value);
+        }
+        // empty + Enter → let the form submit (save)
+        else if (e.key === ',') {
+          e.preventDefault();
+        }
+      } else if (e.key === 'Backspace' && !this.tagInput.value && this.tags.length) {
+        this.tags.pop();
+        this.renderChips();
+        this.renderSuggestions();
+      }
+    });
+    this.tagInput.addEventListener('input', () => this.renderSuggestions());
+    tagsField.appendChild(this.tagInput);
+
+    this.suggestionsEl = document.createElement('div');
+    this.suggestionsEl.className = 'pmd-qc-add-suggestions';
+    tagsField.appendChild(this.suggestionsEl);
+
+    form.appendChild(tagsField);
+
+    // Inline error
+    this.errorEl = document.createElement('div');
+    this.errorEl.className = 'pmd-qc-add-error';
+    this.errorEl.hidden = true;
+    form.appendChild(this.errorEl);
+
+    // Footer
+    const footer = document.createElement('footer');
+    footer.className = 'pmd-qc-add-footer';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'pmd-qc-add-btn';
+    cancel.textContent = 'Cancel';
+    cancel.addEventListener('click', () => this.cancel());
+    footer.appendChild(cancel);
+    const save = document.createElement('button');
+    save.type = 'submit';
+    save.className = 'pmd-qc-add-btn pmd-qc-add-btn-primary';
+    save.textContent = 'Save';
+    footer.appendChild(save);
+    form.appendChild(footer);
+
+    this.dialog.appendChild(form);
+
+    this.renderChips();
+    this.renderSuggestions();
+  }
+
+  private commitTag(raw: string): void {
+    const display = raw.trim().replace(/,+$/, '').trim();
+    if (!display) return;
+    const norm = normalizeTag(display);
+    if (!this.tags.some((t) => normalizeTag(t) === norm)) {
+      this.tags.push(display);
+    }
+    this.tagInput.value = '';
+    this.renderChips();
+    this.renderSuggestions();
+  }
+
+  private removeTag(index: number): void {
+    this.tags.splice(index, 1);
+    this.renderChips();
+    this.renderSuggestions();
+    this.tagInput.focus();
+  }
+
+  private renderChips(): void {
+    this.chipsEl.innerHTML = '';
+    this.chipsEl.hidden = this.tags.length === 0;
+    this.tags.forEach((tag, i) => {
+      const chip = document.createElement('span');
+      chip.className = 'pmd-qc-add-chip';
+      const label = document.createElement('span');
+      label.textContent = tag;
+      chip.appendChild(label);
+      const x = document.createElement('button');
+      x.type = 'button';
+      x.className = 'pmd-qc-add-chip-x';
+      x.textContent = '×';
+      x.setAttribute('aria-label', `Remove tag ${tag}`);
+      x.addEventListener('click', () => this.removeTag(i));
+      chip.appendChild(x);
+      this.chipsEl.appendChild(chip);
+    });
+  }
+
+  private renderSuggestions(): void {
+    const q = normalizeTag(this.tagInput.value);
+    const taken = new Set(this.tags.map((t) => normalizeTag(t)));
+    const matches = this.opts.existingTags
+      .filter((t) => !taken.has(normalizeTag(t)))
+      .filter((t) => (q ? normalizeTag(t).includes(q) : true))
+      .slice(0, 12);
+    this.suggestionsEl.innerHTML = '';
+    this.suggestionsEl.hidden = matches.length === 0;
+    for (const tag of matches) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pmd-qc-add-suggestion';
+      btn.textContent = tag;
+      btn.addEventListener('click', () => {
+        this.commitTag(tag);
+        this.tagInput.focus();
+      });
+      this.suggestionsEl.appendChild(btn);
+    }
+  }
+
+  private confirm(): void {
+    // Fold a half-typed tag in the input into the set before saving.
+    if (this.tagInput.value.trim()) this.commitTag(this.tagInput.value);
+    const name = this.nameInput.value.trim();
+    if (!name) {
+      this.showError('Give the quick card a name.');
+      this.nameInput.focus();
+      return;
+    }
+    const err = this.opts.validate?.(name, this.tags) ?? null;
+    if (err) {
+      this.showError(err);
+      return;
+    }
+    this.finish({ name, tags: this.tags });
+  }
+
+  private showError(msg: string): void {
+    this.errorEl.textContent = msg;
+    this.errorEl.hidden = false;
+  }
+
+  private cancel(): void {
+    this.finish(null);
+  }
+
+  private finish(result: QuickCardAddResult | null): void {
+    if (this.settled) return;
+    this.settled = true;
+    document.removeEventListener('keydown', this.handleKey, true);
+    this.overlay.remove();
+    this.settle(result);
+  }
+}

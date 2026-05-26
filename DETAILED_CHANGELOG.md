@@ -34,6 +34,28 @@ in each release, see `CHANGELOG.md`.
   - Boot: `quickCardsStore.init()` runs at renderer startup so every
     surface reads one cache.
 
+- **Quick Cards — Add surface.** Second slice: capture the current
+  selection as a named, tagged quick card.
+  - New `addQuickCard` ribbon command (unbound by default; in the new
+    "Quick Cards" `RIBBON_GROUPS` entry, so bindable via Settings →
+    Keybindings). Registered through the full pipeline (union, ids,
+    label, empty default key, `RibbonContext` + stub, `commandFor`).
+  - `runAddQuickCard` (index.ts): requires a non-empty selection
+    (toast otherwise); pre-fills the name with the **smallest enclosing
+    heading** via `smallestEnclosingHeadingText` (nearest preceding
+    block → hat → pocket — that nearest heading IS the smallest
+    enclosing one); opens the dialog; on confirm builds the card from
+    the selection slice (`slice.toJSON()` + plain-text key) and
+    `upsert`s it. `sourceName` = the active filename (provenance).
+  - `quick-card-add-ui.ts`: promise-based modal (Save As scaffolding)
+    with a name field + a tag chip-input (commit on Enter/comma,
+    remove via × / Backspace, suggestions drawn from existing tags).
+    Enforces the **(name, identical tag-set)** uniqueness rule through
+    an inline validator (`findDuplicate`); a name may repeat only if
+    its tags differ.
+  - Store helpers added: `buildQuickCard`, `distinctTags`,
+    `findDuplicate`. CSS: `.pmd-qc-add-*`.
+
 - **Select Current Heading / Copy Current Heading commands.** Two new
   ribbon commands (`selectCurrentHeading`, `copyCurrentHeading`) that
   reuse the send-to-speech / send-to-dropzone cursor→bounds logic.

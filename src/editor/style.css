@@ -6007,6 +6007,145 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   background: var(--pmd-c-accent-hover);
 }
 
+/* ─── Quick Card — Add dialog ─────────────────────────────────────── */
+.pmd-qc-add-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--pmd-c-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.pmd-qc-add-dialog {
+  background: var(--pmd-c-bg);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px var(--pmd-c-shadow-deep);
+  width: 90%;
+  max-width: 440px;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--pmd-ui-font);
+}
+.pmd-qc-add-header {
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--pmd-c-divider);
+}
+.pmd-qc-add-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+.pmd-qc-add-body {
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.pmd-qc-add-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.pmd-qc-add-field-label {
+  font-size: 0.85rem;
+  color: var(--pmd-c-text-secondary, var(--pmd-c-text-muted));
+}
+.pmd-qc-add-input {
+  padding: 0.4rem 0.55rem;
+  font-size: 0.95rem;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 4px;
+  font-family: inherit;
+  background: var(--pmd-c-bg);
+  color: var(--pmd-c-text);
+}
+.pmd-qc-add-input:focus {
+  outline: 2px solid var(--pmd-c-accent);
+  outline-offset: -1px;
+}
+.pmd-qc-add-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.pmd-qc-add-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.2rem 0.1rem 0.5rem;
+  font-size: 0.8rem;
+  border-radius: 999px;
+  background: var(--pmd-c-surface-soft);
+  border: 1px solid var(--pmd-c-border-soft);
+  color: var(--pmd-c-text);
+}
+.pmd-qc-add-chip-x {
+  appearance: none;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--pmd-c-text-muted);
+  padding: 0 0.15rem;
+}
+.pmd-qc-add-chip-x:hover {
+  color: var(--pmd-c-text);
+}
+.pmd-qc-add-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.pmd-qc-add-suggestion {
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border: 1px dashed var(--pmd-c-border);
+  background: transparent;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-qc-add-suggestion:hover {
+  background: var(--pmd-c-hover);
+  color: var(--pmd-c-text);
+}
+.pmd-qc-add-error {
+  font-size: 0.82rem;
+  color: var(--pmd-c-danger, #c0392b);
+  line-height: 1.3;
+}
+.pmd-qc-add-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding-top: 0.25rem;
+}
+.pmd-qc-add-btn {
+  padding: 0.4rem 0.9rem;
+  font-size: 0.9rem;
+  border-radius: 4px;
+  border: 1px solid var(--pmd-c-border);
+  background: var(--pmd-c-bg);
+  color: var(--pmd-c-text);
+  cursor: pointer;
+  font-family: inherit;
+}
+.pmd-qc-add-btn:hover {
+  background: var(--pmd-c-button-hover);
+}
+.pmd-qc-add-btn-primary {
+  background: var(--pmd-c-accent);
+  border-color: var(--pmd-c-accent);
+  color: var(--pmd-c-text-on-accent);
+}
+.pmd-qc-add-btn-primary:hover {
+  background: var(--pmd-c-accent-hover);
+}
+
 .pmd-reference-overlay {
   position: fixed;
   inset: 0;

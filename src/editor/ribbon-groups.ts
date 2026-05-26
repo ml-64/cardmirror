@@ -43,6 +43,10 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
     commands: ['sendToDropzone'],
   },
   {
+    title: 'Quick Cards',
+    commands: ['addQuickCard'],
+  },
+  {
     title: 'Structural styles',
     commands: ['setPocket', 'setHat', 'setBlock', 'setTag', 'setAnalytic', 'setUndertag'],
   },

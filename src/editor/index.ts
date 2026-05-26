@@ -42,7 +42,13 @@ import { createReference } from './create-reference.js';
 import { showToast } from './toast.js';
 import { openSelectSpeechDocModal } from './select-speech-doc-ui.js';
 import { dropzoneStore, deriveDropzoneLabel } from './dropzone-store.js';
-import { quickCardsStore } from './quick-cards-store.js';
+import {
+  quickCardsStore,
+  buildQuickCard,
+  distinctTags,
+  findDuplicate,
+} from './quick-cards-store.js';
+import { openQuickCardAdd } from './quick-card-add-ui.js';
 import { homeScreen, type HomeScreenCallbacks } from './home-screen.js';
 import { recordRecent, removeRecent, type RecentFile } from './recents-store.js';
 import {
@@ -258,6 +264,60 @@ export async function sendViewToDropzone(sourceView: EditorView): Promise<void> 
     sliceJson: slice.toJSON(),
     createdAt: Date.now(),
   });
+}
+
+/** Text of the smallest heading enclosing the selection — the nearest
+ *  preceding `block`, else `hat`, else `pocket` (the nearest preceding
+ *  structural heading of any level IS the smallest enclosing one,
+ *  since headings define sections by running until the next
+ *  equal-or-shallower heading). Empty string if none precedes. Used to
+ *  pre-fill the Add Quick Card name. */
+function smallestEnclosingHeadingText(state: EditorState): string {
+  const from = state.selection.from;
+  let text = '';
+  state.doc.nodesBetween(0, from, (node) => {
+    const t = node.type.name;
+    if (t === 'pocket' || t === 'hat' || t === 'block') {
+      text = node.textContent.trim();
+    }
+    return true;
+  });
+  return text;
+}
+
+/** Add Quick Card: save the current selection as a named, tagged
+ *  snippet. Requires a non-empty selection. Name pre-fills with the
+ *  smallest enclosing heading; the (name, tag-set) uniqueness rule is
+ *  enforced via the dialog's inline validator. */
+async function runAddQuickCard(sourceView: EditorView): Promise<void> {
+  const { selection, doc } = sourceView.state;
+  if (selection.empty) {
+    showToast('Select some text to save as a quick card.');
+    return;
+  }
+  const slice = doc.slice(selection.from, selection.to);
+  const result = await openQuickCardAdd({
+    initialName: smallestEnclosingHeadingText(sourceView.state),
+    existingTags: distinctTags(quickCardsStore.list()),
+    validate: (name, tags) => {
+      const dup = findDuplicate(quickCardsStore.list(), name, tags);
+      if (!dup) return null;
+      return tags.length
+        ? `A quick card named “${name}” with those tags already exists.`
+        : `A quick card named “${name}” (no tags) already exists — add a tag to keep both.`;
+    },
+  });
+  if (!result) return;
+  const plainText = slice.content.textBetween(0, slice.content.size, '\n', '\n');
+  const card = buildQuickCard({
+    name: result.name,
+    tags: result.tags,
+    contentJson: slice.toJSON(),
+    plainText,
+    sourceName: activeFile().filename ?? '',
+  });
+  await quickCardsStore.upsert(card);
+  showToast(`Saved quick card “${card.name}”.`);
 }
 
 /** Select the cursor's enclosing structure — the current card /
@@ -816,6 +876,9 @@ const ribbonContext: RibbonContext = {
   },
   copyCurrentHeading: () => {
     if (view) void copyCurrentHeadingIn(view);
+  },
+  addQuickCard: () => {
+    if (view) void runAddQuickCard(view);
   },
   insertImage: () => {
     if (!view) return;

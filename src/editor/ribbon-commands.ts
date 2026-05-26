@@ -3309,6 +3309,9 @@ export type RibbonCommandId =
   // ignored. No default bindings — wire up via Settings → Keybindings.
   | 'selectCurrentHeading'
   | 'copyCurrentHeading'
+  // Quick Cards (see reference-docs/SPEC-quick-cards.md). Add saves the
+  // current selection as a named, tagged snippet. No default binding.
+  | 'addQuickCard'
   | 'insertImage'
   | 'zoomIn'
   | 'zoomOut'
@@ -3429,6 +3432,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'sendToDropzone',
   'selectCurrentHeading',
   'copyCurrentHeading',
+  'addQuickCard',
   'insertImage',
   'zoomIn',
   'zoomOut',
@@ -3534,6 +3538,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   sendToDropzone: 'Send to Dropzone',
   selectCurrentHeading: 'Select Current Heading',
   copyCurrentHeading: 'Copy Current Heading',
+  addQuickCard: 'Add Quick Card',
   insertImage: 'Insert Image at Cursor',
   zoomIn: 'Zoom In',
   zoomOut: 'Zoom Out',
@@ -3659,6 +3664,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   sendToDropzone: 'Mod-`',
   selectCurrentHeading: '',
   copyCurrentHeading: '',
+  addQuickCard: '',
   newSpeechDocument: '',
   markActiveAsSpeech: '',
   insertImage: '',
@@ -3810,6 +3816,9 @@ export interface RibbonContext {
    *  any active selection is ignored. */
   selectCurrentHeading: () => void;
   copyCurrentHeading: () => void;
+  /** Save the current selection as a named, tagged quick card
+   *  (opens the Add dialog). No-op + toast if the selection is empty. */
+  addQuickCard: () => void;
   /** Open the file picker that prompts for an image to insert at
    *  the editor's current cursor. Pasting an image from the
    *  clipboard goes through paste-plugin instead — no ctx hook
@@ -3903,6 +3912,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   sendToSpeechAtEnd: () => {},
   selectCurrentHeading: () => {},
   copyCurrentHeading: () => {},
+  addQuickCard: () => {},
   insertImage: () => {},
   zoomIn: () => {},
   zoomOut: () => {},
@@ -4161,6 +4171,12 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.copyCurrentHeading();
+        return true;
+      };
+    case 'addQuickCard':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.addQuickCard();
         return true;
       };
     case 'insertImage':

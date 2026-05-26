@@ -176,6 +176,12 @@ export interface Settings {
    *  on-disk files always Save As in their current format — the
    *  handle wins over this default. */
   defaultSaveFormat: 'cmir' | 'docx';
+  /** When on (default), saving via the Save-As dialog's Send Doc /
+   *  Read Doc presets prepends `SEND_` / `READ_` to the file name
+   *  (e.g. `SEND_1AC.docx`). The As-Is preset and the Save Custom
+   *  button are never prefixed. Off saves presets under the exact
+   *  name shown in the box. */
+  prefixPresetSaveFilenames: boolean;
   /** When on, the highlight marks in the doc render in the colors
    *  defined by `overrideHighlightSlots` rather than their stored
    *  colors. Display-only — does NOT mutate the doc, so saving
@@ -738,6 +744,7 @@ const DEFAULTS: Settings = {
   defaultSpeechDocFolder: '',
   defaultSpeechDocFormat: 'docx',
   defaultSaveFormat: 'docx',
+  prefixPresetSaveFilenames: true,
   theme: 'system',
   themeAppliesToDocument: false,
   showDocNameChip: false,
@@ -983,6 +990,14 @@ export const SETTING_METADATA: SettingMeta[] = [
     description:
       'Sets the format the Save-As dialog defaults to for a doc you haven\'t saved before. .docx is the default — Word- and Verbatim-compatible. Pick .cmir to make every new doc save in CardMirror\'s native format (lossless, and the only format that supports autosave). Doesn\'t affect existing files on disk — those always re-save in whatever format they were opened from.',
     kind: 'saveFormat',
+    category: 'general',
+  },
+  {
+    key: 'prefixPresetSaveFilenames',
+    label: 'Prefix preset saves with SEND_ / READ_',
+    description:
+      'When on (default), the Save As dialog\'s Send Doc and Read Doc presets prepend SEND_ and READ_ to the file name (e.g. SEND_1AC.docx). The As-Is preset and the Save Custom button are never prefixed. Turn off to save presets under the exact name shown in the box.',
+    kind: 'toggle',
     category: 'general',
   },
   {
@@ -1517,6 +1532,9 @@ function sanitize(s: Settings): Settings {
       s.defaultSpeechDocFormat === 'cmir' ? 'cmir' : 'docx',
     defaultSaveFormat:
       s.defaultSaveFormat === 'cmir' ? 'cmir' : 'docx',
+    // Default-on: only an explicit `false` disables the preset
+    // filename prefixes (survives upgrades from before this existed).
+    prefixPresetSaveFilenames: s.prefixPresetSaveFilenames === false ? false : true,
     theme:
       s.theme === 'light' || s.theme === 'dark' ? s.theme : 'system',
     themeAppliesToDocument: !!s.themeAppliesToDocument,

@@ -20,6 +20,8 @@
  * formats.
  */
 
+import { settings } from './settings.js';
+
 export type SaveAsFormat = 'cmir' | 'docx';
 
 export interface SaveAsResult {
@@ -179,6 +181,7 @@ class SaveAsModal {
         'Send Doc',
         'Excludes analytics, undertags, and comments.',
         { includeComments: false, includeAnalytics: false, includeUndertags: false, readMode: false },
+        'SEND_',
       ),
     );
     presets.appendChild(
@@ -186,6 +189,7 @@ class SaveAsModal {
         'Read Doc',
         'Exports the read-mode view of the document.',
         { includeComments: false, includeAnalytics: false, includeUndertags: false, readMode: true },
+        'READ_',
       ),
     );
     form.appendChild(presets);
@@ -227,7 +231,8 @@ class SaveAsModal {
   /** Build a preset cell: a primary (blue) button with its
    *  description as a caption below. Clicking the button saves
    *  immediately with the given content options (filename + format
-   *  read live from the inputs). */
+   *  read live from the inputs). `prefix` is prepended to the file
+   *  name (subject to the `prefixPresetSaveFilenames` setting). */
   private buildPreset(
     title: string,
     sub: string,
@@ -237,6 +242,7 @@ class SaveAsModal {
       includeUndertags: boolean;
       readMode: boolean;
     },
+    prefix = '',
   ): HTMLElement {
     const cell = document.createElement('div');
     cell.className = 'pmd-save-as-preset';
@@ -244,7 +250,7 @@ class SaveAsModal {
     btn.type = 'button';
     btn.className = 'pmd-save-as-btn pmd-save-as-btn-primary pmd-save-as-preset-btn';
     btn.textContent = title;
-    btn.addEventListener('click', () => this.confirmWith(opts));
+    btn.addEventListener('click', () => this.confirmWith(opts, prefix));
     cell.appendChild(btn);
     const caption = document.createElement('span');
     caption.className = 'pmd-save-as-preset-sub';
@@ -339,17 +345,24 @@ class SaveAsModal {
 
   /** Save with the given content options + the live filename /
    *  format. Shared by every preset and the Save Custom submit.
+   *  `prefix` (Send Doc / Read Doc presets) is prepended to the
+   *  file name when the `prefixPresetSaveFilenames` setting is on.
    *  No-op on an empty filename. */
-  private confirmWith(opts: {
-    includeComments: boolean;
-    includeAnalytics: boolean;
-    includeUndertags: boolean;
-    readMode: boolean;
-  }): void {
+  private confirmWith(
+    opts: {
+      includeComments: boolean;
+      includeAnalytics: boolean;
+      includeUndertags: boolean;
+      readMode: boolean;
+    },
+    prefix = '',
+  ): void {
     const trimmed = this.filenameInput.value.trim();
     if (!trimmed) return;
+    const named = withExtension(trimmed, this.currentFormat);
+    const usePrefix = prefix && settings.get('prefixPresetSaveFilenames');
     this.finish({
-      filename: withExtension(trimmed, this.currentFormat),
+      filename: usePrefix ? prefix + named : named,
       format: this.currentFormat,
       ...opts,
     });

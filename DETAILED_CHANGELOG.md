@@ -34,6 +34,13 @@ in each release, see `CHANGELOG.md`.
     live checkbox state and `readMode:false`.
   - `SaveAsResult` is unchanged, so the save pipeline downstream
     needed no edits — only how the four flags get chosen.
+  - Preset filename prefixes: the Send Doc / Read Doc presets pass a
+    `SEND_` / `READ_` prefix to `confirmWith(opts, prefix)`, which
+    prepends it to the (extension-normalized) file name when the new
+    `prefixPresetSaveFilenames` setting is on (default; General tab).
+    As-Is and the Save Custom submit pass no prefix. The prefix lands
+    in `SaveAsResult.filename` like any other name, so nothing
+    downstream special-cases it.
 
 - **Home / start screen (single-doc mode).** A full-window hub
   shown on launch-with-no-file, on closing the current doc

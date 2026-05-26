@@ -130,6 +130,11 @@ see `DETAILED_CHANGELOG.md`.
   undertags checkboxes + a **Save Custom** button) remains below for
   hand-picking what to keep; Cancel sits at the bottom. The separate
   read-mode checkbox is gone, folded into the Read Doc preset.
+  Saving via the **Send Doc** / **Read Doc** presets prepends
+  `SEND_` / `READ_` to the file name (e.g. `SEND_1AC.docx`) by
+  default — toggle off via **Settings → General → "Prefix preset
+  saves with SEND_ / READ_"**. As-Is and Save Custom are never
+  prefixed.
 
 - **Emphasize Acronym moved from Ctrl+F10 to Alt+F10.** Frees
   Ctrl+F10 and makes room for Highlight Acronym on Alt+F11

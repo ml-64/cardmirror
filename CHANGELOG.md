@@ -120,6 +120,16 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Changed
 
+- **Save As dialog reorganized around presets.** Below the format
+  and file-name fields are three one-click save buttons — **Save
+  Send Doc** (excludes analytics, undertags, and comments), **Save
+  Read Doc** (exports the read-mode view), and **Save As-Is**
+  (everything) — each saves immediately with the name and format
+  above. The Include section (comments / analytics / undertags)
+  remains below for hand-picking what to keep, now with its own
+  **Custom Save** button; Cancel sits at the bottom. The separate
+  read-mode checkbox is gone, folded into the Save Read Doc preset.
+
 - **Emphasize Acronym moved from Ctrl+F10 to Alt+F10.** Frees
   Ctrl+F10 and makes room for Highlight Acronym on Alt+F11
   next to it. Rebind via Settings → Keybindings if you've been

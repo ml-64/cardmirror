@@ -7,6 +7,29 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Save As dialog reorganized around presets.** The dialog body
+  now reads top-to-bottom: format picker → file-name field →
+  preset buttons → custom Include section → Cancel.
+
+  - Three presets (`.pmd-save-as-presets` / `.pmd-save-as-preset`,
+    each a title-over-sub card button) each call `confirmWith(opts)`
+    with a fixed content configuration and save immediately using
+    the name + format above: **Save Send Doc**
+    `{comments:false, analytics:false, undertags:false}`, **Save
+    Read Doc** `{…false, readMode:true}`, **Save As-Is**
+    `{comments:true, analytics:true, undertags:true}`.
+  - The previous read-mode checkbox (and its mutual-exclusivity
+    logic that disabled the other boxes when checked) is removed;
+    `readModeBox` is gone. Read-mode export is now reachable only
+    via the Save Read Doc preset.
+  - The Include section keeps the comments / analytics / undertags
+    checkboxes and gains a **Custom Save** submit button
+    (`.pmd-save-as-custom-save`); the form's submit handler routes
+    through `confirmWith` with the live checkbox state and
+    `readMode:false`.
+  - `SaveAsResult` is unchanged, so the save pipeline downstream
+    needed no edits — only how the four flags get chosen.
+
 - **Home / start screen (single-doc mode).** A full-window hub
   shown on launch-with-no-file, on closing the current doc
   (Ctrl+W), and via a new Home button (🏠) at the left of the

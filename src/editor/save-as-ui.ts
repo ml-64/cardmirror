@@ -10,10 +10,12 @@
  *     where the receiving party needs Word.
  *
  * The format radio drives the default filename extension and which
- * filter the OS dialog defaults to. Export-content toggles
- * (analytics / undertags / comments / read-mode) apply equally to
- * both formats — read-mode-as-export, in particular, is a content
- * filter not a format choice.
+ * filter the OS dialog defaults to. Below the filename are one-click
+ * presets — Save Send Doc (no analytics / undertags / comments),
+ * Save Read Doc (read-mode export), Save As-Is (everything) — and a
+ * custom Include section (comments / analytics / undertags) with a
+ * Custom Save button. All content options apply equally to both
+ * formats.
  */
 
 export type SaveAsFormat = 'cmir' | 'docx';
@@ -71,7 +73,6 @@ class SaveAsModal {
   private commentsBox!: HTMLInputElement;
   private analyticsBox!: HTMLInputElement;
   private undertagsBox!: HTMLInputElement;
-  private readModeBox!: HTMLInputElement;
   /** Radio inputs keyed by format id. */
   private formatRadios!: Record<SaveAsFormat, HTMLInputElement>;
   private settled = false;
@@ -136,9 +137,16 @@ class SaveAsModal {
 
     const form = document.createElement('form');
     form.className = 'pmd-save-as-body';
+    // Enter / the Custom Save submit button save with the current
+    // Include checkbox state.
     form.addEventListener('submit', (e) => {
       e.preventDefault();
-      this.confirm();
+      this.confirmWith({
+        includeComments: this.commentsBox.checked,
+        includeAnalytics: this.analyticsBox.checked,
+        includeUndertags: this.undertagsBox.checked,
+        readMode: false,
+      });
     });
 
     // Format picker — radio buttons at the top so the rest of the
@@ -162,7 +170,34 @@ class SaveAsModal {
     fileLabel.appendChild(this.filenameInput);
     form.appendChild(fileLabel);
 
-    // Export-content toggles — apply to both formats.
+    // One-click presets — common content configurations. Each
+    // saves immediately with the filename + format above.
+    const presets = document.createElement('div');
+    presets.className = 'pmd-save-as-presets';
+    presets.appendChild(
+      this.buildPreset(
+        'Save Send Doc',
+        'Excludes analytics, undertags, and comments.',
+        { includeComments: false, includeAnalytics: false, includeUndertags: false, readMode: false },
+      ),
+    );
+    presets.appendChild(
+      this.buildPreset(
+        'Save Read Doc',
+        'Exports the read-mode view of the document.',
+        { includeComments: false, includeAnalytics: false, includeUndertags: false, readMode: true },
+      ),
+    );
+    presets.appendChild(
+      this.buildPreset(
+        'Save As-Is',
+        'Includes everything in the document.',
+        { includeComments: true, includeAnalytics: true, includeUndertags: true, readMode: false },
+      ),
+    );
+    form.appendChild(presets);
+
+    // Custom: the Include checkboxes + a Custom Save button.
     const options = document.createElement('div');
     options.className = 'pmd-save-as-options';
     options.appendChild(this.buildOptionsHeading());
@@ -170,42 +205,19 @@ class SaveAsModal {
     this.commentsBox = this.buildCheckbox('Include comments', true);
     this.analyticsBox = this.buildCheckbox('Include analytics', true);
     this.undertagsBox = this.buildCheckbox('Include undertags', true);
-    this.readModeBox = this.buildCheckbox(
-      'Read mode (only headings, tags, analytics, cites, highlights)',
-      false,
-    );
-
     options.appendChild(this.commentsBox.parentElement!);
     options.appendChild(this.analyticsBox.parentElement!);
     options.appendChild(this.undertagsBox.parentElement!);
-    options.appendChild(this.readModeBox.parentElement!);
 
-    const groupedIncludes = [this.commentsBox, this.analyticsBox, this.undertagsBox];
-    const refreshGroupState = (): void => {
-      const readMode = this.readModeBox.checked;
-      for (const box of groupedIncludes) {
-        box.disabled = readMode;
-        const label = box.parentElement as HTMLLabelElement;
-        label.classList.toggle('pmd-save-as-option-disabled', readMode);
-      }
-    };
-    this.readModeBox.addEventListener('change', () => {
-      if (this.readModeBox.checked) {
-        for (const box of groupedIncludes) box.checked = false;
-      }
-      refreshGroupState();
-    });
-    for (const box of groupedIncludes) {
-      box.addEventListener('change', () => {
-        if (box.checked) {
-          this.readModeBox.checked = false;
-          refreshGroupState();
-        }
-      });
-    }
+    const customSave = document.createElement('button');
+    customSave.type = 'submit';
+    customSave.className = 'pmd-save-as-btn pmd-save-as-btn-primary pmd-save-as-custom-save';
+    customSave.textContent = 'Custom Save';
+    options.appendChild(customSave);
 
     form.appendChild(options);
 
+    // Cancel sits alone at the very bottom.
     const footer = document.createElement('footer');
     footer.className = 'pmd-save-as-footer';
     const cancel = document.createElement('button');
@@ -214,14 +226,37 @@ class SaveAsModal {
     cancel.textContent = 'Cancel';
     cancel.addEventListener('click', () => this.cancel());
     footer.appendChild(cancel);
-    const save = document.createElement('button');
-    save.type = 'submit';
-    save.className = 'pmd-save-as-btn pmd-save-as-btn-primary';
-    save.textContent = 'Save';
-    footer.appendChild(save);
     form.appendChild(footer);
 
     this.dialog.appendChild(form);
+  }
+
+  /** Build a preset save button: a title + sub-description that,
+   *  when clicked, saves immediately with the given content
+   *  options (filename + format read live from the inputs). */
+  private buildPreset(
+    title: string,
+    sub: string,
+    opts: {
+      includeComments: boolean;
+      includeAnalytics: boolean;
+      includeUndertags: boolean;
+      readMode: boolean;
+    },
+  ): HTMLButtonElement {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pmd-save-as-preset';
+    const t = document.createElement('span');
+    t.className = 'pmd-save-as-preset-title';
+    t.textContent = title;
+    btn.appendChild(t);
+    const s = document.createElement('span');
+    s.className = 'pmd-save-as-preset-sub';
+    s.textContent = sub;
+    btn.appendChild(s);
+    btn.addEventListener('click', () => this.confirmWith(opts));
+    return btn;
   }
 
   private buildFormatPicker(): HTMLElement {
@@ -289,18 +324,21 @@ class SaveAsModal {
     return box;
   }
 
-  private confirm(): void {
+  /** Save with the given content options + the live filename /
+   *  format. Shared by every preset and the Custom Save submit.
+   *  No-op on an empty filename. */
+  private confirmWith(opts: {
+    includeComments: boolean;
+    includeAnalytics: boolean;
+    includeUndertags: boolean;
+    readMode: boolean;
+  }): void {
     const trimmed = this.filenameInput.value.trim();
     if (!trimmed) return;
-    const filename = withExtension(trimmed, this.currentFormat);
-    const readMode = this.readModeBox.checked;
     this.finish({
-      filename,
+      filename: withExtension(trimmed, this.currentFormat),
       format: this.currentFormat,
-      includeComments: readMode ? false : this.commentsBox.checked,
-      includeAnalytics: readMode ? false : this.analyticsBox.checked,
-      includeUndertags: readMode ? false : this.undertagsBox.checked,
-      readMode,
+      ...opts,
     });
   }
 

@@ -90,7 +90,7 @@ class QuickCardsManageUI {
     this.detailEl = this.root.querySelector('.pmd-qc-manage-detail')!;
     this.root.querySelector('.pmd-qc-manage-close')!
       .addEventListener('click', () => this.close());
-    this.root.addEventListener('keydown', this.onKeyDown);
+    this.root.addEventListener('keydown', this.onKeyDown, true);
 
     this.renderHeaderActions();
     this.renderListBar();
@@ -123,35 +123,34 @@ class QuickCardsManageUI {
     this.teardownEditor();
     this.unsubscribe?.();
     this.unsubscribe = null;
-    this.root.removeEventListener('keydown', this.onKeyDown);
+    this.root.removeEventListener('keydown', this.onKeyDown, true);
     this.root.remove();
     this.root = null;
     document.documentElement.classList.remove('pmd-qc-manage-active');
   }
 
   private onKeyDown = (e: KeyboardEvent): void => {
-    // Esc closes — but let the embedded editor / inputs keep their own
-    // Esc behavior by only acting when focus isn't in a text control.
+    // Esc always closes the overlay (like the × button), even from
+    // inside the embedded editor or a text field. Capture-phase (see
+    // the listener registration) so it wins over the editor's keymap.
     if (e.key === 'Escape') {
-      const t = e.target as HTMLElement | null;
-      const inField = t && (t.tagName === 'INPUT' || t.isContentEditable);
-      if (!inField) {
-        e.preventDefault();
-        this.close();
-      }
+      e.preventDefault();
+      e.stopPropagation();
+      this.close();
     }
   };
 
   // ── Data shaping ──────────────────────────────────────────────────
 
   private sortedFiltered(): QuickCard[] {
+    // Filter on name + tags only — NOT the full card content. Debate
+    // cards carry so much body text that content matching makes almost
+    // every query match everything (which read as "filter does
+    // nothing"). Content search is the Search palette's job.
     const tokens = this.filter.toLowerCase().split(/\s+/).filter(Boolean);
     const match = (c: QuickCard): boolean =>
       tokens.every(
-        (tok) =>
-          c.nameLower.includes(tok) ||
-          c.tagsLower.some((t) => t.includes(tok)) ||
-          c.textLower.includes(tok),
+        (tok) => c.nameLower.includes(tok) || c.tagsLower.some((t) => t.includes(tok)),
       );
     const rows = this.cards.filter(match);
     const cmp: Record<SortMode, (a: QuickCard, b: QuickCard) => number> = {
@@ -420,6 +419,7 @@ class QuickCardsManageUI {
     // (before the async editor mount) so an interleaved re-render can't
     // double-append the footer. Only the EditorView creation is async.
     const contentField = field('Content');
+    contentField.classList.add('pmd-qc-manage-field-content');
     const editorHost = document.createElement('div');
     editorHost.className = 'pmd-qc-manage-editor';
     contentField.appendChild(editorHost);

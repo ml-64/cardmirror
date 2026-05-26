@@ -6309,10 +6309,21 @@ body.pmd-recovery-active.pmd-multi-doc #app {
 .pmd-qc-manage-detail {
   flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
-  overflow-y: auto;
+  /* The content field flexes / scrolls internally; the detail itself
+     doesn't scroll, so the footer stays pinned + visible even when the
+     window is short. */
+  overflow: hidden;
+}
+/* Content field absorbs the leftover vertical space and lets its
+   editor shrink (down to the editor's min-height) before the footer is
+   ever pushed off-screen. */
+.pmd-qc-manage-field-content {
+  flex: 1 1 0;
+  min-height: 0;
 }
 .pmd-qc-manage-field {
   display: flex;
@@ -6336,22 +6347,23 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   color: var(--pmd-c-text);
 }
 .pmd-qc-manage-editor {
+  flex: 1 1 auto;
+  min-height: 0;
   border: 1px solid var(--pmd-c-border);
   border-radius: 4px;
   background: var(--pmd-c-surface, var(--pmd-c-bg));
-  max-height: 45vh;
   overflow-y: auto;
 }
 .pmd-qc-manage-editor .ProseMirror {
   padding: 0.6rem 0.75rem;
-  min-height: 6rem;
+  min-height: 2rem;
   outline: none;
 }
 .pmd-qc-manage-detail-footer {
+  flex: 0 0 auto;
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
-  margin-top: auto;
   padding-top: 0.5rem;
 }
 .pmd-qc-manage-btn {

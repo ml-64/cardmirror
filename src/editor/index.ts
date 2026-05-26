@@ -3408,20 +3408,37 @@ async function loadFileInPlace(file: {
 }
 
 const homeCallbacks: HomeScreenCallbacks = {
-  // New doc in-place: mount a fresh blank starter here, clear the
-  // home overlay. (The ribbon's New still spawns a window; the home
-  // screen's intent is "start working in THIS window".)
+  // Single-doc: load in-place in this window. Multi-pane: hide
+  // home and route through the shell flows, which present the
+  // slot-routing UI over the now-visible workspace.
   newDoc: () => {
+    if (multiDocActive) {
+      homeScreen.hide();
+      void multiDocOnNewDoc?.();
+      return;
+    }
     mountFreshBlankDoc();
     homeScreen.hide();
   },
   newSpeechDoc: () => {
+    if (multiDocActive) {
+      homeScreen.hide();
+      multiDocNewSpeechDocument?.();
+      return;
+    }
     void (async () => {
       const created = await createSpeechDocInPlace();
       if (created) homeScreen.hide();
     })();
   },
   open: () => {
+    if (multiDocActive) {
+      // runOpenFlow's multi-pane branch picks a file then routes
+      // it through multiDocOnFileOpen (the slot picker).
+      homeScreen.hide();
+      void runOpenFlow();
+      return;
+    }
     void (async () => {
       const opened = await pickAndLoadInPlace();
       if (opened) homeScreen.hide();
@@ -3534,6 +3551,21 @@ async function openRecentInPlace(recent: RecentFile): Promise<void> {
   if (takenByOther) {
     showToast(`"${file.name}" is already open in another window.`);
     homeScreen.hide();
+    return;
+  }
+  // Multi-pane: hide home and route through the shell's slot
+  // picker (same as Open). Single-doc: load in-place here.
+  if (multiDocActive && multiDocOnFileOpen) {
+    homeScreen.hide();
+    try {
+      await multiDocOnFileOpen({
+        name: file.name,
+        bytes: file.bytes,
+        handle: file.handle,
+      });
+    } catch (err) {
+      alert(`Failed to open: ${err instanceof Error ? err.message : err}`);
+    }
     return;
   }
   try {
@@ -4314,6 +4346,11 @@ installIncomingSpeechSliceHandler();
 if (BOOT_MULTI_DOC_WORKSPACE) {
   void import('./multi-pane-shell.js').then(async (m) => {
     m.mountMultiPaneShell();
+    // Home screen is available in multi-pane too (reachable via the
+    // Home button). Its actions route through the shell's slot
+    // picker rather than loading in-place. Not auto-shown on
+    // multi-pane launch — the workspace is the landing surface.
+    homeScreen.mount(document.body, homeCallbacks);
     await runStartupRecovery();
   });
 } else {

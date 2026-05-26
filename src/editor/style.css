@@ -599,13 +599,6 @@ html:has(body.pmd-speech-banner-visible) {
   gap: 0.35rem;
 }
 
-/* Home button lives in the ribbon-right 2×2 grid. Single-doc
-   only (home isn't a multi-pane concept); hidden in multi-doc,
-   which leaves the timer alone in the grid's bottom row. */
-body.pmd-multi-doc #ribbon .ribbon-home-btn {
-  display: none;
-}
-
 .ribbon-left { flex: 0 0 auto; }
 .ribbon-center { flex: 1 1 auto; justify-content: center; }
 .ribbon-right { flex: 0 0 auto; }

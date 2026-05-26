@@ -17,12 +17,13 @@ see `DETAILED_CHANGELOG.md`.
   Keybindings) returns to it any time — with a "Back to document"
   link and Esc to dismiss back to what you were editing. On the
   home screen, **1 / 2 / 3** trigger New / New speech / Open.
-  **Ctrl+W** now closes the current doc back to the home screen
-  rather than closing the window (the window's close button still
-  quits); confirms unsaved changes first. Recent files persist
-  across restarts. Single-doc mode only for now (multi-pane has
-  its own workspace layout). On the web edition, recents show but
-  can't be reopened directly (browser file handles aren't
+  **Ctrl+W** (single-doc) now closes the current doc back to the
+  home screen rather than closing the window (the window's close
+  button still quits); confirms unsaved changes first. Available
+  in multi-pane mode too — there the Home button's actions route
+  through the slot picker instead of loading in-place. Recent
+  files persist across restarts. On the web edition, recents show
+  but can't be reopened directly (browser file handles aren't
   persistable yet).
 
 - **Grayscale text antialiasing on high-DPI displays** (DPR ≥

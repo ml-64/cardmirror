@@ -99,6 +99,7 @@ class QuickCardSearchUI {
   private tagFilterEl!: HTMLDivElement;
   private unsubscribe: (() => void) | null = null;
   private view: EditorView | null = null;
+  private paneEl: HTMLElement | null = null;
 
   private results: PaletteResult[] = [];
   private selected = 0;
@@ -111,6 +112,7 @@ class QuickCardSearchUI {
       return;
     }
     this.view = opts.view;
+    this.paneEl = opts.paneEl;
 
     const root = document.createElement('div');
     root.className = 'pmd-qcs';
@@ -127,15 +129,8 @@ class QuickCardSearchUI {
     this.tagFilterEl = root.querySelector('.pmd-qcs-tagfilter')!;
     this.input = root.querySelector('.pmd-qcs-input')!;
 
-    // Center over the target pane and clamp the width to fit it, so the
-    // bar shrinks elegantly in narrow panes / windows (multi-pane).
-    const rect = opts.paneEl?.getBoundingClientRect();
-    const available = rect && rect.width > 0 ? rect.width : window.innerWidth;
-    const centerX = rect && rect.width > 0 ? rect.left + rect.width / 2 : window.innerWidth / 2;
-    root.style.left = `${Math.round(centerX)}px`;
-    root.style.width = `${Math.round(Math.max(240, Math.min(540, available - 24)))}px`;
-
     document.body.appendChild(root);
+    this.reposition();
     this.input.focus();
 
     root.classList.add('pmd-qcs-pulse');
@@ -146,14 +141,30 @@ class QuickCardSearchUI {
     this.input.addEventListener('input', () => this.runSearch());
     this.input.addEventListener('keydown', this.onInputKey);
     document.addEventListener('pointerdown', this.onDocPointerDown, true);
+    window.addEventListener('resize', this.onResize);
     this.unsubscribe = quickCardsStore.subscribe(() => this.runSearch());
 
     this.runSearch();
   }
 
+  /** Center over the target pane and clamp the width to fit it, so the
+   *  bar shrinks elegantly in narrow / multi-pane windows. Re-run on
+   *  resize since panes reflow with the window. */
+  private reposition(): void {
+    if (!this.root) return;
+    const rect = this.paneEl?.getBoundingClientRect();
+    const available = rect && rect.width > 0 ? rect.width : window.innerWidth;
+    const centerX = rect && rect.width > 0 ? rect.left + rect.width / 2 : window.innerWidth / 2;
+    this.root.style.left = `${Math.round(centerX)}px`;
+    this.root.style.width = `${Math.round(Math.max(240, Math.min(540, available - 24)))}px`;
+  }
+
+  private onResize = (): void => this.reposition();
+
   close(): void {
     if (!this.root) return;
     document.removeEventListener('pointerdown', this.onDocPointerDown, true);
+    window.removeEventListener('resize', this.onResize);
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.root.remove();

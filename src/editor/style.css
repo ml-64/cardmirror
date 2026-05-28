@@ -5122,6 +5122,30 @@ body.pmd-multi-doc .pmd-editor-row {
 }
 .pmd-comments-column[hidden] { display: none; }
 
+/* Single-doc: the comments column is a viewport-height **sticky
+   overlay**. It sticks to the top of `#app`'s visible band and its
+   height is set in JS to that band (`ensureSingleDocOverlay`), so it
+   never contributes to the page's scroll height — a card expanding or
+   collapsing can't change the scroll and jolt the view. Cards are
+   repositioned on scroll (relayoutCards) to keep tracking their
+   anchors, and `overflow: hidden` clips ones whose anchor is off-band.
+   `align-self: start` keeps it its own height rather than stretching to
+   the (taller) grid row. Multi-pane manages the column via its own
+   shell, so this is gated to single-doc. */
+body:not(.pmd-multi-doc) #comments-column {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  overflow: hidden;
+}
+/* While scroll-tracking, suppress the card `top` transition so cards
+   follow the scroll crisply instead of gliding a frame behind. The
+   class clears shortly after scrolling stops, so expand/collapse still
+   animate. */
+.pmd-comments-column.pmd-comments-scrolling .pmd-comment-thread {
+  transition: none;
+}
+
 /* Inner wrapper that holds the column's renderable content
    (threads, empty-state placeholder, sticky toggle). render()
    wipes this via `innerHTML = ''` on every redraw; the resize
@@ -5265,6 +5289,16 @@ body.pmd-comments-resize-active {
   box-sizing: border-box;
 }
 .pmd-comments-unanchored.pmd-laid-out { visibility: visible; }
+/* Single-doc overlay: pin the Unanchored list to the bottom of the
+   viewport-height column (a footer), above the cards. */
+body:not(.pmd-multi-doc) .pmd-comments-unanchored {
+  top: auto;
+  bottom: 0.4rem;
+  z-index: 2;
+  max-height: 45%;
+  overflow-y: auto;
+  box-shadow: 0 -4px 12px var(--pmd-c-bg-soft);
+}
 .pmd-comments-unanchored-header {
   appearance: none;
   width: 100%;

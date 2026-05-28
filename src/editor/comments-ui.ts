@@ -220,14 +220,16 @@ export class CommentsColumn {
   /** Whether the Unanchored section is collapsed (persists across
    *  renders within a session). */
   private unanchoredCollapsed = false;
-  /** Single-doc only: high-water mark for the column's `minHeight`. The
-   *  column shares the page scroll, so SHRINKING it (when a card
-   *  collapses) shrinks the page's scroll height and the browser clamps
-   *  the scroll — a visible jolt. We only ever grow it within a doc
-   *  session (collapsing leaves a little slack below the cards instead),
-   *  and reset on doc swap. Growing doesn't clamp, so expanding is fine. */
-  private minHeightFloor = 0;
-  private minHeightFloorDocId = '';
+  /** Single-doc only: the page scroll container (`#app`) the column
+   *  overlays. The column is a viewport-height sticky overlay that does
+   *  NOT contribute to the page scroll height (so card expand/collapse
+   *  can't jolt the scroll); cards are repositioned on this element's
+   *  scroll so they keep tracking their anchors. */
+  private scrollSyncTarget: HTMLElement | null = null;
+  /** Debounce handle for clearing the `pmd-comments-scrolling` class,
+   *  which suppresses the card `top` transition while scroll-tracking
+   *  (so cards follow the scroll crisply instead of lagging behind). */
+  private scrollingClassTimer: number | null = null;
 
   /** Resolve the focused doc's annotation id (single-doc global or the
    *  focused multi-pane record). Flashcards for this id are resolved +
@@ -705,6 +707,47 @@ export class CommentsColumn {
     this.editorResizeObserver.observe(target);
   }
 
+  /** Whether the single-doc viewport-overlay model is in effect (vs the
+   *  multi-pane shell, which manages the column itself). */
+  private isOverlayMode(): boolean {
+    return !document.body.classList.contains('pmd-multi-doc');
+  }
+
+  /** Single-doc: size the column to the page scroll container's visible
+   *  height (a viewport-height band) and keep a scroll listener on it so
+   *  cards reposition as the doc scrolls. The column is `position:
+   *  sticky` + `overflow:hidden` (CSS), so this fixed height means it
+   *  never grows the page scroll height — card expand/collapse can't
+   *  jolt the view. Idempotent. */
+  private ensureSingleDocOverlay(): void {
+    const app = document.getElementById('app');
+    if (!app) return;
+    this.root.style.height = `${app.clientHeight}px`;
+    if (this.scrollSyncTarget !== app) {
+      this.scrollSyncTarget?.removeEventListener('scroll', this.onScrollRelayout);
+      this.scrollSyncTarget = app;
+      app.addEventListener('scroll', this.onScrollRelayout, { passive: true });
+    }
+  }
+
+  /** Reposition cards as the page scrolls (single-doc overlay). Adds a
+   *  class that suppresses the `top` transition so cards track the
+   *  scroll crisply rather than gliding behind it; the class clears a
+   *  beat after scrolling stops so expand/collapse still animate. */
+  private onScrollRelayout = (): void => {
+    this.root.classList.add('pmd-comments-scrolling');
+    if (this.scrollingClassTimer !== null) window.clearTimeout(this.scrollingClassTimer);
+    this.scrollingClassTimer = window.setTimeout(() => {
+      this.scrollingClassTimer = null;
+      this.root.classList.remove('pmd-comments-scrolling');
+    }, 160);
+    if (this.resizeRelayoutRaf !== null) return;
+    this.resizeRelayoutRaf = requestAnimationFrame(() => {
+      this.resizeRelayoutRaf = null;
+      this.relayoutCards();
+    });
+  };
+
   /** Position each thread card next to its anchored range using
    *  `view.coordsAtPos`. Layout has two modes:
    *
@@ -721,6 +764,7 @@ export class CommentsColumn {
     view: EditorView,
     ranges: Map<string, { from: number; to: number }>,
   ): void {
+    if (this.isOverlayMode()) this.ensureSingleDocOverlay();
     const cards = Array.from(this.root.querySelectorAll<HTMLElement>('.pmd-comment-thread'));
     if (cards.length === 0) {
       // No anchored cards — but the Unanchored section may still need
@@ -842,30 +886,29 @@ export class CommentsColumn {
    *  relayout fires on scroll, so restoring would fight the user — skip. */
   private positionUnanchored(cardsBottom: number): void {
     const el = this.unanchoredEl;
-    let desired: number;
-    if (!el || !el.parentNode) {
-      desired = cardsBottom > 0 ? cardsBottom : 0;
-    } else {
-      const top = cardsBottom > 0 ? cardsBottom + 12 : 0;
-      el.style.top = `${top}px`;
-      el.classList.add('pmd-laid-out');
-      desired = top + el.offsetHeight;
-    }
-
-    let minH = desired;
-    // Single-doc: hold a high-water mark so collapsing a card never
-    // shrinks the page (which would clamp + jolt the shared scroll).
-    // Multi-pane has its own per-pane scroll model — size to content.
-    if (!document.body.classList.contains('pmd-multi-doc')) {
-      const docId = this.getDocId();
-      if (docId !== this.minHeightFloorDocId) {
-        this.minHeightFloor = 0;
-        this.minHeightFloorDocId = docId;
+    if (this.isOverlayMode()) {
+      // Single-doc overlay: the column has a fixed (viewport) height set
+      // by ensureSingleDocOverlay, and the Unanchored section is a
+      // CSS-pinned bottom footer. Setting `minHeight` here would re-grow
+      // the page scroll height and re-introduce the collapse jolt — so
+      // leave both alone.
+      this.root.style.minHeight = '';
+      if (el && el.parentNode) {
+        el.style.top = '';
+        el.classList.add('pmd-laid-out');
       }
-      minH = Math.max(desired, this.minHeightFloor);
-      this.minHeightFloor = minH;
+      return;
     }
-    this.root.style.minHeight = minH > 0 ? `${minH}px` : '';
+    // Multi-pane: size to content; the Unanchored section sits below the
+    // anchored cards.
+    if (!el || !el.parentNode) {
+      this.root.style.minHeight = cardsBottom > 0 ? `${cardsBottom}px` : '';
+      return;
+    }
+    const top = cardsBottom > 0 ? cardsBottom + 12 : 0;
+    el.style.top = `${top}px`;
+    el.classList.add('pmd-laid-out');
+    this.root.style.minHeight = `${top + el.offsetHeight}px`;
   }
 
   /** Get or create the persistent card element for a thread. The
@@ -955,7 +998,6 @@ export class CommentsColumn {
     this.cardEls.clear();
     this.cardSigs.clear();
     this.lastRanges = new Map();
-    this.minHeightFloor = 0;
     if (this.unanchoredEl) {
       this.unanchoredEl.remove();
       this.unanchoredEl = null;

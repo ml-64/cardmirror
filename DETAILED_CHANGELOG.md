@@ -7,6 +7,20 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Comments column: Docs-like reflow layout.** `comments-ui.ts`'s
+  `render()` no longer wipes + rebuilds the card DOM each pass — it
+  reconciles a persistent `Map<threadId, element>` (and `fc:<cardId>`
+  for flashcards), gated by a content signature so a card is
+  re-populated only when its content / active state actually changed
+  (the active reply textarea keeps focus + value across unrelated
+  renders). A per-card `ResizeObserver` reflows the whole stack whenever
+  any card's height changes (expand/collapse, AI text streaming in,
+  reply box), and `top` animates (`transition`, suppressed on first
+  placement via `pmd-card-settled`) so cards glide around each other
+  rather than snapping. Fixes the previous one-shot layout that froze
+  positions until the next debounced render. This is the shared layout
+  the flashcard cards plug into.
+
 - **Learn: create→review loop over a local annotation layer.** First
   user-facing slice of the spaced-repetition system (SPEC-learn-system).
   Flashcards never enter the document — they live in a per-user
@@ -68,9 +82,31 @@ in each release, see `CHANGELOG.md`.
     back with `saveExisting`, so a future open re-associates. `openCreateFlashcard` was generalized to
     `openCardEditor({ selectedText? , initial? })` to serve both create
     and edit.
-  - Deferred to later steps: rendering anchored cards in the comments
-    column + the in-doc re-ground flow, deck management, and migrating
-    Ask-AI threads into the same local layer.
+  - **In-context (comments column).** Anchored flashcards render in the
+    comments column alongside genuine comments. The in-doc highlight is a
+    **view-only decoration** (`learn-highlight-plugin.ts`,
+    `.pmd-flashcard-range`), never a `comment_range` mark — so a card's
+    grounding can't leak into a shared file by construction (no
+    serialize-strip needed at any of the ~4 save sites). The plugin maps
+    ranges through edits (bias from→right / to→left, matching
+    `inclusive:false`) and drops a fully-deleted span. `comments-ui.ts`
+    resolves each card's descriptor against the live doc lazily — on
+    column open (SPEC §4.2), doc load (`mountView` rAF), multi-pane focus
+    switch (`focusSlot`), and any store change while open — via
+    `refreshFlashcardAnchors`, hands resolved ranges to the plugin
+    (`setFlashcardRangesTr`), and renders flashcard cards positioned by
+    those ranges (synthetic `fc:<cardId>` ids merged into the layout
+    map). Unresolved cards (foreign edit / linked-but-not-grounded) go to
+    a collapsible **"Unanchored (n)"** section pinned at the pane bottom
+    (`positionUnanchored`) showing `anchor.quote` + a **Re-ground** button
+    (`buildDescriptor` from the current selection → `setAnchor`). Each
+    card has Edit / Suspend / Delete. A broken anchor never touches the
+    card's schedule or file association (the store is never mutated by
+    edit-tracking; "unanchored" is derived from non-resolution).
+  - Deferred: refreshing a descriptor from its live range on save (§4.2 —
+    editing the *quoted text* unanchors on reload; re-resolution covers
+    moves, re-ground covers the rest), deck management, and migrating
+    Ask-AI threads into the local layer.
 
 - **Command palette: file search (`f` prefix) — a first slice of corpus
   search.** Two on-demand stages, no persistent index yet (see

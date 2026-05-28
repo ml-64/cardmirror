@@ -1591,6 +1591,29 @@ on open, persists it on every save / autosave / journal write, and
 restores it on crash recovery — so Create Flashcard and review behave
 identically in either layout.
 
-**Deferred.** Rendering anchored cards in the comments column + an
-unanchored / re-ground list; migrating Ask-AI threads from round-tripped
-comments into this same local layer.
+**In-context (comments column).** Anchored flashcards render in the
+comments column alongside genuine comments. The in-document highlight is
+a **view-only decoration** (`learn-highlight-plugin.ts`,
+`.pmd-flashcard-range`) — never a `comment_range` mark — so a card's
+grounding can't leak into a shared file by construction (no serialize-
+strip anywhere). The plugin maps ranges through edits and drops a span
+that's fully deleted; the column resolves each card's descriptor against
+the live doc lazily (on column open / doc load / focus switch / store
+change, SPEC §4.2), hands the resolved ranges to the plugin, and renders
+flashcard cards positioned by those ranges in the same reflow as
+comments. A card whose descriptor doesn't resolve (foreign edit, or
+linked-but-not-grounded) lands in a collapsible **"Unanchored (n)"**
+section at the pane bottom with a **Re-ground** button (select text →
+re-anchor). Edit / Suspend / Delete are available on each card. A broken
+anchor never touches the card's schedule or file association.
+
+The comment column's layout was reworked for this: it reconciles a
+persistent per-card element map (instead of rebuilding the DOM) and a
+per-card `ResizeObserver` reflows the whole stack on any height change,
+with animated `top` — a Docs-like reflow that comments and flashcards
+share.
+
+**Deferred.** Refreshing a card's descriptor from its live range on save
+(in-app edits to the *quoted text itself* currently unanchor on reload —
+re-resolution handles moves; re-ground handles the rest); migrating
+Ask-AI threads from round-tripped comments into this same local layer.

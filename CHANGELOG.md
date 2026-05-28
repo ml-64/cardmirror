@@ -21,6 +21,15 @@ see `DETAILED_CHANGELOG.md`.
     today. A session shows one card at a time — Space reveals the
     answer, then **1 = Forgot** / **2 = Remembered** (binary grading).
     A forgotten card comes back later in the same session.
+  - **In the document** — open the comments pane and the text a card is
+    anchored to is highlighted; the card appears in the column next to
+    it, alongside any comments, and clicking it reveals the answer. Edit,
+    suspend, or delete a card right there. If an edit (yours or a
+    collaborator's) breaks a card's anchor, it drops into an
+    **"Unanchored"** section at the bottom of the pane showing the text
+    it was attached to, with a **Re-ground** button — select new text and
+    click it to re-attach. A broken anchor never affects the card's
+    review schedule.
   - **Manage flashcards** (Home → Learn, or the command palette): browse
     every card grouped by the file it's anchored to — so you can see
     which cards belong to which document — filter by text, edit a card's
@@ -38,6 +47,12 @@ see `DETAILED_CHANGELOG.md`.
     Word) so your cards re-associate with the right file; **Save As**
     forks a copy's cards alongside the new file. Works the same in
     single-document windows and the multi-pane workspace.
+
+- **Smoother comments column** — comment (and flashcard) cards now shift
+  around each other smoothly when one expands, collapses, or changes
+  height, instead of jumping, and stay reliably positioned next to their
+  text as you edit. Typing in a reply no longer loses focus on unrelated
+  updates.
 
 - **Modern icons** — the toolbar, banners, dialogs, and status bar now
   use a clean line-icon set (Untitled UI) that takes on the active

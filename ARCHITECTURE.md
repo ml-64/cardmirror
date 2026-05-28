@@ -559,6 +559,24 @@ external tool.
 Until corpus search ships, the existing standalone Block Search remains
 useful for indexing files that aren't open in the editor.
 
+**Interim: command-palette file search (`f`).** A first, deliberately
+un-indexed slice of corpus search ships in the command palette. `f`
+recurses the configured `fileSearchRoot` for `.cmir` files (matched on
+filename), Enter opens one, and Tab dives into a file — parsing it and
+listing its structural objects (blocks / tags / cites / …, per
+`fileSearchObjectTypes`) so the user can search within it and insert a
+match as a slice (`file-search.ts`, reusing `collectHeadings` /
+`computeHeadingRange`). The recursive `.cmir` *file listing* is cached
+and persisted in the main process with per-file mtime + size
+(`host:list-cmir-files`, `{userData}/cmir-file-index.json`), refreshed
+in the background — so repeat searches and post-launch searches don't
+re-walk the tree. But *object/content* search is still parse-on-demand
+(one file at a time, when dived into): there's no persistent content
+index yet, and the schema-aware corpus-wide queries described above are
+still the destination. The stored mtimes are the hook for the eventual
+content index's reparse-only-what-changed pass. Staged this way to find
+the performance ceiling before investing in full indexing.
+
 ### Search as the transclusion-target picker
 
 Search is also how the user picks transclusion targets (see §12). When

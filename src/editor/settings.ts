@@ -448,11 +448,28 @@ export interface Settings {
    *                   their label is already in the menu.
    */
   ribbonTooltipMode: 'none' | 'tooltip' | 'shortcut' | 'both';
-  /** Whether the cross-window dropzone pill (the floating shelf at
-   *  the bottom of the nav pane) is visible. The shelf state still
+  /** Whether the cross-window dropzone pill (the floating shelf in
+   *  the editor's bottom-left corner) is visible. The shelf state still
    *  works when off (Ctrl+\` sends, content is reachable from the
    *  next window opened); the pill is just hidden from the chrome. */
   showDropzonePill: boolean;
+  /** Root folder for the command-palette file search (the `f`
+   *  prefix). Searched recursively for `.cmir` files on demand (no
+   *  persistent index). Empty disables file search. Electron only. */
+  fileSearchRoot: string;
+  /** Which structural objects appear when searching within a file
+   *  (`f` → Tab). Subset of pocket/hat/block/tag/cite/analytic;
+   *  defaults to block/tag/cite. Stored as kind strings. */
+  fileSearchObjectTypes: string[];
+  /** How deep the file-search outline browse is expanded by default
+   *  (1 Pocket … 4 Tag) — headings at this level or deeper start
+   *  collapsed, so depth 3 (default) shows blocks with their tags
+   *  collapsed. Mirrors the nav pane's `navMaxLevel`. */
+  fileSearchOutlineDepth: number;
+  /** Whether file search auto-pins recent + frequently-used files
+   *  (keeping them warm for instant dives). Default on; turn off to
+   *  warm only files pinned by hand (for memory-sensitive users). */
+  pinAutoEnabled: boolean;
   /**
    * User-interface font family. Applied as `--pmd-ui-font` on
    * documentElement; flows into every UI surface (ribbon, dialogs,
@@ -821,6 +838,10 @@ const DEFAULTS: Settings = {
   uiFont: '',
   ribbonTooltipMode: 'both',
   showDropzonePill: false,
+  fileSearchRoot: '',
+  fileSearchObjectTypes: ['block', 'tag', 'cite'],
+  fileSearchOutlineDepth: 3,
+  pinAutoEnabled: true,
   lineHeight: 1.3,
   lineHeightCite: 1.2,
   lineHeightTag: 1.2,
@@ -924,6 +945,8 @@ export interface SettingMeta {
     | 'keybindings'
     | 'text'
     | 'folder'
+    | 'fileSearchObjectTypes'
+    | 'fileSearchOutlineDepth'
     | 'speechDocFormat'
     | 'saveFormat'
     | 'findCategoryOrder'
@@ -993,6 +1016,42 @@ export const SETTING_METADATA: SettingMeta[] = [
     description:
       'When set, "New Speech Document" saves the new doc into this folder by default. Leave empty (the default) to keep the current behavior of leaving the doc unsaved until you explicitly Save / Save As.',
     kind: 'folder',
+    category: 'general',
+    electronOnly: true,
+  },
+  {
+    key: 'fileSearchRoot',
+    label: 'File search folder',
+    description:
+      'Root folder for the command-palette file search (type "f " in the search bar). It is scanned recursively for .cmir files each time you search — there is no persistent index yet, so very large libraries may feel slow. Leave empty to disable file search.',
+    kind: 'folder',
+    category: 'general',
+    electronOnly: true,
+  },
+  {
+    key: 'fileSearchObjectTypes',
+    label: 'File search: objects to find within a file',
+    description:
+      'After picking a file in the search palette (Tab), which structural objects show up as you search inside it. Inserting one drops the matching card (tag/cite), block section (block/hat/pocket), or analytic unit into your document.',
+    kind: 'fileSearchObjectTypes',
+    category: 'general',
+    electronOnly: true,
+  },
+  {
+    key: 'fileSearchOutlineDepth',
+    label: 'File search: default outline depth',
+    description:
+      "How far the outline is expanded when you first dive into a file (before typing). Pocket shows only top-level headings; Tag expands everything. Default Block. Right-click any pocket / hat / block in the outline to expand or collapse it.",
+    kind: 'fileSearchOutlineDepth',
+    category: 'general',
+    electronOnly: true,
+  },
+  {
+    key: 'pinAutoEnabled',
+    label: 'File search: auto-pin recent & frequent files',
+    description:
+      "On by default. Keeps your recent and frequently-used .cmir files 'warm' (parsed and held in memory) so diving into them from the search palette is instant. Turn off if you're sensitive to memory use — then only files you pin by hand (★ / Alt+P) are kept warm.",
+    kind: 'toggle',
     category: 'general',
     electronOnly: true,
   },
@@ -1270,9 +1329,9 @@ export const SETTING_METADATA: SettingMeta[] = [
   },
   {
     key: 'showDropzonePill',
-    label: 'Show dropzone shelf in nav pane',
+    label: 'Show dropzone shelf',
     description:
-      'When on, the cross-window dropzone pill sits at the bottom of the navigation pane. Turning it off hides the pill from the chrome; the shelf state and the Send to Dropzone shortcut still work — items pile up in the store and can be retrieved from any window that has the pill visible.',
+      "When on, the cross-window dropzone pill sits in the editor's bottom-left corner (the editor nearest the nav pane in multi-pane layouts). Turning it off hides the pill from the chrome; the shelf state and the Send to Dropzone shortcut still work — items pile up in the store and can be retrieved from any window that has the pill visible.",
     kind: 'toggle',
     category: 'appearance',
   },
@@ -1653,6 +1712,12 @@ function sanitize(s: Settings): Settings {
     uiFont: sanitizeUiFont(s.uiFont),
     ribbonTooltipMode: sanitizeRibbonTooltipMode(s.ribbonTooltipMode),
     showDropzonePill: s.showDropzonePill === true,
+    fileSearchRoot: typeof s.fileSearchRoot === 'string' ? s.fileSearchRoot : '',
+    fileSearchObjectTypes: sanitizeFileObjectTypes(s.fileSearchObjectTypes),
+    fileSearchOutlineDepth: Number.isFinite(s.fileSearchOutlineDepth)
+      ? clamp(Math.round(s.fileSearchOutlineDepth), 1, 4)
+      : 3,
+    pinAutoEnabled: s.pinAutoEnabled === false ? false : true,
     lineHeight: sanitizeLineHeight(s.lineHeight, DEFAULTS.lineHeight),
     lineHeightCite: sanitizeLineHeight(s.lineHeightCite, DEFAULTS.lineHeightCite),
     lineHeightTag: sanitizeLineHeight(s.lineHeightTag, DEFAULTS.lineHeightTag),
@@ -2028,6 +2093,14 @@ function sanitizeClodTimePeriods(raw: unknown): Settings['clodTimePeriods'] {
     }
   }
   return out;
+}
+
+/** Keep only recognized object-kind strings; default to block/tag/cite
+ *  when the value is missing/garbage (but allow an explicit empty set). */
+function sanitizeFileObjectTypes(raw: unknown): string[] {
+  const known = ['pocket', 'hat', 'block', 'tag', 'cite', 'analytic'];
+  if (!Array.isArray(raw)) return ['block', 'tag', 'cite'];
+  return [...new Set(raw.filter((x): x is string => typeof x === 'string' && known.includes(x)))];
 }
 
 function sanitizeShrinkProtections(raw: unknown): ShrinkProtection[] {

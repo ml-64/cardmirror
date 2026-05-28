@@ -9,12 +9,6 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Added
 
-- **Settings shortcuts in the search palette** — type `s ` in the
-  search bar (or just search everything) to find settings. Results
-  include both the top-level settings sections (General, Appearance,
-  …) and individual settings by name; pick one to open Settings to the
-  right tab, scrolled to and briefly highlighting that setting.
-
 - **Modern icons** — the toolbar, banners, dialogs, and status bar now
   use a clean line-icon set (Untitled UI) that takes on the active
   theme color, replacing the old mix of emoji and text symbols. New
@@ -46,11 +40,44 @@ see `DETAILED_CHANGELOG.md`.
     search everything, or scope with a prefix — `q ` for quick cards,
     `d ` for the dropzone, `c ` for **commands** (anything bindable to
     a keyboard shortcut; the result shows its current binding, and
-    selecting it runs the command). Matches on name first, then
-    contents; ↑/↓ to move, **Enter** to insert (or run a command),
-    **Alt+Enter** to insert at the end of the doc, Esc to close.
-    **Tab** jumps to an inline tag filter (type to filter, ↑/↓ + Enter
-    to toggle, Tab to return).
+    selecting it runs the command), `s ` for **settings**, and `f ` for
+    **files** (desktop). Matches on name first, then contents; ↑/↓ to
+    move, **Enter** to insert (or run a command / open a setting / open
+    a file), **Alt+Enter** to insert at the end of the doc, Esc to
+    close. **Tab** jumps to an inline tag filter (type to filter, ↑/↓ +
+    Enter to toggle, Esc to return).
+    - `s ` **settings** finds both the top-level settings sections
+      (General, Appearance, …) and individual settings by name;
+      selecting one opens that tab, scrolled to and briefly
+      highlighting the setting.
+    - `f ` **files** (desktop) finds `.cmir` files by name under a
+      folder you set in Settings → General → "File search folder"
+      (searched recursively). Enter opens a file in a new window (or the
+      slot picker in multi-pane), leaving your current document
+      untouched; **Tab** dives into the highlighted file. With the bar
+      empty you get the file's outline (its pocket → hat → block → tag
+      hierarchy, indented like the nav pane) to browse — right-click (or
+      click the chevron on) any pocket / hat / block to expand or
+      collapse it, and set how deep it opens by default via Settings →
+      General → "File search: default outline depth" (default Block, the
+      same idea as the nav pane). Start typing to search the cards,
+      blocks, and cites inside the file. Inserting a match
+      (Enter, like a quick card) keeps the palette open and the file
+      loaded, so you can pull several blocks in a row — Ctrl/Cmd+Z undoes
+      the last one without leaving the bar; Esc returns to the file list
+      with your prior search intact. Which object types appear in search
+      is configurable in Settings. The file list is cached between
+      searches (and across launches), but there's no content index yet,
+      so the first dive into a large file may feel slow.
+    - **Pinning / warm files:** to make the files you use most feel
+      instant, CardMirror keeps a small set "warm" (parsed and held in
+      memory). **Pin a file** with the ★ on its row or **Alt+P** —
+      pinned files stay warm and float to the top of `f`. It also
+      auto-warms your recent and frequently-used files (the most recent
+      6 + up to your top 10 by use); turn that off in Settings → General
+      → "File search: auto-pin recent & frequent files" if you'd rather
+      keep only hand-pinned files warm. Diving into a warm file is
+      instant — no re-parse.
   - **Tag Picker** (🏷️): choose which tags are in scope for search —
     handy when, say, several aff files each have a "2AC" card. The
     filter is global and persists.

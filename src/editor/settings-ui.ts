@@ -35,6 +35,11 @@ import { getInstallInfo } from './install-info.js';
 import { resetTimer } from './timer-state.js';
 import { showToast } from './toast.js';
 import { setIcon } from './icons';
+import {
+  FILE_OBJECT_KINDS,
+  FILE_OBJECT_KIND_LABELS,
+  type FileObjectKind,
+} from './file-search.js';
 
 /**
  * Available body fonts, organized into labeled groups. The dropdown
@@ -574,6 +579,14 @@ class SettingsModal {
     } else if (meta.kind === 'shrinkCustomProtections') {
       row.appendChild(text);
       row.appendChild(buildShrinkProtectionsEditor());
+      return row;
+    } else if (meta.kind === 'fileSearchObjectTypes') {
+      row.appendChild(text);
+      row.appendChild(buildFileObjectTypesEditor());
+      return row;
+    } else if (meta.kind === 'fileSearchOutlineDepth') {
+      row.appendChild(text);
+      row.appendChild(buildFileSearchOutlineDepthEditor());
       return row;
     } else if (meta.kind === 'keybindings') {
       row.appendChild(text);
@@ -2266,6 +2279,78 @@ function buildCondenseWarningDelimiterEditor(): HTMLElement {
   customRow.appendChild(customInner);
   wrap.appendChild(customRow);
 
+  return wrap;
+}
+
+/** Four-button segmented control for `fileSearchOutlineDepth` — the
+ *  deepest level the file-search outline expands to by default. */
+function buildFileSearchOutlineDepthEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-theme-editor';
+  const options: { value: number; label: string }[] = [
+    { value: 1, label: 'Pocket' },
+    { value: 2, label: 'Hat' },
+    { value: 3, label: 'Block' },
+    { value: 4, label: 'Tag' },
+  ];
+  for (const o of options) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pmd-theme-editor-btn';
+    btn.textContent = o.label;
+    btn.dataset['value'] = String(o.value);
+    btn.addEventListener('click', () => settings.set('fileSearchOutlineDepth', o.value));
+    wrap.appendChild(btn);
+  }
+  function refresh(): void {
+    const cur = String(settings.get('fileSearchOutlineDepth'));
+    for (const btn of wrap.querySelectorAll<HTMLButtonElement>('.pmd-theme-editor-btn')) {
+      btn.setAttribute('aria-pressed', btn.dataset['value'] === cur ? 'true' : 'false');
+    }
+  }
+  refresh();
+  const unsub = settings.subscribe(refresh);
+  onDetached(wrap, () => unsub());
+  return wrap;
+}
+
+/** Checklist of which structural objects the within-file search
+ *  surfaces (pocket / hat / block / tag / cite / analytic), editing
+ *  the `fileSearchObjectTypes` array. */
+function buildFileObjectTypesEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-file-object-types-editor';
+  for (const kind of FILE_OBJECT_KINDS) {
+    const row = document.createElement('label');
+    row.className = 'pmd-file-object-type-row';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.addEventListener('change', () => {
+      const cur = new Set(settings.get('fileSearchObjectTypes'));
+      if (cb.checked) cur.add(kind);
+      else cur.delete(kind);
+      // Persist in canonical outline order.
+      settings.set(
+        'fileSearchObjectTypes',
+        FILE_OBJECT_KINDS.filter((k) => cur.has(k)),
+      );
+    });
+    const span = document.createElement('span');
+    span.textContent = FILE_OBJECT_KIND_LABELS[kind];
+    row.append(cb, span);
+    wrap.appendChild(row);
+  }
+  const refresh = (): void => {
+    const set = new Set(settings.get('fileSearchObjectTypes') as FileObjectKind[]);
+    const boxes = wrap.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+    FILE_OBJECT_KINDS.forEach((kind, i) => {
+      const box = boxes[i];
+      if (box) box.checked = set.has(kind);
+    });
+  };
+  refresh();
+  const unsub = settings.subscribe(refresh);
+  onDetached(wrap, () => unsub());
   return wrap;
 }
 

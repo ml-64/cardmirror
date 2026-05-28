@@ -886,7 +886,12 @@ const ribbonContext: RibbonContext = {
     // (single-doc); opens browse-only when there's no active view.
     const paneEl =
       (view?.dom.closest('.pmd-pane') as HTMLElement | null) ?? editorEl ?? null;
-    quickCardSearchUI.open({ view, paneEl, runCommand: runRibbonCommandById });
+    quickCardSearchUI.open({
+      view,
+      paneEl,
+      runCommand: runRibbonCommandById,
+      openFilePath: openFileByPath,
+    });
   },
   insertImage: () => {
     if (!view) return;
@@ -1919,6 +1924,11 @@ settings.subscribe((s) => {
     'pmd-dropzone-pill-hidden',
     !s.showDropzonePill,
   );
+  // Reposition the pill when it's toggled on (toggling doesn't resize
+  // #app, so the ResizeObserver won't fire). rAF lets the display change
+  // apply first. The editor's scroll runway is pure CSS (the editable's
+  // padding-bottom, gated on the pill-hidden class), so it self-tracks.
+  requestAnimationFrame(positionDropzone);
   applyLineHeight(s.lineHeight);
   applyFormattingPanel(s.formattingPanelMode, s.formattingPanelPreview, s.showCharacterStyles);
   syncParagraphIntegrityBtn();
@@ -3447,6 +3457,15 @@ async function runOpenFlow(): Promise<void> {
     return;
   }
   if (!opened) return;
+  await routeOpenedFile(opened);
+}
+
+/** Route an already-obtained opened file: cross-window duplicate guard,
+ *  then multi-pane slot picker / spawn-a-new-window (unless this window
+ *  is still a pristine starter) / mount-in-place. Shared by the Open
+ *  dialog and the command-palette file search, so file search opens in
+ *  a new window / the slot picker rather than replacing the current doc. */
+async function routeOpenedFile(opened: OpenedFile): Promise<void> {
   // Cross-window duplicate-open guard (Electron): if any other
   // window already has this path open, main focuses that window
   // and we abort. Runs BEFORE the multi-doc / spawn-window /
@@ -3719,6 +3738,26 @@ async function pickAndLoadInPlace(): Promise<boolean> {
 
 /** Reopen a recent file in-place via its stored path handle.
  *  Prunes the entry if the file is gone / unreadable. */
+/** Open a `.cmir` by absolute path (the command palette's file search).
+ *  Reads the file, then routes through the shared open logic — so it
+ *  spawns a NEW window (single-doc) or shows the slot picker
+ *  (multi-pane) rather than overwriting the current window's doc. */
+async function openFileByPath(path: string, name: string): Promise<void> {
+  const electron = getElectronHost();
+  if (!electron) return;
+  let file: Awaited<ReturnType<typeof electron.readFileAtPath>>;
+  try {
+    file = await electron.readFileAtPath(path);
+  } catch {
+    file = null;
+  }
+  if (!file) {
+    showToast(`Couldn't open "${name}" — file moved or deleted.`);
+    return;
+  }
+  await routeOpenedFile({ name: file.name, bytes: file.bytes, handle: file.handle });
+}
+
 async function openRecentInPlace(recent: RecentFile): Promise<void> {
   const electron = getElectronHost();
   if (!electron || recent.handle == null) return;
@@ -4598,6 +4637,9 @@ function positionDropzone(): void {
   // as the left (it's left-anchored, so without this it grows toward
   // the window edge).
   root.style.maxWidth = `${Math.max(160, Math.round(r.width - 16))}px`;
+  // The editor's scroll runway (so the last content clears the pill) is
+  // a fixed CSS height on `.pmd-dropzone-runway-spacer`, gated on the
+  // pill-hidden class — no measurement needed here.
 }
 if (BOOT_MULTI_DOC_WORKSPACE) {
   void import('./multi-pane-shell.js').then(async (m) => {

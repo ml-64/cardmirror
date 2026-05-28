@@ -2572,6 +2572,20 @@ html.pmd-dropzone-pill-hidden .pmd-dropzone-root {
   display: none !important;
 }
 
+/* When the dropzone pill is showing it floats over the editor's
+   bottom-left, covering whatever doc content is there — fine until you
+   scroll to the very end, where there's no further scroll to free that
+   content. Pad the bottom of the editable itself: this extends the doc
+   content's height (the same thing that drives #app's scroll for any
+   long doc), so the last line can scroll up clear of the pill. ~4.5rem
+   clears the closed pill (its ~30px bar + the gap above the status bar)
+   with breathing room. Single-doc only — multi-pane panes scroll
+   independently. (Note: #editor is `zoom`-scaled, so this padding
+   scales with the editor zoom, which is fine — more zoom, more room.) */
+html:not(.pmd-dropzone-pill-hidden) body:not(.pmd-multi-doc) #editor .ProseMirror {
+  padding-bottom: 4.5rem;
+}
+
 /* ---- Dropzone shelf (cross-window scratch space) ----
    The visible "pill" is `.pmd-dropzone-bar`. The surrounding
    root has no chrome of its own when closed — the bar IS the
@@ -4402,6 +4416,19 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 
 /* Custom shrink protections list: text input + regex checkbox +
    inline validation note + delete. */
+.pmd-file-object-types-editor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  margin-top: 0.4rem;
+}
+.pmd-file-object-type-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+}
+
 .pmd-shrink-protections-editor {
   display: flex;
   flex-direction: column;
@@ -6520,6 +6547,48 @@ body.pmd-recovery-active.pmd-multi-doc #app {
 .pmd-qcs-badge-settings {
   color: var(--pmd-c-accent);
   border-color: var(--pmd-c-accent);
+}
+.pmd-qcs-badge-file {
+  color: var(--pmd-c-accent);
+  border-color: var(--pmd-c-accent);
+}
+.pmd-qcs-badge-fileobject {
+  color: var(--pmd-c-text-secondary);
+  border-color: var(--pmd-c-text-secondary);
+}
+/* Collapse chevron / spacer in the file-search outline browse. */
+.pmd-qcs-twisty {
+  flex: 0 0 auto;
+  width: 0.95em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-qcs-twisty-btn {
+  cursor: pointer;
+}
+.pmd-qcs-twisty-btn:hover {
+  color: var(--pmd-c-text);
+}
+/* Pin star on file-search rows. */
+.pmd-qcs-star {
+  flex: 0 0 auto;
+  margin-left: 0.4rem;
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--pmd-c-border);
+}
+.pmd-qcs-star:hover {
+  color: var(--pmd-c-text-secondary);
+}
+.pmd-qcs-star-on {
+  color: var(--pmd-c-accent);
+}
+.pmd-qcs-star-on:hover {
+  color: var(--pmd-c-accent);
 }
 .pmd-qcs-row-name {
   font-size: 0.92rem;

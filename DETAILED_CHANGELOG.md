@@ -7,6 +7,94 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Command palette: file search (`f` prefix) — a first slice of corpus
+  search.** Two on-demand stages, no persistent index yet (see
+  ARCHITECTURE.md §11):
+  - **File stage.** `f <query>` lists `.cmir` files under the new
+    `fileSearchRoot` folder setting via `host:list-cmir-files` (cached —
+    see the file-index note below), matched on filename with the same
+    token-substring ranking the rest of the palette uses. The listing is
+    held for the palette session; an `asyncToken` guards against stale
+    list/read results from a prior query or a closed palette. Enter opens
+    the file through `openFileByPath` → `routeOpenedFile` (extracted from
+    `runOpenFlow`): the cross-window dup guard, then spawn-a-new-window
+    (single-doc) or the slot picker (multi-pane), so it never overwrites
+    the current window's doc.
+  - **Within-file stage.** Tab on a highlighted file reads + `parseNative`s
+    it once, runs `extractFile` (new `file-search.ts`), and enters a
+    sticky in-file mode (the bar clears, prefix parsing is bypassed, Esc
+    restores the prior file query). `extractFile` returns both an
+    `outline` (the full pocket→hat→block→tag hierarchy with levels) and
+    flat searchable `objects` (the enabled kinds + cites), reusing
+    `collectHeadings` + `computeHeadingRange`. An **empty** query browses
+    the outline — rendered indented, nav-pane style, in full (no 50-cap),
+    cites excluded since they aren't headings; a non-empty query runs the
+    flat object search. Insert granularity is whatever
+    `computeHeadingRange` gives: tag/cite → the card, block/hat/pocket →
+    the heading + its section, analytic → its unit. The parsed doc is
+    kept on the in-file state and slices are taken **lazily** on insert
+    (`doc.slice(from, to)`, same schema — no eager per-heading slicing or
+    JSON round-trip), which also keeps the dive cheap. Inserts go through
+    `insertSpeechSlice`, like quick cards.
+  - **Collapsible outline.** The browse is collapsible: each pocket/hat/
+    block carries a chevron (and the row's right-click toggles), hiding
+    its subtree via a single-boundary visibility walk over the flat
+    outline. The initial collapsed set is seeded from a new
+    `fileSearchOutlineDepth` setting (default 3 = blocks shown, tags
+    collapsed), mirroring the nav pane's `navMaxLevel`; collapse state
+    lives on the in-file state and survives toggling between browse and
+    search within a dive.
+  - **Settings.** `fileSearchRoot` (folder), `fileSearchObjectTypes`
+    (checklist; default block/tag/cite), and `fileSearchOutlineDepth`
+    (Pocket/Hat/Block/Tag segmented control; default Block) under
+    General, all Electron-only.
+  - **Multi-grab.** Inserting a within-file object keeps the palette open
+    and the parsed file in memory, so you can pull several blocks in a
+    row (the parse cost is paid once per Tab, not per insert). Toast +
+    bar refocus happen in the `afterInsert` hook (after the deferred
+    insert's own `speechView.focus()`), and Ctrl/Cmd+Z / Shift+Z / Y are
+    routed to the editor's `undo`/`redo` from the bar so a misfire can be
+    taken back without leaving it. Other sources still close on insert.
+  - **Pinned files — a warm working set.** A small curated set of files
+    is kept "warm" (parsed `doc` + extracted objects/outline held in a
+    module-level `warmCache` in the renderer) so dives into them skip the
+    read+parse and are instant. Two kinds of pins:
+    - *Manual* (★ on a file row / **Alt+P** on the selected one): shown
+      with a solid star and floated to the top of `f`. Stored in a new
+      `pins-store.ts` (localStorage, like `recents-store` — durable +
+      cross-window without IPC).
+    - *Auto* (silent): recents (top 6) ∪ frequents (used ≥ 2×, top 10),
+      capped at 10 total; manual pins are exempt from the cap. Gated by
+      the `pinAutoEnabled` setting (default on) for memory-sensitive users.
+    The warm cache is keyed by path + `mtimeMs` (carried on `FileEntry`
+    from `host:list-cmir-files`) with an `enabledSig` so a change to the
+    searchable-object set re-extracts from the cached doc without
+    re-parsing. `warmPins()` pre-warms the effective set in a sequential
+    background pass when the file list loads (already-warm files skipped,
+    rotated-out pins pruned); a dive uses a warm hit when the mtime
+    matches, else reads/parses and warms it if pinned. Usage is recorded
+    on open + dive (feeds frequents). All renderer-side — no main-process
+    store, no parser refactor (see reference-docs/SPEC-pinned-files.md).
+
+  - **Cached file index (main process).** `host:list-cmir-files` caches
+    the recursive `.cmir` listing — with per-file mtime + size — in
+    memory and on disk (`{userData}/cmir-file-index.json`), returning
+    instantly and revalidating the tree in the background (coalesced
+    per root, rewritten only when it changed). Replaces the per-palette
+    directory walk; the stored mtimes set up the future content index's
+    reparse-only-what-changed pass. Files now also join the no-prefix
+    "search everything" (the scan is kicked off lazily and folded in
+    once ready).
+
+- **Fix: palette commands that open a prompt (e.g. New Speech Document)
+  did nothing.** The Enter that ran the command bubbled to `document`,
+  where the just-opened `promptForText` modal had synchronously
+  registered its keydown listener — which caught that same Enter and
+  instantly submitted itself with an empty value. The palette's Enter
+  now `stopPropagation()`s, so it can't leak into a modal the command
+  spawns. (Ribbon buttons were unaffected — a click has no Enter to
+  bleed.)
+
 - **Search palette: a settings source (`s` prefix).** The command
   palette gains a fourth source alongside quick cards (`q`), the
   dropzone (`d`), and commands (`c`): settings (`s`), also folded into
@@ -74,6 +162,20 @@ in each release, see `CHANGELOG.md`.
   shell mounts. `getFocusedView` now resolves via `getActiveView()`.
   Removed the per-nav-panel `installDropzone` (was one pill per
   nav-pane) and the nav-list's bottom-padding reserve.
+  - **Scroll runway under the pill.** The pill floats over the editor's
+    bottom-left, covering content there with no way to scroll it clear at
+    the doc's end. The fix is a fixed `padding-bottom: 4.5rem` on the
+    editable (`#editor .ProseMirror`), gated on
+    `html:not(.pmd-dropzone-pill-hidden)` (single-doc) — this extends the
+    doc content's own height, the same thing that drives `#app`'s scroll
+    for any long doc, so the last line scrolls clear of the pill. (Earlier
+    attempts — padding the flex item `.pmd-editor-row`, a JS-measured
+    `--pmd-dropzone-runway`, and a dedicated spacer flex child of `#app` —
+    didn't reliably extend the scroll area; padding the content does.)
+  - **Palette gating.** The command palette's dropzone source (`d`
+    prefix, its empty-state hint, and inclusion in "search everything")
+    now appears only when the dropzone is on (`showDropzonePill`); typing
+    `d ` while it's off shows an "it's off" hint instead.
 
 - **Bulk convert utility (desktop).** Home-screen button in its own
   labeled "Convert" group beside the Quick Cards group (shown only when

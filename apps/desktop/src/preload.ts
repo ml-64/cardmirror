@@ -104,6 +104,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('host:list-files-recursive', dir, ext) as Promise<
       Array<{ path: string; relPath: string }>
     >,
+  /** Cached + persisted recursive `.cmir` listing for the command-palette
+   *  file search (returns instantly from main's cache, revalidates in
+   *  the background). */
+  listCmirFiles: (root: string) =>
+    ipcRenderer.invoke('host:list-cmir-files', root) as Promise<
+      Array<{ path: string; relPath: string; mtimeMs: number; size: number }>
+    >,
   writeFileAtPath: (filePath: string, bytes: Uint8Array) =>
     ipcRenderer.invoke('host:write-file-at-path', filePath, bytes),
 

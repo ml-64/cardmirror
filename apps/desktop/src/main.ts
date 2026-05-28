@@ -432,6 +432,126 @@ ipcMain.handle(
   },
 );
 
+// ── Cached .cmir file index (command-palette file search) ───────────
+// The palette used to walk the search-root tree on every open. We now
+// cache the listing — with per-file mtime + size, which the future
+// content index will use to reparse only changed files — in memory and
+// on disk (`{userData}/cmir-file-index.json`), returning instantly and
+// revalidating in the background. Persists across launches.
+
+interface CmirFileEntry {
+  path: string;
+  relPath: string;
+  mtimeMs: number;
+  size: number;
+}
+
+const cmirIndexMem = new Map<string, CmirFileEntry[]>(); // search root → entries
+const cmirRevalidating = new Set<string>();
+let cmirIndexDiskLoaded = false;
+
+function cmirIndexPath(): string {
+  return path.join(app.getPath('userData'), 'cmir-file-index.json');
+}
+
+async function ensureCmirIndexLoaded(): Promise<void> {
+  if (cmirIndexDiskLoaded) return;
+  cmirIndexDiskLoaded = true;
+  try {
+    const text = await fs.readFile(cmirIndexPath(), 'utf8');
+    const parsed = JSON.parse(text);
+    if (parsed && parsed.roots && typeof parsed.roots === 'object') {
+      for (const [root, entries] of Object.entries(parsed.roots)) {
+        if (Array.isArray(entries)) cmirIndexMem.set(root, entries as CmirFileEntry[]);
+      }
+    }
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      console.warn('Failed to read cmir-file-index.json:', err);
+    }
+  }
+}
+
+let cmirIndexWriteTail: Promise<void> = Promise.resolve();
+function persistCmirIndex(): Promise<void> {
+  const snapshot = Object.fromEntries(cmirIndexMem);
+  cmirIndexWriteTail = cmirIndexWriteTail.catch(() => {}).then(async () => {
+    const finalPath = cmirIndexPath();
+    const tmpPath = `${finalPath}.tmp`;
+    await fs.writeFile(tmpPath, JSON.stringify({ version: 1, roots: snapshot }));
+    await fs.rename(tmpPath, finalPath);
+  });
+  return cmirIndexWriteTail;
+}
+
+/** Walk `root` recursively for `.cmir` files, recording mtime + size. */
+async function scanCmirFiles(root: string): Promise<CmirFileEntry[]> {
+  const out: CmirFileEntry[] = [];
+  async function walk(cur: string): Promise<void> {
+    let entries;
+    try {
+      entries = await fs.readdir(cur, { withFileTypes: true });
+    } catch {
+      return; // unreadable dir — skip
+    }
+    for (const ent of entries) {
+      const full = path.join(cur, ent.name);
+      if (ent.isDirectory()) await walk(full);
+      else if (ent.isFile() && ent.name.toLowerCase().endsWith('.cmir')) {
+        try {
+          const st = await fs.stat(full);
+          out.push({ path: full, relPath: path.relative(root, full), mtimeMs: st.mtimeMs, size: st.size });
+        } catch {
+          /* vanished between readdir and stat — skip */
+        }
+      }
+    }
+  }
+  await walk(root);
+  return out;
+}
+
+/** Added / removed / mtime-changed since the cached listing? */
+function cmirListingsDiffer(a: CmirFileEntry[], b: CmirFileEntry[]): boolean {
+  if (a.length !== b.length) return true;
+  const prev = new Map(a.map((e) => [e.path, e.mtimeMs]));
+  return b.some((e) => prev.get(e.path) !== e.mtimeMs);
+}
+
+/** Background refresh — updates the cache (+ disk) only if the tree
+ *  changed. Coalesced per-root so concurrent searches don't pile up
+ *  walks. The freshened list is picked up on the next palette open. */
+function revalidateCmirIndex(root: string): void {
+  if (cmirRevalidating.has(root)) return;
+  cmirRevalidating.add(root);
+  void scanCmirFiles(root)
+    .then((fresh) => {
+      cmirRevalidating.delete(root);
+      const prev = cmirIndexMem.get(root);
+      if (!prev || cmirListingsDiffer(prev, fresh)) {
+        cmirIndexMem.set(root, fresh);
+        void persistCmirIndex();
+      }
+    })
+    .catch(() => cmirRevalidating.delete(root));
+}
+
+ipcMain.handle('host:list-cmir-files', async (_event, root: string): Promise<CmirFileEntry[]> => {
+  if (typeof root !== 'string' || !root) return [];
+  await ensureCmirIndexLoaded();
+  const cached = cmirIndexMem.get(root);
+  if (cached) {
+    // Instant from cache; refresh in the background for next time.
+    revalidateCmirIndex(root);
+    return cached;
+  }
+  // Cold (first ever / new root): scan now, cache, persist.
+  const fresh = await scanCmirFiles(root);
+  cmirIndexMem.set(root, fresh);
+  void persistCmirIndex();
+  return fresh;
+});
+
 ipcMain.handle('host:write-file-at-path', async (_event, filePath: string, bytes: unknown) => {
   if (typeof filePath !== 'string' || !filePath) throw new Error('write-file-at-path: no path');
   // Ensure the parent directory exists (bulk convert writes into a

@@ -36,9 +36,12 @@ export function openLearnSession(scope: Scope, opts: SessionOpts = {}): void {
   };
 
   const onKey = (e: KeyboardEvent): void => {
+    // Modal: swallow keydowns so they don't reach document-level
+    // listeners behind the overlay — notably the Home screen's
+    // 1/2/3/4 action keys, which sit under this session.
+    e.stopPropagation();
     if (e.key === 'Escape') {
       e.preventDefault();
-      e.stopPropagation();
       cleanup();
       return;
     }

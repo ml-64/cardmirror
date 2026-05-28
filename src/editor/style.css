@@ -7949,6 +7949,9 @@ textarea.pmd-text-prompt-input {
   flex-direction: column;
   gap: 0.6rem;
 }
+/* An explicit `display` defeats the `[hidden]` attribute's display:none,
+   so restore it — the inactive (Q&A vs Cloze) group must stay hidden. */
+.pmd-learn-create-fields[hidden] { display: none; }
 .pmd-learn-create-field {
   display: flex;
   flex-direction: column;

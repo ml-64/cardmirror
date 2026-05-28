@@ -34,6 +34,7 @@ import { fromDocxFull, parseNative, serializeNative, NATIVE_FILE_EXTENSION } fro
 import { settings } from './settings.js';
 import { getHost, getElectronHost, isSameOpenHandle, type OpenedFile } from './host/index.js';
 import { getCommentsState, loadThreads, type Thread } from './comments-plugin.js';
+import { learnStore } from './learn-store-host.js';
 
 type DocFormat = 'cmir' | 'docx';
 
@@ -134,6 +135,7 @@ async function runJournalForRecord(record: DocRecord): Promise<void> {
     const state = record.view.state;
     const bytes = serializeNative(state.doc, {
       threads: Array.from(getCommentsState(state).threads.values()),
+      ...(record.docId ? { docId: record.docId } : {}),
     });
     await host.writeJournal({
       uid: record.uid,
@@ -178,7 +180,10 @@ async function runAutosaveForRecord(record: DocRecord): Promise<void> {
   try {
     const state = record.view.state;
     const threads = Array.from(getCommentsState(state).threads.values());
-    const bytes = serializeNative(state.doc, threads.length ? { threads } : undefined);
+    const bytes = serializeNative(state.doc, {
+      ...(threads.length ? { threads } : {}),
+      ...(record.docId ? { docId: record.docId } : {}),
+    });
     await host.saveExisting(record.handle, bytes);
     record.dirty = false;
     // Successful save → drop the journal. Mirrors the single-doc
@@ -262,6 +267,12 @@ interface DocRecord {
   autosaveEnabled: boolean;
   /** Debounce timer for the per-record autosave write. */
   autosaveTimer: number | null;
+  /** Stable per-document id for the Learn annotation layer (SPEC §3.1).
+   *  Read from the file on open; minted on first save (`ensureActiveDocId`
+   *  in index.ts, via `setFocusedDocId`); null for a never-saved doc (its
+   *  annotations key to `uid` until that mint rekeys them). Persisted into
+   *  the file by every save / autosave / journal write. */
+  docId: string | null;
   /** True when this record has unsaved changes — set on any
    *  doc-changing transaction, cleared on a successful save
    *  (manual or autosave). Drives the per-pane close-confirm
@@ -1483,10 +1494,25 @@ class MultiPaneShell {
   /** Return the focused doc's filename + on-disk handle + format,
    *  for the Save / Save-As flow. Returns null when no pane is
    *  focused or the slot has no visible record. */
-  getFocusedFile(): { filename: string; handle: unknown | null; format: DocFormat | null } | null {
+  getFocusedFile(): {
+    filename: string;
+    handle: unknown | null;
+    format: DocFormat | null;
+    docId: string | null;
+    uid: string;
+  } | null {
     const rec = this.focusedSlot?.visible;
     if (!rec) return null;
-    return { filename: rec.filename, handle: rec.handle, format: rec.format };
+    return { filename: rec.filename, handle: rec.handle, format: rec.format, docId: rec.docId, uid: rec.uid };
+  }
+
+  /** Set the focused doc's Learn id (minted lazily on first save /
+   *  flashcard, or forked on Save As). Lightweight on purpose — unlike
+   *  `setFocusedFile` it touches none of the filename / handle / chip /
+   *  path-claim machinery. */
+  setFocusedDocId(docId: string): void {
+    const rec = this.focusedSlot?.visible;
+    if (rec) rec.docId = docId;
   }
 
   /** Filenames in every slot, in slot order. Empty slots map to
@@ -1569,6 +1595,7 @@ class MultiPaneShell {
     filename: string;
     handle: string | null;
     format: DocFormat | null;
+    docId: string | null;
     doc: PMNode;
     threads: import('./comments-plugin.js').Thread[];
   }): Promise<void> {
@@ -1589,6 +1616,7 @@ class MultiPaneShell {
       handle: entry.handle,
       format: entry.format,
       uid: entry.uid,
+      docId: entry.docId,
       threads: entry.threads,
     });
     // Recovery restores content that wasn't successfully saved on
@@ -1773,15 +1801,17 @@ class MultiPaneShell {
     const format = formatFromFilename(opened.name) ?? 'docx';
     let doc: PMNode;
     let threads: Thread[];
+    let docId: string | null;
     if (format === 'cmir') {
-      ({ doc, threads } = parseNative(opened.bytes));
+      ({ doc, threads, docId } = parseNative(opened.bytes));
     } else {
-      ({ doc, threads } = await fromDocxFull(opened.bytes));
+      ({ doc, threads, docId } = await fromDocxFull(opened.bytes));
     }
     const slot = this.slots[target];
     const record = buildDocRecord(opened.name, doc, slot, {
       handle: opened.handle ?? null,
       format,
+      docId,
       threads,
     });
     slot.push(record);
@@ -2047,6 +2077,9 @@ function buildDocRecord(
     handle: unknown | null;
     format: DocFormat | null;
     uid?: string;
+    /** Stable Learn doc id read from the opened/recovered file
+     *  (null for a brand-new doc — minted on first save). */
+    docId?: string | null;
     /** Threads from the parser (docx / cmir / crash-recovery
      *  journal). Dispatched into the comments plugin AFTER
      *  `record` is initialized — `dispatchTransaction` closes
@@ -2160,6 +2193,7 @@ function buildDocRecord(
     // toggle once the doc has been saved as .cmir.
     autosaveEnabled: false,
     autosaveTimer: null,
+    docId: opts.docId ?? null,
     // Fresh doc: clean. Flipped on first doc-changing transaction;
     // cleared on a successful save (per-record autosave OR the
     // single-doc save flow firing through the focused-saved hook).
@@ -2179,6 +2213,17 @@ function buildDocRecord(
   // filename changes (setFocusedFilename / setFocusedFile) push
   // their own updates.
   pushPaneDocInfo(record.uid, record.filename);
+
+  // Register a known docId (opened/recovered file) so the Learn
+  // "By file" view + open-in-context can resolve this doc.
+  if (record.docId) {
+    learnStore.registerDoc({
+      docId: record.docId,
+      path: typeof record.handle === 'string' ? record.handle : null,
+      name: record.filename,
+      format: record.format,
+    });
+  }
 
   // Hydrate comments plugin state from the parser's threads. MUST
   // run AFTER `record` is initialized — `dispatchTransaction`
@@ -2222,6 +2267,7 @@ export function mountMultiPaneShell(): void {
     setFocusedFilename: (name) => shell!.setFocusedFilename(name),
     getFocusedFile: () => shell!.getFocusedFile(),
     setFocusedFile: (f) => shell!.setFocusedFile(f),
+    setFocusedDocId: (id) => shell!.setFocusedDocId(id),
     getAllFilenames: () => shell!.getAllFilenames(),
     clearFocusedJournal: () => shell!.clearFocusedJournal(),
     onRecoveredDoc: (entry) => shell!.onRecoveredDoc(entry),

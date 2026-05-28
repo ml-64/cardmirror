@@ -19,10 +19,15 @@ in each release, see `CHANGELOG.md`.
     store splits identity so file-copies share one logical card + one
     schedule while each file keeps its own grounding: `CardDef` +
     `ScheduleEntry` per `cardId`; `CardAnchor` per (`cardId`,`docId`).
-    `index.ts` mints the id lazily (`ensureDocId`, rekeying the session
-    uid), backfills it on open/save, and forks annotations on Save As
-    (`copyDocAnnotations`). Multi-pane is gated off until per-pane docId
-    threading lands.
+    The docId is resolved mode-agnostically so single-doc and multi-pane
+    behave identically: `index.ts` keeps `activeDocIdentity()` (focused
+    `DocRecord`'s `{docId, uid}` or the single-doc globals),
+    `ensureActiveDocId()` (mint + rekey the session uid), and
+    `setActiveDocId()` (write back, in multi-pane via the
+    `setFocusedDocId` shell hook). It's read from the file on open,
+    backfilled on save, persisted on every save / autosave / journal
+    write (so an autosave never strips identity), restored through crash
+    recovery, and forked on a full Save As (`copyDocAnnotations`).
   - **Create Flashcard.** New ribbon command (`createFlashcard`, in the
     Learn group; reachable from the command palette) anchors a card to
     the selection: `buildDescriptor` (`learn-anchor.ts`, Hypothesis-style

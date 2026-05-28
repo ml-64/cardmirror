@@ -1573,8 +1573,17 @@ selection, via the `createFlashcard` ribbon command / command palette),
 `learn-session-ui.ts` (the review overlay, driven by
 `learnStore.queue(scope, today)`), and the Home screen's Learn section
 (`home-screen.ts`, rebuilt from the store: review-all + per-file /
-per-deck due breakdown). Multi-pane create/review is gated off pending
-per-pane docId threading.
+per-deck due breakdown).
+
+**Multi-pane.** The docId lives on the `DocRecord` (`multi-pane-shell.ts`),
+not just the single-doc globals. `index.ts` resolves the *active* doc's
+identity mode-agnostically: `activeDocIdentity()` reads the focused
+record's `{docId, uid}` (or the single-doc globals), `ensureActiveDocId()`
+mints/rekeys it, and `setActiveDocId()` writes it back (through the
+`setFocusedDocId` shell hook). The record reads its docId from the file
+on open, persists it on every save / autosave / journal write, and
+restores it on crash recovery — so Create Flashcard and review behave
+identically in either layout.
 
 **Deferred.** Rendering anchored cards in the comments column + an
 unanchored / re-ground list; migrating Ask-AI threads from round-tripped

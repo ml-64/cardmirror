@@ -590,11 +590,19 @@ let multiDocGetAllFilenames: (() => (string | null)[]) | null = null;
 /** Full focused-file plumbing for the Save / Save-As flow — reads
  *  the filename plus the on-disk handle and on-disk format. */
 let multiDocGetFocusedFile:
-  | (() => { filename: string; handle: unknown | null; format: 'cmir' | 'docx' | null } | null)
+  | (() => {
+      filename: string;
+      handle: unknown | null;
+      format: 'cmir' | 'docx' | null;
+      docId: string | null;
+      uid: string;
+    } | null)
   | null = null;
 let multiDocSetFocusedFile:
   | ((file: { filename: string; handle: unknown | null; format: 'cmir' | 'docx' | null }) => void)
   | null = null;
+/** Set the focused DocRecord's Learn docId (minted/forked lazily). */
+let multiDocSetFocusedDocId: ((docId: string) => void) | null = null;
 /** Crash-recovery hook: clear the focused pane's journal after a
  *  successful save in multi-doc mode. The shell knows the
  *  DocRecord's uid; the editor only knows it has a focused doc. */
@@ -614,6 +622,7 @@ let multiDocOnRecoveredDoc:
       filename: string;
       handle: string | null;
       format: 'cmir' | 'docx' | null;
+      docId: string | null;
       doc: import('prosemirror-model').Node;
       threads: Thread[];
     }) => Promise<void>)
@@ -634,8 +643,15 @@ export function enableMultiDocMode(opts: {
   sendToDropzone?: () => void;
   getFocusedFilename?: () => string | null;
   setFocusedFilename?: (name: string) => void;
-  getFocusedFile?: () => { filename: string; handle: unknown | null; format: 'cmir' | 'docx' | null } | null;
+  getFocusedFile?: () => {
+    filename: string;
+    handle: unknown | null;
+    format: 'cmir' | 'docx' | null;
+    docId: string | null;
+    uid: string;
+  } | null;
   setFocusedFile?: (file: { filename: string; handle: unknown | null; format: 'cmir' | 'docx' | null }) => void;
+  setFocusedDocId?: (docId: string) => void;
   getAllFilenames?: () => (string | null)[];
   clearFocusedJournal?: () => Promise<void>;
   /** Called from single-doc save flows after a successful save so
@@ -647,6 +663,7 @@ export function enableMultiDocMode(opts: {
     filename: string;
     handle: string | null;
     format: 'cmir' | 'docx' | null;
+    docId: string | null;
     doc: import('prosemirror-model').Node;
     threads: Thread[];
   }) => Promise<void>;
@@ -666,6 +683,7 @@ export function enableMultiDocMode(opts: {
   multiDocSetFocusedFilename = opts.setFocusedFilename ?? null;
   multiDocGetFocusedFile = opts.getFocusedFile ?? null;
   multiDocSetFocusedFile = opts.setFocusedFile ?? null;
+  multiDocSetFocusedDocId = opts.setFocusedDocId ?? null;
   multiDocGetAllFilenames = opts.getAllFilenames ?? null;
   multiDocClearFocusedJournal = opts.clearFocusedJournal ?? null;
   multiDocNotifyFocusedSaved = opts.notifyFocusedSaved ?? null;
@@ -820,12 +838,6 @@ const ribbonContext: RibbonContext = {
   },
   createFlashcard: () => {
     if (!view) return;
-    if (multiDocActive) {
-      // Multi-pane flashcards wait on per-pane docId threading; without it
-      // we'd key the card to the wrong document. (SPEC-learn-system: deferred.)
-      showToast('Flashcards aren’t available in multi-pane yet.');
-      return;
-    }
     const sel = view.state.selection;
     if (sel.empty) {
       showToast('Select text to anchor a flashcard.');
@@ -835,7 +847,7 @@ const ribbonContext: RibbonContext = {
     void (async () => {
       const def = await openCreateFlashcard({ selectedText: descriptor.quote });
       if (!def) return;
-      const docId = ensureDocId();
+      const docId = ensureActiveDocId();
       const cardId = crypto.randomUUID();
       const today = localToday();
       learnStore.upsertCard({ id: cardId, type: def.type, front: def.front, back: def.back }, today);
@@ -3376,24 +3388,55 @@ let currentDocUid: string = newSessionDocUid();
 /** Stable per-document UUID for the Learn annotation layer (SPEC §3.1).
  *  Read from the file on open; minted on first save (in-place) or forked
  *  on Save As; null for a never-saved doc (its annotations key to
- *  `currentDocUid` until first save, then `ensureDocId` rekeys them). */
+ *  `currentDocUid` until first save, then `ensureActiveDocId` rekeys them).
+ *  Single-doc only — multi-pane keeps the equivalent on each DocRecord. */
 let currentDocId: string | null = null;
 
-/** The docId to ground new annotations against right now — the persistent
- *  `currentDocId` once saved, else the session uid (rekeyed onto the real
- *  docId at first save). Used by Create Flashcard / Ask AI. */
-function activeAnnotationDocId(): string {
-  return currentDocId ?? currentDocUid;
+/** The active doc's persistent docId + session uid — mode-aware. In
+ *  multi-pane this is the focused pane's record; in single-doc the
+ *  module-level `currentDoc*` values. */
+function activeDocIdentity(): { docId: string | null; sessionUid: string } {
+  if (multiDocActive && multiDocGetFocusedFile) {
+    const f = multiDocGetFocusedFile();
+    if (f) return { docId: f.docId, sessionUid: f.uid };
+  }
+  return { docId: currentDocId, sessionUid: currentDocUid };
 }
 
-/** Return the doc's stable id, minting one (and rekeying any pre-save
- *  annotations off the session uid) on first save of a never-saved doc. */
-function ensureDocId(): string {
-  if (!currentDocId) {
-    currentDocId = crypto.randomUUID();
-    learnStore.rekeyDoc(currentDocUid, currentDocId);
+/** Write the active doc's persistent docId back into its record
+ *  (focused pane in multi-pane, module global in single-doc). */
+function setActiveDocId(docId: string): void {
+  if (multiDocActive && multiDocSetFocusedDocId) {
+    multiDocSetFocusedDocId(docId);
+    return;
   }
-  return currentDocId;
+  currentDocId = docId;
+}
+
+/** The docId to ground new annotations against right now — the persistent
+ *  docId once saved, else the session uid (rekeyed onto the real docId at
+ *  first save). Used by Create Flashcard / Ask AI. */
+function activeAnnotationDocId(): string {
+  const { docId, sessionUid } = activeDocIdentity();
+  return docId ?? sessionUid;
+}
+
+/** Return the active doc's stable id, minting one (and rekeying any
+ *  pre-save annotations off the session uid) on first save / first
+ *  flashcard of a never-saved doc. Works in both layouts. */
+function ensureActiveDocId(): string {
+  const { docId, sessionUid } = activeDocIdentity();
+  if (docId) return docId;
+  const id = crypto.randomUUID();
+  learnStore.rekeyDoc(sessionUid, id);
+  setActiveDocId(id);
+  return id;
+}
+
+/** The persistent docId to embed on a save — never the session uid (a
+ *  never-saved doc writes no identity). */
+function activeSavedDocId(): string | undefined {
+  return activeDocIdentity().docId ?? undefined;
 }
 
 /** Adopt the docId read from an opened file (null ⇒ minted on next save)
@@ -4074,8 +4117,8 @@ export async function runSaveAsFlow(): Promise<boolean> {
   try {
     // A full Save As is a distinct logical doc → fork a new docId (the
     // original file keeps its own). Derived/lossy exports get no docId
-    // (clean copies). Single-doc only; multi-doc identity is deferred.
-    const forkDocId = isFullSave && !multiDocActive ? crypto.randomUUID() : undefined;
+    // (clean copies). Works in both layouts via the focused-doc identity.
+    const forkDocId = isFullSave ? crypto.randomUUID() : undefined;
     const bytes = await serializeForSave(
       choice.format,
       {
@@ -4091,14 +4134,18 @@ export async function runSaveAsFlow(): Promise<boolean> {
     });
     if (!result) return false;
     if (isFullSave) {
+      // Read the pre-fork identity before committing the new file
+      // (commitSaveResult leaves docId untouched, but read first to be
+      // explicit about which doc we're forking FROM).
+      const { docId: srcDocId, sessionUid } = activeDocIdentity();
       commitSaveResult(result.name, result.handle ?? null, choice.format);
       if (forkDocId) {
         // Carry this doc's annotations onto the fork so the cards follow:
         // copy from a saved doc (original keeps its set), or move from the
         // session uid for a never-saved doc.
-        if (currentDocId) learnStore.copyDocAnnotations(currentDocId, forkDocId);
-        else learnStore.rekeyDoc(currentDocUid, forkDocId);
-        currentDocId = forkDocId;
+        if (srcDocId) learnStore.copyDocAnnotations(srcDocId, forkDocId);
+        else learnStore.rekeyDoc(sessionUid, forkDocId);
+        setActiveDocId(forkDocId);
         learnStore.registerDoc({
           docId: forkDocId,
           path: typeof result.handle === 'string' ? result.handle : null,
@@ -4142,9 +4189,9 @@ export async function runSaveFlow(): Promise<boolean> {
     return runSaveAsFlow();
   }
   try {
-    // Single-doc: ensure a stable docId (minting + rekeying pre-save
-    // annotations on first save). Multi-doc identity is deferred.
-    const docId = multiDocActive ? undefined : ensureDocId();
+    // Ensure a stable docId (minting + rekeying pre-save annotations on
+    // first save), keyed to the focused doc in either layout.
+    const docId = ensureActiveDocId();
     const bytes = await serializeForSave(
       file.format,
       {
@@ -4289,6 +4336,7 @@ async function runJournalWrite(): Promise<void> {
   try {
     const bytes = serializeNative(view.state.doc, {
       threads: Array.from(getCommentsState(view.state).threads.values()),
+      ...(currentDocId ? { docId: currentDocId } : {}),
     });
     await host.writeJournal({
       uid: currentDocUid,
@@ -4337,12 +4385,18 @@ async function runAutosaveAttempt(): Promise<void> {
   if (file.format !== 'cmir' || !file.handle) return;
   if (!getHost().supportsInPlaceSave) return;
   try {
-    const bytes = await serializeForSave('cmir', {
-      includeComments: true,
-      includeAnalytics: true,
-      includeUndertags: true,
-      readMode: false,
-    });
+    const bytes = await serializeForSave(
+      'cmir',
+      {
+        includeComments: true,
+        includeAnalytics: true,
+        includeUndertags: true,
+        readMode: false,
+      },
+      // Preserve the doc's identity on autosave (a saved .cmir already
+      // has one; without this the autosave write would strip it).
+      activeSavedDocId(),
+    );
     await getHost().saveExisting(file.handle, bytes);
     flashSaveSuccess();
     markCurrentDocClean();
@@ -4858,21 +4912,25 @@ async function mountFromSpawnPayload(
   try {
     let docNode: PMNode;
     let docThreads: Thread[] | undefined;
+    let docId: string | null;
     const format = payload.format ?? formatFromFilename(payload.filename) ?? 'docx';
     if (format === 'cmir') {
       const parsed = parseNative(payload.bytes);
       docNode = parsed.doc;
       docThreads = parsed.threads.length > 0 ? parsed.threads : undefined;
+      docId = parsed.docId;
     } else {
       const result = await fromDocxFull(payload.bytes);
       docNode = result.doc;
       docThreads = result.threads;
+      docId = result.docId;
     }
     mountView(docNode, docThreads);
     currentDocFilename = payload.filename;
     setCurrentDocHandle(payload.handle);
     currentDocFormat = format;
     currentDocUid = payload.uid ?? newSessionDocUid();
+    adoptDocId(docId, payload.filename, payload.handle, format);
     // Newly spawned window starts clean — even though it has
     // pre-loaded content from the originating window, it hasn't
     // been edited in THIS window's session.
@@ -5019,6 +5077,7 @@ async function runStartupRecovery(): Promise<void> {
             filename: entry.filename,
             handle: entry.handle,
             format: entry.format,
+            docId: parsed.docId,
             doc: parsed.doc,
             threads: parsed.threads,
           });
@@ -5143,6 +5202,7 @@ async function autoRecoverAll(entries: JournalEntry[]): Promise<void> {
           filename: entry.filename,
           handle: entry.handle,
           format: entry.format,
+          docId: parsed.docId,
           doc: parsed.doc,
           threads: parsed.threads,
         });
@@ -5197,6 +5257,10 @@ async function applyRecovery(entry: JournalEntry): Promise<void> {
   // Reuse the original uid so a re-crash overwrites the same
   // journal slot (rather than accumulating new ones).
   currentDocUid = entry.uid;
+  // Restore the Learn doc id from the recovered bytes so flashcards
+  // re-associate (and a never-saved doc's cards stay keyed to the
+  // reused uid above). adoptDocId registers it when present.
+  adoptDocId(parsed.docId, entry.filename, entry.handle, entry.format);
   // Recovery restores content that wasn't successfully saved on the
   // previous session, so the doc is dirty by definition.
   markCurrentDocDirty();

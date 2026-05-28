@@ -26,9 +26,8 @@ see `DETAILED_CHANGELOG.md`.
     comments, so sharing a `.docx`/`.cmir` never leaks your cards.
     Documents keep a stable hidden id (it survives a round-trip through
     Word) so your cards re-associate with the right file; **Save As**
-    forks a copy's cards alongside the new file.
-  - Multi-pane review/creation isn't wired up yet — use a single
-    document window for now.
+    forks a copy's cards alongside the new file. Works the same in
+    single-document windows and the multi-pane workspace.
 
 - **Modern icons** — the toolbar, banners, dialogs, and status bar now
   use a clean line-icon set (Untitled UI) that takes on the active

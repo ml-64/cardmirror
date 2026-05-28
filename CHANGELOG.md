@@ -278,6 +278,14 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Fixed
 
+- **Pasted sections now work in the navigation pane.** When you copied
+  pockets/hats/blocks (and the cards under them) from one document and
+  pasted them into another, the pasted headings were inert in the
+  destination's outline — you couldn't expand/collapse them (they stayed
+  permanently open), couldn't jump to them, and the 1/2/3/4 level buttons
+  ignored them. Pasted headings now get fresh internal ids (the copy step
+  was dropping them), so they behave like any other heading.
+
 - **After dragging a card to a new spot, the editor jumps to it.**
   Previously the view jumped to a seemingly random place after a
   drag-and-drop (it followed wherever your cursor happened to be before

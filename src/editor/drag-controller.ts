@@ -448,33 +448,43 @@ export function buildCopyTransaction(
  *  `newHeadingId()`. Only nodes whose schema declares an `id` attr
  *  populated with a string get rewritten (pocket / hat / block / tag /
  *  analytic — see `headingAttrs` in `schema/nodes.ts`). Nodes without
- *  an id attr or with a default-null id pass through unchanged. */
+ *  an id attr or with a default-null id pass through unchanged. Used for
+ *  duplicating live-doc content (drag-copy / dropzone / send-to-speech),
+ *  where every heading already carries an id. */
 export function rewriteHeadingIds(slice: Slice): Slice {
-  return new Slice(
-    rewriteFragment(slice.content),
-    slice.openStart,
-    slice.openEnd,
+  return mapSliceIds(slice, (node) =>
+    !!(node.attrs && typeof node.attrs['id'] === 'string' && node.attrs['id']),
   );
 }
 
-function rewriteFragment(frag: Fragment): Fragment {
+/** Assign a fresh `newHeadingId()` to EVERY id-bearing node, regardless
+ *  of its current value (including the default `null`). Used by paste:
+ *  PM's clipboard parser drops `data-id` (our `parseDOM.getAttrs` only
+ *  reads `indent`), so pasted pockets/hats/blocks/tags arrive with
+ *  `id: null` — and the nav pane keys expand/collapse, jump, and the
+ *  1/2/3/4 level filter off the id, so id-less headings are inert.
+ *  Filling ids on paste keeps the workspace id-uniqueness invariant
+ *  (ARCHITECTURE §4 / §12) the same way the copy paths do. */
+export function freshHeadingIds(slice: Slice): Slice {
+  return mapSliceIds(slice, (node) => !!node.attrs && 'id' in node.attrs);
+}
+
+function mapSliceIds(slice: Slice, assign: (node: PMNode) => boolean): Slice {
+  return new Slice(mapFragmentIds(slice.content, assign), slice.openStart, slice.openEnd);
+}
+
+function mapFragmentIds(frag: Fragment, assign: (node: PMNode) => boolean): Fragment {
   const children: PMNode[] = [];
-  frag.forEach((child) => children.push(rewriteNode(child)));
+  frag.forEach((child) => children.push(mapNodeIds(child, assign)));
   return Fragment.fromArray(children);
 }
 
-function rewriteNode(node: PMNode): PMNode {
+function mapNodeIds(node: PMNode, assign: (node: PMNode) => boolean): PMNode {
   // Text nodes are immutable and can't be reconstructed via
   // `type.create` — and they never carry an id attr anyway, so leave
   // them alone. Inline leaves (image) likewise have no id.
   if (node.isText) return node;
-  const newContent = node.isLeaf
-    ? node.content
-    : rewriteFragment(node.content);
-  const hasIdAttr =
-    node.attrs && typeof node.attrs['id'] === 'string' && node.attrs['id'];
-  const nextAttrs = hasIdAttr
-    ? { ...node.attrs, id: newHeadingId() }
-    : node.attrs;
+  const newContent = node.isLeaf ? node.content : mapFragmentIds(node.content, assign);
+  const nextAttrs = assign(node) ? { ...node.attrs, id: newHeadingId() } : node.attrs;
   return node.type.create(nextAttrs, newContent, node.marks);
 }

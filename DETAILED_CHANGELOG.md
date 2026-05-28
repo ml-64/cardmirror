@@ -7,6 +7,27 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Paste stamps fresh heading ids (nav pane works on pasted sections).**
+  The heading nodes (pocket/hat/block/tag/analytic) carry a stable `id`
+  that the nav pane keys expand/collapse, jump-to, and the 1/2/3/4 level
+  filter off of — but the schema's `parseDOM.getAttrs` reads only
+  `indent`, never `data-id`, so PM's clipboard parser returns pasted
+  headings with `id: null`. Drag-copy / dropzone / send-to-speech all
+  call `rewriteHeadingIds` to keep ids unique, but paste had no
+  equivalent, so pasted pockets/hats/blocks/tags were id-less and inert
+  in the destination outline (permanently expanded, un-jumpable, ignored
+  by the level filter). `rewriteHeadingIds` couldn't be reused as-is — it
+  only rewrites *existing* non-null ids — so `drag-controller.ts` now
+  factors the slice walk into `mapSliceIds(slice, predicate)` behind two
+  exports: `rewriteHeadingIds` (assign when the node already has a
+  non-empty id) and the new `freshHeadingIds` (assign to every id-bearing
+  node, filling nulls). The paste plugin gains a `transformPasted` prop
+  that runs `freshHeadingIds` — it fires inside PM's `parseFromClipboard`
+  before `handlePaste` sees the slice, so the tag/analytic split and
+  card-body paths get fresh ids too. The `parseHeadFromHTML` fallback
+  (which re-parses the raw clipboard HTML and so bypasses
+  `transformPasted`) stamps its reconstructed head directly.
+
 - **Drag-and-drop now jumps to the dropped section like a nav-pane
   click.** Before, every drop path in `drag-controller.ts` ended in
   `tr.scrollIntoView()` over a transaction that never set a selection —

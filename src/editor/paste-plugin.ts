@@ -38,6 +38,8 @@ import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } 
 import { DOMParser as PMDOMParser, Fragment, Slice, type Node as PMNode } from 'prosemirror-model';
 import type { EditorView } from 'prosemirror-view';
 import { schema } from '../schema/index.js';
+import { newHeadingId } from '../schema/ids.js';
+import { freshHeadingIds } from './drag-controller.js';
 import { condenseBranchC, condenseMerge } from './condense.js';
 import { buildImageNodeFromBlob, insertImageNode } from './image-insert.js';
 
@@ -195,6 +197,16 @@ export function buildPastePlugin(ctx: PastePluginCtx): Plugin<PluginState> {
       },
     },
     props: {
+      // Stamp every pasted heading with a fresh unique id. The clipboard
+      // parser drops `data-id` (our `parseDOM.getAttrs` reads only
+      // `indent`), so headings arrive with `id: null`; the nav pane keys
+      // expand/collapse, jump, and the 1/2/3/4 level filter off the id,
+      // so id-less pasted pockets/hats/blocks/tags would be inert. Runs
+      // inside PM's `parseFromClipboard`, before `handlePaste` sees the
+      // slice, so the split / card-body paths below also get fresh ids.
+      transformPasted(slice) {
+        return freshHeadingIds(slice);
+      },
       handlePaste(view, event, slice) {
         // Clipboard image paste — screenshots, copy-image from a
         // browser, etc. Take precedence over text / HTML branches
@@ -476,5 +488,10 @@ function parseHeadFromHTML(event: ClipboardEvent): PMNode | null {
   const node = parsed.content.firstChild;
   if (!node) return null;
   if (node.type.name !== 'tag' && node.type.name !== 'analytic') return null;
-  return node;
+  // This path re-parses the raw clipboard HTML directly, so it bypasses
+  // the plugin's `transformPasted` fresh-id stamping — give the
+  // reconstructed head its own id (it parses back as null, same as the
+  // slice path). Without it a tag pasted into a card body via the
+  // split path would land id-less.
+  return node.type.create({ ...node.attrs, id: newHeadingId() }, node.content, node.marks);
 }

@@ -138,6 +138,17 @@ Notes:
   is implicit in document order + outline level — not enforced by
   schema containment. The nav panel walks the flat sequence and groups
   by outline level to derive the tree view.
+- **Heading ids are unique and (re)assigned on every way content
+  enters.** Each pocket/hat/block/tag/analytic carries a stable UUID
+  `id` — the nav pane keys expand/collapse, jump-to, and the level
+  filter off it, and it's the transclusion / intra-doc-link target
+  (§12). It serializes to `data-id` in our HTML but is deliberately
+  *not* read back by `parseDOM` (which reads only `indent`), so content
+  arriving through the clipboard or an import is id-less and gets a
+  fresh id rather than a copied one — keeping ids unique even when a
+  section is duplicated. Assignment paths: paste →
+  `freshHeadingIds` (the paste plugin's `transformPasted`); drag-copy /
+  dropzone / send-to-speech → `rewriteHeadingIds`; import → `ensureId`.
 - **Pocket is optional at root.** Some real working docs have zero
   Heading1 paragraphs. Top-level entry can be Hat, Block, or a plain
   paragraph.

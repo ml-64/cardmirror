@@ -39,7 +39,8 @@ import { showToast } from './toast.js';
 import { scheduleIdle, cancelIdle, type IdleHandle } from './idle-scheduler.js';
 import { setIcon } from './icons';
 import { learnStore, localToday } from './learn-store-host.js';
-import { resolveDescriptor } from './learn-anchor.js';
+import { resolveDescriptor, buildDescriptor } from './learn-anchor.js';
+import { openCardEditor } from './learn-create-ui.js';
 import { isDue } from './learn-scheduler.js';
 import { setFlashcardRangesTr, flashcardRangeMap, type FlashcardRange } from './learn-highlight-plugin.js';
 import type { CardAnchor } from './learn-store.js';
@@ -978,6 +979,7 @@ export class CommentsColumn {
       back.textContent = def.back;
       card.appendChild(back);
     }
+    if (isActive) card.appendChild(this.buildFlashcardActions(cardId));
   }
 
   /** Render / update the collapsible "Unanchored (n)" section pinned at
@@ -1040,7 +1042,89 @@ export class CommentsColumn {
       was.textContent = 'not yet grounded to text';
     }
     row.appendChild(was);
+    row.appendChild(this.buildFlashcardActions(anchor.cardId, { reground: true }));
     return row;
+  }
+
+  /** Re-ground an unanchored card to the current editor selection
+   *  (SPEC §4.3). The store change re-resolves it into an anchored
+   *  card on the next refresh. */
+  private regroundCard(cardId: string): void {
+    const view = this.getView();
+    if (!view) return;
+    const sel = view.state.selection;
+    if (sel.empty) {
+      showToast('Select text in the document, then click Re-ground.');
+      return;
+    }
+    const descriptor = buildDescriptor(view.state.doc, sel.from, sel.to);
+    learnStore.setAnchor(cardId, this.getDocId(), descriptor);
+    showToast('Flashcard re-grounded.');
+  }
+
+  /** Shared action row for a flashcard — Edit, Suspend/Resume, Delete
+   *  (two-click), plus an optional Re-ground (unanchored rows). Used by
+   *  the active card and the Unanchored list; mutations flow through the
+   *  store → subscription → re-resolve + re-render. */
+  private buildFlashcardActions(cardId: string, opts: { reground?: boolean } = {}): HTMLElement {
+    const actions = document.createElement('div');
+    actions.className = 'pmd-flashcard-card-actions';
+    const mk = (label: string, onClick: () => void): HTMLButtonElement => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'pmd-flashcard-card-action';
+      b.textContent = label;
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onClick();
+      });
+      return b;
+    };
+    if (opts.reground) actions.appendChild(mk('Re-ground', () => this.regroundCard(cardId)));
+    actions.appendChild(
+      mk('Edit', () => {
+        const def = learnStore.getCard(cardId);
+        if (!def) return;
+        void (async () => {
+          const next = await openCardEditor({
+            initial: { type: def.type, front: def.front, back: def.back },
+          });
+          if (next) {
+            learnStore.upsertCard(
+              { id: cardId, type: next.type, front: next.front, back: next.back },
+              localToday(),
+            );
+          }
+        })();
+      }),
+    );
+    const suspended = learnStore.getSchedule(cardId)?.state === 'suspended';
+    actions.appendChild(mk(suspended ? 'Resume' : 'Suspend', () => learnStore.setSuspended(cardId, !suspended)));
+    // Two-click delete (no native confirm in Electron).
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'pmd-flashcard-card-action pmd-flashcard-card-delete';
+    del.textContent = 'Delete';
+    let armed = false;
+    let timer: number | null = null;
+    del.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!armed) {
+        armed = true;
+        del.textContent = 'Delete?';
+        del.classList.add('is-armed');
+        timer = window.setTimeout(() => {
+          armed = false;
+          del.textContent = 'Delete';
+          del.classList.remove('is-armed');
+        }, 3000);
+        return;
+      }
+      if (timer !== null) window.clearTimeout(timer);
+      learnStore.deleteCard(cardId);
+    });
+    actions.appendChild(del);
+    return actions;
   }
 
   /** One-line preview used when a thread is collapsed. Shows the

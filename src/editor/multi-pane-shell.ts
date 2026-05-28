@@ -1364,10 +1364,12 @@ class MultiPaneShell {
       setActiveView(slot.visible?.view ?? null);
     }
     // The shared comments column lives at the shell-row level, not
-    // inside any single pane — so re-render its cards against this
-    // doc, and re-point the scroll listener so cards relayout as
-    // the focused pane scrolls.
-    commentsColumn?.render();
+    // inside any single pane — so re-resolve this doc's flashcard
+    // anchors (the focused doc changed) and re-render its cards, and
+    // re-point the scroll listener so cards relayout as the focused
+    // pane scrolls. `refreshFlashcardAnchors` re-renders for us (and is
+    // a no-op when the column is hidden, same as render()).
+    commentsColumn?.refreshFlashcardAnchors();
     this.attachFocusedScrollSync(slot);
     const activeCount = SLOT_IDS.filter((id) => this.slots[id].stack.length > 0).length;
     if (this.layoutMode === 'wide' && activeCount === 3) {

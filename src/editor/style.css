@@ -5297,6 +5297,41 @@ body.pmd-comments-resize-active {
   margin-top: 0.15rem;
 }
 
+/* Flashcard action row (active card + unanchored rows). */
+.pmd-flashcard-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.45rem;
+}
+.pmd-comments-unanchored-row .pmd-flashcard-card-actions {
+  margin-top: 0.3rem;
+}
+.pmd-flashcard-card-action {
+  appearance: none;
+  font: inherit;
+  font-size: 0.72rem;
+  background: transparent;
+  border: 1px solid var(--pmd-c-border-soft);
+  border-radius: 5px;
+  padding: 0.15rem 0.45rem;
+  cursor: pointer;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-flashcard-card-action:hover {
+  background: var(--pmd-c-surface);
+  color: var(--pmd-c-text);
+}
+.pmd-flashcard-card-delete:hover {
+  color: var(--pmd-c-error);
+  border-color: var(--pmd-c-error);
+}
+.pmd-flashcard-card-delete.is-armed {
+  color: var(--pmd-c-text-on-accent);
+  background: var(--pmd-c-error);
+  border-color: var(--pmd-c-error);
+}
+
 /* Active card: expanded, slight highlight + accent border so the
    user can see which thread is anchored to their selection. */
 .pmd-comment-thread-active {

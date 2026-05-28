@@ -723,7 +723,12 @@ straightforward:
   which siblings a node can move between. Invalid drop targets are
   not lit up; invalid drops are rejected.
 - Atomic moves: one ProseMirror transaction repositions a node and its
-  descendants. Single undo step.
+  descendants. Single undo step. The transaction also selects the top of
+  the dropped content (its first heading); after dispatch the controller
+  `preciseScrollIntoView`s that element — the same primitive the nav pane
+  uses to jump to a heading (§8) — so a drop leaves the viewport exactly
+  where clicking that heading in the outline would, rather than at the
+  incidental pre-drag caret position.
 - Modifier scoping (super-drag = card, super+shift-drag = block, etc.)
   is a UX choice on top of the same primitive.
 - Drag works **from the navigation panel** (§8) as well as from the

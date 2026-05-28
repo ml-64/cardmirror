@@ -18,9 +18,11 @@
  */
 
 import type { EditorView } from 'prosemirror-view';
+import { Selection } from 'prosemirror-state';
 import type { EditorState, Transaction } from 'prosemirror-state';
 import { Fragment, type Node as PMNode, Slice } from 'prosemirror-model';
 import { newHeadingId } from '../schema/ids.js';
+import { preciseScrollIntoView } from './precise-scroll.js';
 
 export interface DragItem {
   /** Doc position range covering the dragged unit (heading + its
@@ -214,9 +216,13 @@ class DragControllerImpl {
         tr.insert(target, rewritten.content);
         target += rewritten.content.size;
       }
-      tgtView.dispatch(tr.scrollIntoView());
+      // Land the caret on the top of the dropped section, then jump the
+      // viewport to it exactly like clicking that heading in the nav pane.
+      selectTopOfInsert(tr, insertPos);
+      tgtView.dispatch(tr);
       // Move focus to the destination so subsequent edits land here.
       tgtView.focus();
+      scrollToDroppedTop(tgtView);
       this.session = null;
       this.hoverTarget = null;
       this.copyMode = false;
@@ -231,7 +237,12 @@ class DragControllerImpl {
       this.cancel();
       return false;
     }
-    srcView.dispatch(tr.scrollIntoView());
+    srcView.dispatch(tr);
+    // Focus so PM syncs the DOM caret to the transaction's selection (the
+    // front of the dropped heading); without this the visible cursor is
+    // left wherever it was before the drag. Then jump the viewport.
+    srcView.focus();
+    scrollToDroppedTop(srcView);
 
     this.session = null;
     this.hoverTarget = null;
@@ -354,11 +365,45 @@ export function buildMoveTransaction(
   // Map the target through every cut, then insert items in original
   // document order, advancing the local target by each insertion.
   let target = tr.mapping.map(insertPos);
+  const insertStart = target;
   for (const slice of slices) {
     tr.insert(target, slice.content);
     target += slice.content.size;
   }
+  // Land the caret (and the post-drop scroll) on the top of the dropped
+  // section — its first heading — so the viewport follows the move.
+  selectTopOfInsert(tr, insertStart);
   return tr;
+}
+
+/** Put the selection at the top of just-inserted content (`insertStart`
+ *  is the position right before the first inserted node) so the drop's
+ *  `scrollIntoView` lands on the dropped section's first header. */
+function selectTopOfInsert(tr: Transaction, insertStart: number): void {
+  try {
+    tr.setSelection(Selection.near(tr.doc.resolve(insertStart), 1));
+  } catch {
+    // Position out of range (defensive) — leave the default selection.
+  }
+}
+
+/** Jump the viewport to the just-dropped content exactly as the nav
+ *  pane's "jump to heading" does: resolve the DOM element at the current
+ *  selection (the drop transaction left the caret at the top of the
+ *  dropped section) and `preciseScrollIntoView` it to the top of the
+ *  viewport. This re-measures + converges (handling `content-visibility:
+ *  auto` undershoot), unlike PM's `tr.scrollIntoView()` which only
+ *  guarantees the caret lands somewhere on screen. Must run after the
+ *  drop transaction has been dispatched (DOM updated). */
+function scrollToDroppedTop(view: EditorView): void {
+  try {
+    const at = view.domAtPos(view.state.selection.from);
+    let node: Node | null = at.node;
+    while (node && node.nodeType !== Node.ELEMENT_NODE) node = node.parentNode;
+    if (node instanceof HTMLElement) preciseScrollIntoView(view, node);
+  } catch {
+    // Stale position (defensive) — skip the scroll.
+  }
 }
 
 /**
@@ -395,6 +440,7 @@ export function buildCopyTransaction(
     tr.insert(target, slice.content);
     target += slice.content.size;
   }
+  selectTopOfInsert(tr, insertPos);
   return tr;
 }
 

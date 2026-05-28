@@ -278,6 +278,15 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Fixed
 
+- **After dragging a card to a new spot, the editor jumps to it.**
+  Previously the view jumped to a seemingly random place after a
+  drag-and-drop (it followed wherever your cursor happened to be before
+  the drag, not the moved content), so a successful move often left you
+  looking at the wrong part of the document. Now a drop lands you exactly
+  where clicking that section's heading in the outline would — its first
+  heading pinned to the top of the view — for both moves and copies, in
+  single-document windows and across panes.
+
 - **Large `.docx` files no longer fail to open with "Entity
   expansion limit exceeded".** The XML parser shipped a "billion
   laughs" safety cap that counted every ordinary `&amp;` / `&lt;` /

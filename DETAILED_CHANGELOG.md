@@ -7,6 +7,33 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Drag-and-drop now jumps to the dropped section like a nav-pane
+  click.** Before, every drop path in `drag-controller.ts` ended in
+  `tr.scrollIntoView()` over a transaction that never set a selection —
+  so PM scrolled to the *default mapped selection* (the pre-drag caret,
+  shifted by the move's delete+insert), which only coincidentally pointed
+  at the moved content. Two parts to the fix: (1) `buildMoveTransaction` /
+  `buildCopyTransaction` capture the first-insert position and end with a
+  shared `selectTopOfInsert(tr, insertStart)` helper — `tr.setSelection(
+  Selection.near(tr.doc.resolve(insertStart), 1))` — putting the caret at
+  the top of the dropped content (its first heading); the cross-view /
+  virtual-source (dropzone shelf) path applies the same helper to its
+  inline insert transaction. (2) After dispatching the drop transaction
+  (no more `tr.scrollIntoView()`), `scrollToDroppedTop(view)` resolves the
+  DOM element at the new selection and `preciseScrollIntoView`s it — the
+  identical primitive `nav-panel.ts`'s `jumpTo` uses, which re-measures /
+  converges (handling `content-visibility: auto` undershoot) and pins the
+  heading to the top of the viewport, rather than PM's `scrollIntoView`
+  which only guarantees the caret lands somewhere on screen at an
+  inconsistent offset. The same-view move path also now `focus()`es the
+  source view after dispatch (the cross-view path already did) so PM
+  syncs the DOM caret to the transaction's selection — otherwise the
+  state selection was correct but the *visible* cursor stayed wherever it
+  was before the drag. End result: a drop leaves both the viewport and
+  the caret exactly where clicking that heading in the outline would.
+  `Selection` is now a value import from `prosemirror-state`;
+  `drag-controller.ts` now imports `preciseScrollIntoView`.
+
 - **Comments column: Docs-like reflow layout.** `comments-ui.ts`'s
   `render()` no longer wipes + rebuilds the card DOM each pass — it
   reconciles a persistent `Map<threadId, element>` (and `fc:<cardId>`

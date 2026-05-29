@@ -41,7 +41,8 @@ import { setIcon } from './icons';
 import { preciseScrollIntoView } from './precise-scroll.js';
 import { learnStore, localToday } from './learn-store-host.js';
 import { resolveDescriptor, buildDescriptor } from './learn-anchor.js';
-import { openCardEditor } from './learn-create-ui.js';
+import { openCardEditor, type NewCardDef } from './learn-create-ui.js';
+import { requestFlashcard } from './ai/flashcard-gen.js';
 import { isDue } from './learn-scheduler.js';
 import {
   setFlashcardRangesTr,
@@ -1307,12 +1308,85 @@ export class CommentsColumn {
     return buildExplainContext(synth);
   }
 
-  /** Action row for an active AI card: two-click Delete. */
+  /** Action row for an active AI card: Convert to Flashcard + two-click
+   *  Delete. */
   private buildAiActions(threadId: string): HTMLElement {
     const actions = document.createElement('div');
     actions.className = 'pmd-flashcard-card-actions';
+    const convert = document.createElement('button');
+    convert.type = 'button';
+    convert.className = 'pmd-flashcard-card-action';
+    convert.textContent = 'Convert to Flashcard';
+    convert.addEventListener('click', (e) => {
+      e.stopPropagation();
+      void this.convertAiThreadToFlashcard(threadId, convert);
+    });
+    actions.appendChild(convert);
     actions.appendChild(this.buildAiDeleteButton(threadId));
     return actions;
+  }
+
+  /** Ask the model for a flashcard that captures what the AI thread
+   *  explored, then open the create-flashcard editor pre-populated so the
+   *  user can tweak or confirm. The new card grounds to the SAME
+   *  selection as the AI question. */
+  private async convertAiThreadToFlashcard(threadId: string, btn: HTMLButtonElement): Promise<void> {
+    if (!settings.get('aiFeaturesEnabled')) {
+      showToast('AI features are disabled — enable them in Settings.');
+      return;
+    }
+    const apiKey = settings.get('anthropicApiKey').trim();
+    if (!apiKey) {
+      showToast('Set an Anthropic API key in Settings to use AI features.');
+      return;
+    }
+    const thread = learnStore.getAiThread(threadId);
+    if (!thread) return;
+    const ctx = this.aiContextByThread.get(threadId) ?? this.contextFromAiThread(threadId);
+    if (!ctx) {
+      showToast('Could not build context for the flashcard.');
+      return;
+    }
+    const turns = thread.comments
+      .filter((c) => c.text.trim())
+      .map((c) => ({ role: c.ai ? ('assistant' as const) : ('user' as const), text: c.text }));
+    if (turns.length === 0) {
+      showToast('Ask a question first, then convert.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Generating…';
+    let card: NewCardDef;
+    try {
+      card = await requestFlashcard(apiKey, ctx, turns);
+    } catch (e) {
+      if (e instanceof AnthropicError) showToast(`AI: ${e.message}`);
+      else showToast(`AI error: ${e instanceof Error ? e.message : String(e)}`);
+      btn.disabled = false;
+      btn.textContent = 'Convert to Flashcard';
+      return;
+    }
+    btn.disabled = false;
+    btn.textContent = 'Convert to Flashcard';
+
+    // Pre-populate the editor; show the anchor it'll inherit (the AI
+    // question's selection) when the thread is grounded.
+    const anchorQuote = thread.anchor?.quote;
+    const edited = await openCardEditor({
+      initial: card,
+      title: 'Convert to flashcard',
+      ...(anchorQuote ? { selectedText: anchorQuote } : {}),
+    });
+    if (!edited) return;
+    const cardId = crypto.randomUUID();
+    learnStore.upsertCard(
+      { id: cardId, type: edited.type, front: edited.front, back: edited.back },
+      localToday(),
+    );
+    // Ground the flashcard to the same selection the AI question used.
+    learnStore.setAnchor(cardId, thread.docId, thread.anchor);
+    showToast('Flashcard created.');
   }
 
   /** Shared two-click delete button for an AI thread. */

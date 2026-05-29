@@ -267,7 +267,13 @@ see `DETAILED_CHANGELOG.md`.
   the text and following it as you edit (dropping into the **Unanchored**
   list with a **Re-ground** button if its text is deleted). Existing AI *comments*
   in older documents are left as-is. (Typing `@AI` inside a regular
-  comment still works the usual way, as a comment.)
+  comment still works the usual way, as a comment.) An active AI note also
+  has a **Convert to Flashcard** button: it asks the AI for a flashcard
+  (a Q&A or a cloze, whichever fits) capturing what you were exploring —
+  drawing on your questions and the card's tag to aim at what *you* cared
+  about — then opens the create-flashcard editor pre-filled so you can
+  tweak or just confirm. The new card is anchored to the same text as the
+  AI note.
 
 - **Save As dialog reorganized around presets.** **Name** and
   **Format** sections sit at the top; a **Save** section below

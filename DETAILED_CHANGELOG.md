@@ -51,6 +51,27 @@ in each release, see `CHANGELOG.md`.
     captured before scroll moves the caret), with `contextFromAiThread`
     (resolve the anchor → range → context) as the post-reload fallback.
     Reply turns re-invoke automatically (it's an AI thread).
+  - **Convert to Flashcard.** Active AI cards get a **Convert to
+    Flashcard** action (beside Delete). It asks the model for one card
+    (Q&A or cloze) capturing the thread's line of inquiry, then opens the
+    create-flashcard editor pre-populated so the user edits/confirms; the
+    new card grounds to the **same** selection as the AI question
+    (`setAnchor(cardId, thread.docId, thread.anchor)`). New module
+    `ai/flashcard-gen.ts` holds the research-grounded `FLASHCARD_SYSTEM_
+    PROMPT`, `formatFlashcardPrompt` (highlight + card context + the
+    conversation, with the user's questions called out as the angle
+    signal and the AI replies demoted to background), and a tolerant
+    `parseFlashcardReply` (extracts the outermost `{...}`, validates type
+    / non-empty front / Q&A-needs-back). The prompt is built from the
+    `reference-docs/mnemonic-medium/` corpus: it leans on the highlight +
+    questions + card tag as the signal of what the user wants reinforced
+    ("highlights → interests"), defaults to Q&A over cloze, and names the
+    five `probes/` pathologies (shallow / narrow / wordy / lacks-context
+    / solicits-multiple-responses) plus the positive attributes as
+    explicit constraints — atomicity foregrounded as the top rule (one
+    fact per card; no compound "and"/list/fact-plus-reason cards) with
+    the binary Remembered/Forgot grading as the rationale; richness goes
+    in separate cards. Then self-contained, unambiguous, deep, concise.
   - **Cleanup.** Removed the now-dead comment-based AI creation path:
     `addAiThreadFromSelection` and the `pendingAiFirst` machinery (its
     only writer) — `renderPrimaryInput` / `commitRootText` lose their

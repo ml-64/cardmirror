@@ -9,18 +9,20 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Added
 
-- **Fast Debate Paste integration.** CardMirror now runs a tiny
-  loopback HTTP server (127.0.0.1 only, token-gated, off the
-  network) that lets the Fast Debate Paste tool insert pasted text
-  directly into the focused doc — replacing the Return-then-F2
-  keystroke synthesis that was its previous bridge. Discovery
-  file at `{userData}/fast-paste-bridge.json` tells the client
-  the per-launch token and port; the server tears it down on
-  quit. Routes: `GET /ping` for a health probe, `POST /insert`
-  for the insertion itself. Insertions go through a renderer-side
+- **Integration surface for a future external paste tool (Fast Debate
+  Paste).** CardMirror now runs a tiny loopback HTTP server
+  (127.0.0.1 only, token-gated, off the network) so a separate, not-
+  yet-shipped client app can insert pasted text directly into the
+  focused doc — replacing the Return-then-F2 keystroke synthesis
+  that bridge currently uses. No user-visible feature today; nothing
+  changes until the external app implements its side and ships.
+  Discovery file at `{userData}/fast-paste-bridge.json` tells the
+  client the per-launch token and port; the server tears it down on
+  quit. Routes: `GET /ping` for a health probe, `POST /insert` for
+  the insertion itself. Insertions go through a renderer-side
   primitive that builds `card_body` paragraphs (or `paragraph` at
-  doc level) directly, so a multi-line insert always stays as
-  body paragraphs in the same card — never as a tag.
+  doc level) directly, so a multi-line insert always stays as body
+  paragraphs in the same card — never as a tag.
 
 ### Fixed
 

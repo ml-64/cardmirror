@@ -26,6 +26,12 @@ see `DETAILED_CHANGELOG.md`.
   from the search palette; it also answers to "dark mode" / "toggle
   theme").
 
+- **Selecting text auto-scrolls at the edges.** Dragging a selection to
+  the top or bottom of the document now scrolls the view so the
+  selection keeps extending past the originally visible area — no more
+  stopping to scroll by hand. Scrolls continuously while you hold near
+  the edge, faster the closer you get.
+
 ### Fixed
 
 - **"Find: remember the last search query" now actually turns off.** The

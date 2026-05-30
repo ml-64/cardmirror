@@ -248,13 +248,107 @@ function effectiveAnchor(view: EditorView): SelectionAnchor {
   return fresh;
 }
 
+/** Edge band (px from the viewport's top/bottom) within which a
+ *  selection drag triggers autoscroll, and the max scroll step per
+ *  animation frame (at the very edge; ramps down to 1px at the band's
+ *  inner boundary). */
+const AUTOSCROLL_EDGE_PX = 44;
+const AUTOSCROLL_MAX_STEP_PX = 20;
+
+/** Signed pixels to scroll the viewport this frame given the pointer's
+ *  `clientY` relative to the scroller's `top`/`bottom`. Negative = up,
+ *  positive = down, 0 = pointer is outside both edge bands. Speed ramps
+ *  linearly with how deep the pointer is into the band (min 1px once
+ *  inside, so the edge always creeps). Exported for testing. */
+export function edgeAutoscrollDelta(
+  top: number,
+  bottom: number,
+  clientY: number,
+  margin = AUTOSCROLL_EDGE_PX,
+  maxStep = AUTOSCROLL_MAX_STEP_PX,
+): number {
+  if (clientY < top + margin) {
+    const depth = Math.min(1, (top + margin - clientY) / margin);
+    return -Math.max(1, Math.round(maxStep * depth));
+  }
+  if (clientY > bottom - margin) {
+    const depth = Math.min(1, (clientY - (bottom - margin)) / margin);
+    return Math.max(1, Math.round(maxStep * depth));
+  }
+  return 0;
+}
+
+/** Nearest scrollable ancestor of the editor surface — the element
+ *  that owns the document's vertical scroll (`#app` in single-doc,
+ *  `.pmd-pane-body` per pane in multi-pane). Null if none is found. */
+function findSelectionScroller(el: HTMLElement): HTMLElement | null {
+  let cur: HTMLElement | null = el.parentElement;
+  while (cur && cur !== document.body && cur !== document.documentElement) {
+    const oy = getComputedStyle(cur).overflowY;
+    if (oy === 'auto' || oy === 'scroll') return cur;
+    cur = cur.parentElement;
+  }
+  return null;
+}
+
 function installDragListeners(view: EditorView, anchor: SelectionAnchor): void {
+  const scroller = findSelectionScroller(view.dom);
+  let lastX = 0;
+  let lastY = 0;
+  let havePointer = false;
+  let rafId = 0;
+
+  // Extend the selection's active end to wherever the pointer currently
+  // sits. The probe Y is clamped just inside the scroller so a pointer
+  // parked past the edge still resolves to the edge-most line as new
+  // content scrolls into view.
+  const extendToPointer = (): void => {
+    let probeY = lastY;
+    if (scroller) {
+      const rect = scroller.getBoundingClientRect();
+      probeY = Math.max(rect.top + 1, Math.min(rect.bottom - 1, lastY));
+    }
+    const hit = view.posAtCoords({ left: lastX, top: probeY });
+    if (hit) extendActiveEndTo(view, anchor, hit.pos);
+  };
+
+  // While the pointer rests in a top/bottom edge band, scroll the
+  // viewport and drag the selection along with it — even with the mouse
+  // held perfectly still. Self-reschedules only while it actually
+  // scrolls, so it stops the moment the pointer leaves the band or the
+  // scroll hits its limit.
+  const tick = (): void => {
+    rafId = 0;
+    if (!havePointer || !scroller) return;
+    const rect = scroller.getBoundingClientRect();
+    const dy = edgeAutoscrollDelta(rect.top, rect.bottom, lastY);
+    if (dy === 0) return;
+    const before = scroller.scrollTop;
+    scroller.scrollTop = before + dy;
+    if (scroller.scrollTop === before) return; // already at the limit
+    extendToPointer();
+    rafId = requestAnimationFrame(tick);
+  };
+
+  const maybeStartAutoscroll = (): void => {
+    if (rafId !== 0 || !scroller) return;
+    const rect = scroller.getBoundingClientRect();
+    if (edgeAutoscrollDelta(rect.top, rect.bottom, lastY) !== 0) {
+      rafId = requestAnimationFrame(tick);
+    }
+  };
+
   const onMove = (e: MouseEvent): void => {
+    lastX = e.clientX;
+    lastY = e.clientY;
+    havePointer = true;
     const hit = view.posAtCoords({ left: e.clientX, top: e.clientY });
-    if (!hit) return;
-    extendActiveEndTo(view, anchor, hit.pos);
+    if (hit) extendActiveEndTo(view, anchor, hit.pos);
+    maybeStartAutoscroll();
   };
   const onUp = (): void => {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = 0;
     window.removeEventListener('mousemove', onMove, true);
     window.removeEventListener('mouseup', onUp, true);
   };

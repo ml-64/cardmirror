@@ -7,6 +7,27 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Edge autoscroll while selecting text.** Dragging a text selection to
+  the top/bottom of the viewport now scrolls the document so the
+  selection can extend past the originally visible area. Built into
+  `word-selection-plugin.ts`, which already owns all mouse text
+  selection (it `preventDefault`s the native drag and drives the
+  selection via dispatched transactions in `installDragListeners`). The
+  drag listeners now also: resolve the nearest scrollable ancestor of
+  `view.dom` (`#app` single-doc, `.pmd-pane-body` per pane), track the
+  pointer, and run a `requestAnimationFrame` loop while the pointer sits
+  in a top/bottom edge band. Each frame scrolls the viewport by
+  `edgeAutoscrollDelta(top, bottom, clientY)` (ramped 1px→20px with
+  depth into the band, exported + unit-tested) and re-extends the
+  selection to `posAtCoords` of the pointer — clamped just inside the
+  scroller so a pointer parked past the edge keeps pulling in the
+  edge-most line even while held still. The loop self-reschedules only
+  while it actually scrolls, so it stops at the scroll limit or when the
+  pointer leaves the band; it tears down on mouseup. Works in both
+  single-doc and multi-pane because it's keyed off each view's own
+  scroller, and needs no new wiring since the plugin is already in
+  `buildEditorPlugins`.
+
 - **`findRememberLastQuery` is honored again.** The find bar
   (`find-replace-ui.ts`) reuses one DOM input across open/close and
   never cleared it, so once a query was typed it lingered in the

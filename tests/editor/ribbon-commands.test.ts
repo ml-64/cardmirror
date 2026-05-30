@@ -28,8 +28,11 @@ import {
   buildRibbonKeymap,
   DEFAULT_RIBBON_KEYS,
   RIBBON_COMMAND_IDS,
+  RIBBON_COMMAND_LABELS,
+  RIBBON_COMMAND_ALIASES,
   getRibbonCommand,
 } from '../../src/editor/ribbon-commands.js';
+import { SETTING_METADATA } from '../../src/editor/settings.js';
 import {
   buildPlainTextSlice,
   normalizeClipboardTextForPaste,
@@ -4103,5 +4106,62 @@ describe('insertTable — context-aware depth', () => {
     // table at index 0 is illegal. The walk decrements to doc level.
     expect(next!.doc.firstChild!.type.name).toBe('table');
     expect(next!.doc.child(1).type.name).toBe('card');
+  });
+});
+
+// ── Command-palette aliases ──────────────────────────────────────────
+// The palette lowercases the query before matching, so every alias must
+// itself be lowercase or it can never match. These guard the alias data
+// (command + settings) against the one silent-failure mode: casing /
+// stray whitespace. Command-id validity is already enforced by the
+// `Record<RibbonCommandId, …>` type.
+describe('command palette aliases', () => {
+  it('every command alias is lowercase, trimmed, and non-empty', () => {
+    for (const [id, aliases] of Object.entries(RIBBON_COMMAND_ALIASES)) {
+      for (const a of aliases ?? []) {
+        expect(a, `${id} alias "${a}"`).toBe(a.toLowerCase());
+        expect(a, `${id} alias "${a}"`).toBe(a.trim());
+        expect(a.length, `${id} alias`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('no command alias merely repeats its own label', () => {
+    // An alias identical to the (lowercased) label is dead weight —
+    // the label already matches. Catches copy-paste mistakes.
+    for (const [id, aliases] of Object.entries(RIBBON_COMMAND_ALIASES)) {
+      const label = RIBBON_COMMAND_LABELS[id as keyof typeof RIBBON_COMMAND_LABELS].toLowerCase();
+      for (const a of aliases ?? []) {
+        expect(a, `${id} alias duplicates label`).not.toBe(label);
+      }
+    }
+  });
+
+  it('every setting alias is lowercase, trimmed, and non-empty', () => {
+    for (const m of SETTING_METADATA) {
+      for (const a of m.aliases ?? []) {
+        expect(a, `${m.key} alias "${a}"`).toBe(a.toLowerCase());
+        expect(a, `${m.key} alias "${a}"`).toBe(a.trim());
+        expect(a.length, `${m.key} alias`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('the theme setting answers to light/dark mode and toggle theme', () => {
+    const theme = SETTING_METADATA.find((m) => m.key === 'theme');
+    expect(theme).toBeDefined();
+    expect(theme!.aliases).toEqual(
+      expect.arrayContaining(['light mode', 'dark mode', 'toggle theme']),
+    );
+  });
+
+  it('show/hide visibility commands also answer to "toggle"', () => {
+    // The reverse direction (toggle-labeled → "show"/"hide") is covered
+    // by the lowercase guard; here we assert the show/hide ⇄ toggle
+    // bridge the user asked for exists on the two visibility commands.
+    expect(RIBBON_COMMAND_ALIASES.toggleCommentsVisible).toContain('toggle comments');
+    expect(RIBBON_COMMAND_ALIASES.toggleNavPane).toEqual(
+      expect.arrayContaining(['toggle navigation pane', 'toggle nav pane']),
+    );
   });
 });

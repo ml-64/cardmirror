@@ -7,6 +7,17 @@ see `DETAILED_CHANGELOG.md`.
 
 ## Unreleased
 
+### Added
+
+- **Search-Everything now finds settings and commands by their common
+  names, not just their exact labels.** Searching "dark mode", "light
+  mode", or "toggle theme" surfaces the Theme setting; "toggle
+  comments" finds Show / Hide Comments (and vice versa); "clear
+  formatting" finds Clear, "paste without formatting" finds Paste Plain
+  Text, "line height" finds Line spacing, "sidebar" finds the
+  navigation pane toggle, and more. These are search aliases only —
+  the displayed names are unchanged.
+
 ### Fixed
 
 - **The home screen's Learn section no longer locks you out of Manage

@@ -988,6 +988,12 @@ export interface SettingMeta {
    *  hosts (real file paths, native dialogs). The settings UI
    *  hides the row entirely on the web edition. */
   electronOnly?: boolean;
+  /** Extra search terms for the command palette. The label often
+   *  uses one name for a thing the user might search by another
+   *  ("Theme" vs "dark mode", "Line spacing" vs "line height"); these
+   *  let those queries surface the row. Match-only — never displayed.
+   *  Keep them lowercase. */
+  aliases?: readonly string[];
 }
 
 export const SETTING_METADATA: SettingMeta[] = [
@@ -1006,6 +1012,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     descriptionFn: workspaceLayoutDescription,
     kind: 'toggle',
     category: 'general',
+    aliases: ['split view', 'split screen', 'multi pane', 'multi-doc'],
   },
   {
     key: 'multiDocLayoutMode',
@@ -1108,6 +1115,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'Show the cite-formatted text from a card on the right side of its nav-pane entry when you hover.',
     kind: 'toggle',
     category: 'general',
+    aliases: ['hover preview'],
   },
   {
     key: 'editorSpellcheck',
@@ -1158,6 +1166,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       "Light, dark, or follow the operating system's preference. System mode tracks OS-level changes live.",
     kind: 'theme',
     category: 'appearance',
+    aliases: ['light mode', 'dark mode', 'toggle theme', 'system theme', 'color scheme'],
   },
   {
     key: 'themeAppliesToDocument',
@@ -1166,6 +1175,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       "Off by default: when the theme is dark (or system-resolved dark), only the chrome — ribbon, nav, status bar — goes dark. The document area stays light, so cards still read like paper. Turn on to make the document itself follow the theme.",
     kind: 'toggle',
     category: 'appearance',
+    aliases: ['dark document', 'dark paper', 'dark mode document'],
   },
   {
     key: 'iconSet',
@@ -1260,6 +1270,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       "Disable UI animations and transitions (drag-pickup vacuum, popover slides, etc.). 'System' follows your OS preference; 'On' always reduces motion; 'Off' overrides the OS and plays full motion.",
     kind: 'reduceMotion',
     category: 'accessibility',
+    aliases: ['animations', 'disable animations'],
   },
   {
     key: 'overrideHighlightColor',
@@ -1308,6 +1319,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'Font family for the user interface — ribbon, dialogs, navigation pane, comments column, etc. Distinct from the body font (the editor content font). "System default" uses the platform\'s native UI font stack.',
     kind: 'uiFont',
     category: 'accessibility',
+    aliases: ['ui font', 'app font'],
   },
   {
     key: 'bodyFont',
@@ -1316,6 +1328,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'Font family for body text.',
     kind: 'bodyFont',
     category: 'appearance',
+    aliases: ['document font', 'card font', 'editor font'],
   },
   {
     key: 'lineHeight',
@@ -1324,6 +1337,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'Line-spacing multiplier per paragraph type (unitless × font-size).',
     kind: 'lineHeights',
     category: 'appearance',
+    aliases: ['line height'],
   },
   {
     key: 'ribbonTooltipMode',

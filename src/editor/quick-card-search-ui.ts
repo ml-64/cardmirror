@@ -75,6 +75,7 @@ const warmCache = new Map<string, WarmEntry>();
 import {
   RIBBON_COMMAND_IDS,
   RIBBON_COMMAND_LABELS,
+  RIBBON_COMMAND_ALIASES,
   DEFAULT_RIBBON_KEYS,
   formatKeyForDisplay,
   type RibbonCommandId,
@@ -290,22 +291,33 @@ function commandKeyDisplay(id: RibbonCommandId): string {
  *  on its label; triggers the command on Enter. */
 function searchCommandSource(query: string): PaletteResult[] {
   const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+  // Searchable text = label + any aliases, so a query phrased like an
+  // alias still matches. Ranking still prefers the label: an alias-only
+  // hit (not in the label) sorts after label hits via the Infinity below.
+  const haystack = (id: RibbonCommandId): string => {
+    const aliases = RIBBON_COMMAND_ALIASES[id];
+    const label = RIBBON_COMMAND_LABELS[id].toLowerCase();
+    return aliases && aliases.length ? `${label} ${aliases.join(' ')}` : label;
+  };
   const matched =
     tokens.length === 0
       ? [...RIBBON_COMMAND_IDS]
       : RIBBON_COMMAND_IDS.filter((id) => {
-          const label = RIBBON_COMMAND_LABELS[id].toLowerCase();
-          return tokens.every((t) => label.includes(t));
+          const hay = haystack(id);
+          return tokens.every((t) => hay.includes(t));
         });
   const t0 = tokens[0];
+  // First-token position within the *label* (not aliases) for ranking;
+  // a label miss yields -1, which we treat as last so label hits win.
+  const rank = (id: RibbonCommandId): number => {
+    if (!t0) return 0;
+    const i = RIBBON_COMMAND_LABELS[id].toLowerCase().indexOf(t0);
+    return i === -1 ? Infinity : i;
+  };
   matched.sort((a, b) => {
-    const la = RIBBON_COMMAND_LABELS[a].toLowerCase();
-    const lb = RIBBON_COMMAND_LABELS[b].toLowerCase();
-    if (t0) {
-      const d = la.indexOf(t0) - lb.indexOf(t0);
-      if (d !== 0) return d;
-    }
-    return la.localeCompare(lb);
+    const d = rank(a) - rank(b);
+    if (d !== 0) return d;
+    return RIBBON_COMMAND_LABELS[a].toLowerCase().localeCompare(RIBBON_COMMAND_LABELS[b].toLowerCase());
   });
   return matched.map((id) => ({
     source: 'command' as const,
@@ -346,16 +358,30 @@ function searchSettingsSource(query: string): PaletteResult[] {
   );
 
   // Then individual settings, ranked by where the first token hits.
+  // A setting matches on its label OR any alias (aliases let queries
+  // like "dark mode" surface the "Theme" row); ranking still keys on
+  // the label so alias-only hits sort after label hits.
   const hostKind = getHost().kind;
+  const settingHaystack = (m: (typeof SETTING_METADATA)[number]): string => {
+    const base = m.label.toLowerCase();
+    return m.aliases && m.aliases.length ? `${base} ${m.aliases.join(' ')}` : base;
+  };
+  const matchSetting = (m: (typeof SETTING_METADATA)[number]): boolean => {
+    const hay = settingHaystack(m);
+    return tokens.length === 0 || tokens.every((t) => hay.includes(t));
+  };
   const items = SETTING_METADATA.filter(
-    (m) => (!m.electronOnly || hostKind === 'electron') && match(m.label),
+    (m) => (!m.electronOnly || hostKind === 'electron') && matchSetting(m),
   );
   const t0 = tokens[0];
+  const rank = (label: string): number => {
+    if (!t0) return 0;
+    const i = label.toLowerCase().indexOf(t0);
+    return i === -1 ? Infinity : i;
+  };
   items.sort((a, b) => {
-    if (t0) {
-      const d = a.label.toLowerCase().indexOf(t0) - b.label.toLowerCase().indexOf(t0);
-      if (d !== 0) return d;
-    }
+    const d = rank(a.label) - rank(b.label);
+    if (d !== 0) return d;
     return a.label.localeCompare(b.label);
   });
   for (const m of items) {

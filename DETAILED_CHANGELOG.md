@@ -7,6 +7,30 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Command-palette search aliases for settings and commands.** The
+  Search-Everything palette matched a query only against a command's
+  `RIBBON_COMMAND_LABELS` entry or a setting's `SettingMeta.label`, so
+  anything phrased differently than the label simply didn't appear.
+  Two new alias registries fix that, matched but never displayed:
+  `RIBBON_COMMAND_ALIASES` (a `Partial<Record<RibbonCommandId,
+  readonly string[]>>` in `ribbon-commands.ts`) and an optional
+  `aliases?: readonly string[]` on `SettingMeta` (`settings.ts`).
+  `searchCommandSource` / `searchSettingsSource` in
+  `quick-card-search-ui.ts` now build the match haystack from
+  `label + ' ' + aliases.join(' ')` while still ranking by first-token
+  position *within the label* (an alias-only hit ranks via `Infinity`,
+  so label hits always sort ahead). Two recurring motivations: the
+  show/hide ⇄ toggle bridge the user asked for (`toggleCommentsVisible`
+  ⇄ "toggle comments", `toggleNavPane` ⇄ "toggle navigation pane" /
+  "sidebar"), and vague or Word-flavored labels ("Clear" ⇄ "clear
+  formatting", "Paste Plain Text" ⇄ "paste without formatting"). The
+  Theme setting gains `light mode` / `dark mode` / `toggle theme` /
+  `system theme` / `color scheme`; other settings get the obvious
+  alternate names (Line spacing ⇄ "line height", Interface font ⇄ "ui
+  font", Reduce motion ⇄ "animations", Three-pane workspace ⇄ "split
+  view", etc.). Aliases are lowercase because the palette lowercases
+  the query before matching.
+
 - **Learn section keeps Manage reachable with zero flashcards.**
   `renderLearn` in `src/editor/home-screen.ts` used to replace the
   whole section with a single muted placeholder card when

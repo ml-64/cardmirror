@@ -3679,6 +3679,36 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
 };
 
 /**
+ * Extra search terms for the command palette, keyed by command id.
+ * The display label stays `RIBBON_COMMAND_LABELS`; these are matched
+ * (never shown) so a query phrased differently than the label still
+ * surfaces the command. Two recurring cases drive most of these:
+ *   - show/hide ⇄ toggle: a visibility command labeled one way should
+ *     also answer to the other phrasing.
+ *   - vague or Word-flavored labels: "Clear" is really "clear
+ *     formatting"; "Paste Plain Text" is what Word calls "paste
+ *     without formatting".
+ * Keep entries lowercase. Only commands that need an alias appear here.
+ */
+export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly string[]>> = {
+  // show/hide ⇄ toggle visibility pairs
+  toggleCommentsVisible: ['toggle comments', 'comments'],
+  toggleNavPane: ['toggle navigation pane', 'toggle nav pane', 'sidebar', 'outline pane'],
+  toggleReadMode: ['show read mode', 'hide read mode', 'reader mode', 'reading mode'],
+  toggleAutosave: ['enable autosave', 'disable autosave', 'turn on autosave', 'turn off autosave'],
+  markActiveAsSpeech: ['toggle speech doc', 'set speech document'],
+  // vague / Word-flavored labels
+  clearToNormal: ['clear formatting', 'remove formatting', 'clear to normal'],
+  pasteAsText: ['paste without formatting', 'paste unformatted', 'paste text'],
+  removeHyperlinks: ['remove links', 'delete links', 'unlink'],
+  applyShading: ['shading', 'text highlight color'],
+  insertImage: ['add image', 'insert picture', 'photo'],
+  goHome: ['start screen', 'welcome screen', 'dashboard'],
+  openShortcutsReference: ['hotkeys', 'key bindings', 'shortcuts'],
+  zoomReset: ['actual size'],
+};
+
+/**
  * Default key bindings. The value is a single key or an array of
  * keys; all bindings invoke the same command. The first entry is the
  * "primary" binding used for ribbon-button tooltips; the rest are

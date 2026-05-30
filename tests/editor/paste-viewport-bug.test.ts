@@ -25,7 +25,7 @@ import { Fragment, Slice } from 'prosemirror-model';
 import { schema, newHeadingId } from '../../src/schema/index.js';
 import { absorbPlugin, absorbedDocChildren } from '../../src/editor/absorb-plugin.js';
 import { buildPlainTextSlice, tryPasteAsCardBodies } from '../../src/editor/paste-plugin.js';
-import { setTag } from '../../src/editor/ribbon-commands.js';
+import { clearToNormal, setTag } from '../../src/editor/ribbon-commands.js';
 
 // Doc builders (same shape as ribbon-commands.test.ts).
 function paragraph(text: string) {
@@ -200,7 +200,7 @@ describe('paste viewport-bug probe', () => {
           "atDocEnd": false,
           "docSize": 37,
           "inLastTextblock": false,
-          "pos": 18,
+          "pos": 13,
         },
         "structure": [
           "card[tag("TAG"), card_body("aaX"), card_body("Ya")]",
@@ -279,7 +279,7 @@ describe('paste viewport-bug probe', () => {
           "atDocEnd": false,
           "docSize": 31,
           "inLastTextblock": false,
-          "pos": 19,
+          "pos": 16,
         },
         "structure": [
           "card[tag("TAG"), card_body("helloX"), card_body("Y")]",
@@ -665,8 +665,8 @@ describe('paste viewport-bug probe', () => {
         "cursorAfter": {
           "atDocEnd": false,
           "docSize": 34,
-          "inLastTextblock": true,
-          "pos": 32,
+          "inLastTextblock": false,
+          "pos": 17,
         },
         "cursorBefore": {
           "atDocEnd": false,
@@ -915,6 +915,158 @@ describe('paste viewport-bug probe', () => {
           "card[tag("TAG"), card_body("aaX"), card_body("Ya"), card_body("bbb"), card_body("after card")]",
         ],
         "text": "TAGaaXYabbbafter card",
+      }
+    `);
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // Scenario F12: clearToNormal (F12) on a tag — the same
+  // wholesale-replaceWith pattern that the absorb plugin
+  // originally had. Without a manual setSelection after the
+  // replace, the cursor maps to the END of the lifted content
+  // (the "cursor shot to doc end after F12" report on Discord).
+  // ──────────────────────────────────────────────────────────────
+
+  it('F12 on tag with trailing bodies — cursor should land in the new paragraph, not at the end of the lifted bodies', () => {
+    const doc = makeDoc([
+      cardWith(tag('TAG'), cardBody('body one'), cardBody('body two')),
+    ]);
+    const cursor = posInside(doc, (n) => n.isText && n.text === 'TAG', 2);
+    const state = makeState(doc).apply(
+      makeState(doc).tr.setSelection(TextSelection.create(doc, cursor)),
+    );
+    const cursorBefore = cursorReport(state);
+
+    const after = runCmd(state, clearToNormal());
+
+    expect({
+      structureBefore: docTypeShape(state.doc),
+      cursorBefore,
+      structureAfter: docTypeShape(after.doc),
+      cursorAfter: cursorReport(after),
+    }).toMatchInlineSnapshot(`
+      {
+        "cursorAfter": {
+          "atDocEnd": false,
+          "docSize": 25,
+          "inLastTextblock": false,
+          "pos": 3,
+        },
+        "cursorBefore": {
+          "atDocEnd": false,
+          "docSize": 27,
+          "inLastTextblock": false,
+          "pos": 4,
+        },
+        "structureAfter": [
+          "paragraph("TAG")",
+          "paragraph("body one")",
+          "paragraph("body two")",
+        ],
+        "structureBefore": [
+          "card[tag("TAG"), card_body("body one"), card_body("body two")]",
+        ],
+      }
+    `);
+  });
+
+  it('F12 on tag inside a single-body card — cursor stays inside the demoted head', () => {
+    const doc = makeDoc([
+      cardWith(tag('TAGGED'), cardBody('only body')),
+    ]);
+    const cursor = posInside(doc, (n) => n.isText && n.text === 'TAGGED', 3);
+    const state = makeState(doc).apply(
+      makeState(doc).tr.setSelection(TextSelection.create(doc, cursor)),
+    );
+
+    const after = runCmd(state, clearToNormal());
+
+    expect({
+      structureAfter: docTypeShape(after.doc),
+      cursorAfter: cursorReport(after),
+    }).toMatchInlineSnapshot(`
+      {
+        "cursorAfter": {
+          "atDocEnd": false,
+          "docSize": 19,
+          "inLastTextblock": false,
+          "pos": 4,
+        },
+        "structureAfter": [
+          "paragraph("TAGGED")",
+          "paragraph("only body")",
+        ],
+      }
+    `);
+  });
+
+  it('F12 on tag of card preceded by another card — absorb should not amplify the wrong mapping', () => {
+    // Card A then Card B. F12 on Card B's tag dissolves B. The
+    // lifted children become doc-level after Card A — absorb
+    // claims them into A. If F12 left the cursor at the end of
+    // the lifted region, the absorbed-into-A cursor lands at the
+    // tail end of A's new content. The fix should keep the cursor
+    // in the demoted (former tag) paragraph instead.
+    const doc = makeDoc([
+      cardWith(tag('AAA'), cardBody('a body')),
+      cardWith(tag('BBB'), cardBody('b1'), cardBody('b2')),
+    ]);
+    const cursor = posInside(doc, (n) => n.isText && n.text === 'BBB', 2);
+    const state = makeState(doc).apply(
+      makeState(doc).tr.setSelection(TextSelection.create(doc, cursor)),
+    );
+
+    const after = runCmd(state, clearToNormal());
+
+    expect({
+      structureAfter: docTypeShape(after.doc),
+      cursorAfter: cursorReport(after),
+    }).toMatchInlineSnapshot(`
+      {
+        "cursorAfter": {
+          "atDocEnd": false,
+          "docSize": 28,
+          "inLastTextblock": false,
+          "pos": 17,
+        },
+        "structureAfter": [
+          "card[tag("AAA"), card_body("a body"), card_body("BBB"), card_body("b1"), card_body("b2")]",
+        ],
+      }
+    `);
+  });
+
+  it('F12 on analytic head dissolves analytic_unit, cursor in demoted paragraph', () => {
+    const analyticUnit = schema.nodes['analytic_unit']!.createChecked(
+      null,
+      [
+        schema.nodes['analytic']!.create({ id: newHeadingId() }, schema.text('HEAD')),
+        schema.nodes['card_body']!.create(null, schema.text('one')),
+      ],
+    );
+    const doc = makeDoc([analyticUnit]);
+    const cursor = posInside(doc, (n) => n.isText && n.text === 'HEAD', 2);
+    const state = makeState(doc).apply(
+      makeState(doc).tr.setSelection(TextSelection.create(doc, cursor)),
+    );
+
+    const after = runCmd(state, clearToNormal());
+
+    expect({
+      structureAfter: docTypeShape(after.doc),
+      cursorAfter: cursorReport(after),
+    }).toMatchInlineSnapshot(`
+      {
+        "cursorAfter": {
+          "atDocEnd": false,
+          "docSize": 11,
+          "inLastTextblock": false,
+          "pos": 3,
+        },
+        "structureAfter": [
+          "paragraph("HEAD")",
+          "paragraph("one")",
+        ],
       }
     `);
   });

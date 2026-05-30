@@ -2079,7 +2079,34 @@ function applyClearToNormalDemote(tr: Transaction, op: ClearToNormalOp): void {
       if (index === 0) return;
       lifted.push(liftCardChild(child));
     });
-    tr.replaceWith(containerStart, containerStart + container.nodeSize, Fragment.fromArray(lifted));
+
+    // Capture the selection endpoints' logical position inside
+    // the container BEFORE the replaceWith so we can re-anchor
+    // after. PM's default `ReplaceStep` mapping pushes any
+    // position inside the replaced range to the END of the
+    // replacement (assoc=1 — the right-association convention),
+    // which lands the cursor at the tail of the lifted bodies
+    // — and if absorb claims those bodies into a preceding card,
+    // the cursor follows them to the bottom of that card. (Same
+    // root cause the absorb-plugin had before its surgical-step
+    // rewrite; here the cure is a manual setSelection, since
+    // dissolve genuinely replaces the container that holds the
+    // cursor — there's no surrounding region to preserve.)
+    const containerEnd = containerStart + container.nodeSize;
+    const origHead = tr.selection.head;
+    const origAnchor = tr.selection.anchor;
+    const mappedHead = mapPosThroughDissolve(origHead, containerStart, containerEnd, container, lifted);
+    const mappedAnchor = origAnchor === origHead
+      ? mappedHead
+      : mapPosThroughDissolve(origAnchor, containerStart, containerEnd, container, lifted);
+
+    tr.replaceWith(containerStart, containerEnd, Fragment.fromArray(lifted));
+
+    if (mappedHead != null) {
+      const $newHead = tr.doc.resolve(mappedHead);
+      const $newAnchor = mappedAnchor != null ? tr.doc.resolve(mappedAnchor) : $newHead;
+      tr.setSelection(TextSelection.between($newAnchor, $newHead));
+    }
     return;
   }
 
@@ -2096,6 +2123,71 @@ function applyClearToNormalDemote(tr: Transaction, op: ClearToNormalOp): void {
 
 function applyClearToNormalPartial(tr: Transaction, from: number, to: number): void {
   stripMarkNamesOnTr(tr, from, to, F12_STRIP_PARTIAL_NAMES);
+}
+
+/** Map a doc-position that falls inside a card / analytic_unit being
+ *  dissolved by `applyClearToNormalDemote` to its logical equivalent
+ *  in the lifted (post-replace) structure. Returns `null` for
+ *  positions outside the container — those are handled correctly by
+ *  PM's automatic size-delta mapping.
+ *
+ *  The lifted structure is `[paragraph(cleanedHead), ...lifted
+ *  bodies]` inserted in place of the container. Each lifted body is
+ *  the result of `liftCardChild` (card_body / cite_paragraph →
+ *  paragraph, undertag → undertag, analytic → analytic_unit-wrapped).
+ *  The `analytic_unit` wrap adds one extra opening boundary, which
+ *  this function accounts for.
+ */
+function mapPosThroughDissolve(
+  orig: number,
+  containerStart: number,
+  containerEnd: number,
+  container: PMNode,
+  lifted: readonly PMNode[],
+): number | null {
+  if (orig <= containerStart || orig >= containerEnd) return null;
+
+  // Walk children to find which one the position was in and its
+  // offset within that child's content.
+  let walkPos = containerStart + 1; // inside container, before first child
+  let childIdx = -1;
+  let offsetInChild = 0;
+  container.forEach((child, _off, idx) => {
+    if (childIdx !== -1) return;
+    const childOpen = walkPos;
+    const childClose = walkPos + child.nodeSize;
+    if (orig <= childOpen) {
+      childIdx = idx;
+      offsetInChild = 0;
+    } else if (orig < childClose) {
+      childIdx = idx;
+      offsetInChild = orig - (childOpen + 1);
+    }
+    walkPos = childClose;
+  });
+  if (childIdx === -1) {
+    // Position was just inside the container's closing boundary,
+    // past the last child — clamp to end of the last lifted item.
+    childIdx = lifted.length - 1;
+    const lastLifted = lifted[childIdx]!;
+    offsetInChild = lastLifted.type.name === 'analytic_unit'
+      ? lastLifted.firstChild!.content.size
+      : lastLifted.content.size;
+  }
+
+  // Sum sizes of preceding lifted items to find where the target
+  // lifted item starts in the new doc.
+  let newPos = containerStart;
+  for (let i = 0; i < childIdx; i++) {
+    newPos += lifted[i]!.nodeSize;
+  }
+  const liftedChild = lifted[childIdx]!;
+  if (liftedChild.type.name === 'analytic_unit') {
+    // analytic_unit wraps analytic → 2 opening boundaries.
+    const inner = liftedChild.firstChild!;
+    return newPos + 2 + Math.max(0, Math.min(offsetInChild, inner.content.size));
+  }
+  return newPos + 1 + Math.max(0, Math.min(offsetInChild, liftedChild.content.size));
 }
 
 // ----------------------------------------------------------------

@@ -9,6 +9,17 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Fixed
 
+- **F12 (Clear to Normal) no longer rockets the cursor to the bottom
+  of the doc when it dissolves a tagged card.** Cursor stays in the
+  demoted (former-tag) paragraph at the same character offset, and
+  when the dissolved card was preceded by another card so the demoted
+  paragraph gets re-absorbed into that card, the cursor tracks into
+  the absorbed body. Same family as the prior paste / F7 cursor-jump
+  fix — that one made the absorb plugin's doc rewrite cursor-safe
+  for positions OUTSIDE the absorbed orphan range; this one extends
+  the same protection to cursors INSIDE the orphans (and to F12's own
+  dissolve replace, which had the same root cause as the original
+  absorb-plugin bug).
 - **Dropzone pill no longer ends up in the status bar's band on some
   Windows machines.** Before its dynamic positioning pass had a chance
   to land, the pill fell back to a CSS bottom that put it ~8px above

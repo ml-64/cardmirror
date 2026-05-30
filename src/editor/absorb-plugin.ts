@@ -32,7 +32,7 @@
  * need to grow.
  */
 
-import { Plugin } from 'prosemirror-state';
+import { Plugin, TextSelection } from 'prosemirror-state';
 import { Fragment, type Node as PMNode } from 'prosemirror-model';
 import { schema } from '../schema/index.js';
 
@@ -58,12 +58,38 @@ export const absorbPlugin: Plugin = new Plugin({
     // single `replaceWith(0, doc.content.size, rebuilt)` form
     // triggered via PM's default mapping for cursors inside the
     // wholesale-replaced range.
+    //
+    // ONE remaining case the per-region steps don't cover: a
+    // cursor INSIDE an orphan being absorbed. Step 2's `delete`
+    // claims the cursor's range; PM's default assoc=1 mapping
+    // pushes it to the END of the deletion (which auto-snaps to
+    // the last textblock — the bottom of the now-absorbed card).
+    // Catch that here and re-anchor manually: each absorbed orphan
+    // moves to just before the card's closing boundary, so a
+    // position `P` in the original orphan-range corresponds to
+    // `P - 1` in the final doc (one fewer doc-level boundary).
+    // The same delta works for every orphan in a region because
+    // the orphans absorb in document order into a single
+    // contiguous run inside the card.
+    const origHead = newState.selection.head;
+    const origAnchor = newState.selection.anchor;
+    let headInOrphans = false;
+    let anchorInOrphans = false;
     for (let i = regions.length - 1; i >= 0; i--) {
       const r = regions[i]!;
+      if (origHead > r.orphansStart && origHead < r.orphansEnd) headInOrphans = true;
+      if (origAnchor > r.orphansStart && origAnchor < r.orphansEnd) anchorInOrphans = true;
       const cardContentEnd = r.absorbingPos + r.absorbingNodeSize - 1;
       tr.insert(cardContentEnd, r.bodiesContent);
       const insertSize = r.bodiesContent.size;
       tr.delete(r.orphansStart + insertSize, r.orphansEnd + insertSize);
+    }
+    if (headInOrphans || anchorInOrphans) {
+      const newHead = headInOrphans ? origHead - 1 : origHead;
+      const newAnchor = anchorInOrphans ? origAnchor - 1 : origAnchor;
+      const $head = tr.doc.resolve(newHead);
+      const $anchor = tr.doc.resolve(newAnchor);
+      tr.setSelection(TextSelection.between($anchor, $head));
     }
     return tr;
   },

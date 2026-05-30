@@ -7,6 +7,57 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **F12 dissolve + absorb-plugin: cursor preservation for the
+  inside-the-replaced-range case.** Two related fixes in one entry.
+
+  (1) `applyClearToNormalDemote` in `ribbon-commands.ts` dissolves a
+  card or analytic_unit when F12 lands on its head (tag / analytic):
+  it builds a `paragraph(cleanedHeadContent)` plus a lifted version
+  of each trailing child (`card_body` / `cite_paragraph` →
+  `paragraph`, `undertag` kept, `analytic` → `analytic_unit`-wrapped),
+  then `tr.replaceWith(containerStart, containerEnd, lifted)`. PM's
+  default `ReplaceStep` selection mapping pushes any position inside
+  the replaced range to the END of the replacement (the assoc=1
+  right-association convention) — same root cause as the original
+  absorb-plugin "viewport rockets to doc end" bug. After the replace
+  we now compute the cursor's logical position in the new structure
+  via a new `mapPosThroughDissolve` helper (which walks the original
+  container's children to find which one held the cursor + the
+  intra-child offset, then resolves the corresponding position in
+  the lifted-children sequence, accounting for the extra opening
+  boundary that the analytic → analytic_unit wrap adds) and call
+  `tr.setSelection(TextSelection.between(...))`. Same template as
+  `dissolveContainerToHeading` at `ribbon-commands.ts:625-631`,
+  which had this fix from the start.
+
+  (2) `absorb-plugin.ts`'s surgical insert+delete preserved cursor
+  positions outside the absorbed-orphan range but lost the ones
+  inside it: step 2's `tr.delete(orphansStart+insertSize,
+  orphansEnd+insertSize)` claims the cursor's range, and PM's
+  default assoc=1 mapping pushes the cursor to the end of the
+  deletion (which auto-snaps to the last textblock of the now-
+  absorbed card). The plugin now captures `newState.selection`'s
+  head/anchor before its steps run, flags whether either fell into
+  any region's orphan range, and after the steps calls
+  `tr.setSelection` with each flagged endpoint mapped to
+  `origPos - 1` — the absorbed orphan now lives just before the
+  card's closing boundary (one fewer doc-level boundary stands
+  between the original orphan position and the new card_body
+  position), so the position offset is `-1` regardless of how many
+  orphans the region absorbs or how many regions absorb to the
+  left.
+
+  Together these handle the F12 → absorb cascade the user hit:
+  F12 on Card B's tag (with Card A preceding it) demotes the tag
+  to a paragraph at doc level, absorb claims that paragraph plus
+  the lifted bodies into Card A, and the cursor follows the
+  demoted text into Card A at the original character offset
+  instead of landing at the tail of Card A's content. The probe
+  test at `tests/editor/paste-viewport-bug.test.ts` (already a
+  catalogue of this family of bugs) grows new F12 cases plus
+  improved expectations on the pre-existing `H` scenario (cursor
+  in an orphan paragraph that absorb claims).
+
 - **Dropzone pill fallback now clears the status bar.** `.pmd-dropzone-
   root`'s CSS fallback `bottom` is now `calc(var(--status-bar-height)
   + 0.5rem)` (was `0.5rem`), and its `z-index` is `220` (was `12`,

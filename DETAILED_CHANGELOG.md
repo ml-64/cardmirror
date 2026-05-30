@@ -7,6 +7,39 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **F2 plain-paste: route through `tryPasteAsCardBodies` like rich
+  paste does.** `applyPlainPasteFromText` (the Electron F2 entry
+  point) and the armed-paste branch of `handlePaste` (the browser
+  F2 entry point) both used to do `tr.replaceSelection(slice)`
+  directly with the slice that `buildPlainTextSlice` produces — a
+  `Fragment([paragraph(line1), paragraph(line2), …])` with
+  `openStart=1 / openEnd=1`. `paragraph` is not in the `card`
+  content expression (`tag (card_body | undertag | cite_paragraph
+  | analytic | table)*`), so when the slice landed inside a
+  `card_body` PM's Fitter could only fit the first and last
+  paragraphs via the openings — every middle paragraph then bubbled
+  the split up to the card level. The Fitter's second-half
+  reconstruction has to start with a `tag` (the card's content rule
+  is non-negotiable), so it would either synthesize a phantom
+  empty-tag card sibling or, in the configurations the FDP spec
+  flagged, convert the first content node it had on hand into a
+  tag — which is where the "extra spacing between pasted lines"
+  user reports come from (the tag's `margin: 0.75rem 0 0.25rem 0`
+  rendering as the gap). The absorb plugin re-claims orphan
+  paragraphs into the preceding card, but the brief bubble-up plus
+  re-absorption still moves the cursor through an awkward
+  trajectory before landing it. The fix is the same one
+  `handlePaste` already uses on the rich-paste path
+  (`paste-plugin.ts:269-272`): call `tryPasteAsCardBodies` first to
+  pre-convert the slice's `paragraph` nodes to `card_body` nodes
+  before `tr.replace`, so the Fitter has no fitting problem to
+  solve. The cursor now lands at the end of the last pasted line
+  (or on the trailing empty body when the text ends in a newline,
+  which is the "cursor on a fresh line is fine" case). Slices where
+  `tryPasteAsCardBodies` returns null (single-line paste, non-
+  card-body cursor, non-paragraph children) keep going through
+  `replaceSelection` as before.
+
 - **F12 dissolve + absorb-plugin: cursor preservation for the
   inside-the-replaced-range case.** Two related fixes in one entry.
 

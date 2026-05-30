@@ -166,7 +166,18 @@ export function applyPlainPasteFromText(
   );
   if (!normalized) return;
   const slice = buildPlainTextSlice(normalized);
-  let tr = view.state.tr.replaceSelection(slice);
+  // Multi-line plain-paste into a card_body cursor: pre-convert
+  // the slice's paragraphs to card_body nodes so PM's Fitter
+  // doesn't bubble the split up to the card level. Without this,
+  // a 3+ line F2 paste mid-card_body lifts the middle paragraphs
+  // out as doc-level orphans (which the absorb plugin claims back
+  // — but on the way there, the user can see "lines becoming
+  // tags" / extra spacing artifacts in some configurations, and
+  // the cursor mapping bounces through the lift+re-absorb dance
+  // instead of landing cleanly at the end of the pasted content).
+  // Same template the rich-paste path uses (handlePaste below).
+  let tr = tryPasteAsCardBodies(view.state, slice);
+  if (!tr) tr = view.state.tr.replaceSelection(slice);
   tr.setStoredMarks([]);
   view.dispatch(tr.scrollIntoView());
   if (ctx.condenseOnPaste()) {
@@ -241,7 +252,11 @@ export function buildPastePlugin(ctx: PastePluginCtx): Plugin<PluginState> {
           );
           if (!text) return true;
           const plainSlice = buildPlainTextSlice(text);
-          let tr = view.state.tr.replaceSelection(plainSlice);
+          // Same card_body pre-fit as `applyPlainPasteFromText` — see
+          // the rationale comment there. Keeps the armed-paste path
+          // (browser/web F2) in sync with the direct Electron F2 path.
+          let tr = tryPasteAsCardBodies(view.state, plainSlice);
+          if (!tr) tr = view.state.tr.replaceSelection(plainSlice);
           tr.setStoredMarks([]);
           view.dispatch(tr.scrollIntoView());
           if (ctx.condenseOnPaste()) {

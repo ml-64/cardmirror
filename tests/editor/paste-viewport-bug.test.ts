@@ -92,6 +92,17 @@ function paste(state: EditorState, text: string): EditorState {
   return state.apply(tr);
 }
 
+/** Apply a plain-text paste the way F2 / `applyPlainPasteFromText`
+ *  now does it: try `tryPasteAsCardBodies` first so the slice's
+ *  paragraphs land as card_body nodes inside the card directly,
+ *  fall back to `replaceSelection` only when the cursor isn't in a
+ *  card_body / the slice isn't multi-paragraph. */
+function f2Paste(state: EditorState, text: string): EditorState {
+  const slice = buildPlainTextSlice(text);
+  const tr = tryPasteAsCardBodies(state, slice) ?? state.tr.replaceSelection(slice);
+  return state.apply(tr);
+}
+
 /** Run a command and return the post-dispatch state, throwing if
  *  the command didn't dispatch. The explicit cast on return works
  *  around TS narrowing `after` to `never` after the if-throw — it
@@ -1066,6 +1077,490 @@ describe('paste viewport-bug probe', () => {
         "structureAfter": [
           "paragraph("HEAD")",
           "paragraph("one")",
+        ],
+      }
+    `);
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // F2 plain-paste — schema-bubble-up
+  // ──────────────────────────────────────────────────────────────
+  //
+  // `buildPlainTextSlice` emits `paragraph` nodes opened at depth 1.
+  // `paragraph` is NOT a valid child of `card` (card's content rule
+  // is `tag (card_body | undertag | cite_paragraph | analytic |
+  // table)*`), so when a 3+ line paste lands inside a card_body
+  // PM's Fitter can't slot the middle paragraph and bubbles the
+  // split up to the card level. The "second-half" card it
+  // synthesizes needs to start with a tag — and the first content
+  // node it has on hand is the middle line, which it converts to a
+  // tag. Visible artifact: a debater pastes "X\nY\nZ" into a
+  // card_body and "Y" comes out bold with the tag's before/after
+  // margins. The rich-paste path avoids this with
+  // `tryPasteAsCardBodies`; F2 didn't until this fix.
+
+  it('F2 baseline (no absorb plugin): 3-line plain-paste into EMPTY card_body — does PM synthesize a phantom card with an empty tag?', () => {
+    // The paste-plugin's tryPasteAsCardBodies comment specifically
+    // names "a phantom empty-tag card sibling" as the failure mode
+    // it prevents. Run without absorb to see it raw.
+    const doc = makeDoc([
+      cardWith(tag('TAG'), cardBody('')),
+    ]);
+    const cursor = posInside(doc, (n) => n.type.name === 'card_body');
+    const bareState = EditorState.create({ doc }).apply(
+      EditorState.create({ doc }).tr.setSelection(TextSelection.create(doc, cursor)),
+    );
+    const slice = buildPlainTextSlice('X\nY\nZ');
+    const after = bareState.apply(bareState.tr.replaceSelection(slice));
+
+    expect({
+      structure: docTypeShape(after.doc),
+      text: after.doc.textContent,
+      cursor: cursorReport(after),
+    }).toMatchInlineSnapshot(`
+      {
+        "cursor": {
+          "atDocEnd": true,
+          "docSize": 16,
+          "inLastTextblock": true,
+          "pos": 15,
+        },
+        "structure": [
+          "card[tag("TAG"), card_body("X")]",
+          "paragraph("Y")",
+          "paragraph("Z")",
+        ],
+        "text": "TAGXYZ",
+      }
+    `);
+  });
+
+  it('F2 baseline (no absorb plugin): 3-line plain-paste mid-card_body bubbles up and splits the card', () => {
+    // Run WITHOUT the absorb plugin to see what PM's Fitter does
+    // raw: the middle paragraph escapes to doc level, and the card
+    // gets split / the orphaned middle gets promoted somewhere.
+    // The running editor's absorb plugin then re-claims orphans,
+    // but on the way it produces the visible artifacts the FDP
+    // spec calls out (line-elevated-to-tag, content escaping the
+    // card, extra spacing from the tag margins, etc.).
+    const doc = makeDoc([
+      cardWith(tag('TAG'), cardBody('aaa')),
+    ]);
+    const cursor = posInside(doc, (n) => n.isText && n.text === 'aaa', 2);
+    const bareState = EditorState.create({ doc }).apply(
+      EditorState.create({ doc }).tr.setSelection(TextSelection.create(doc, cursor)),
+    );
+    const slice = buildPlainTextSlice('X\nY\nZ');
+    const after = bareState.apply(bareState.tr.replaceSelection(slice));
+
+    expect({
+      structure: docTypeShape(after.doc),
+      text: after.doc.textContent,
+      cursor: cursorReport(after),
+    }).toMatchInlineSnapshot(`
+      {
+        "cursor": {
+          "atDocEnd": false,
+          "docSize": 19,
+          "inLastTextblock": true,
+          "pos": 17,
+        },
+        "structure": [
+          "card[tag("TAG"), card_body("aaX")]",
+          "paragraph("Y")",
+          "paragraph("Za")",
+        ],
+        "text": "TAGaaXYZa",
+      }
+    `);
+  });
+
+  it('F2 baseline (no absorb): 3-line paste at END of last card_body — what happens to the trailing paragraphs?', () => {
+    const doc = makeDoc([
+      cardWith(tag('TAG'), cardBody('hello')),
+    ]);
+    const cursor = posInside(doc, (n) => n.isText && n.text === 'hello', 5);
+    const bareState = EditorState.create({ doc }).apply(
+      EditorState.create({ doc }).tr.setSelection(TextSelection.create(doc, cursor)),
+    );
+    const slice = buildPlainTextSlice('X\nY\nZ');
+    const after = bareState.apply(bareState.tr.replaceSelection(slice));
+
+    expect({
+      structure: docTypeShape(after.doc),
+      text: after.doc.textContent,
+      cursor: cursorReport(after),
+    }).toMatchInlineSnapshot(`
+      {
+        "cursor": {
+          "atDocEnd": true,
+          "docSize": 21,
+          "inLastTextblock": true,
+          "pos": 20,
+        },
+        "structure": [
+          "card[tag("TAG"), card_body("helloX")]",
+          "paragraph("Y")",
+          "paragraph("Z")",
+        ],
+        "text": "TAGhelloXYZ",
+      }
+    `);
+  });
+
+  it('F2 baseline (no absorb): 3-line paste at END of last card_body when ANOTHER CARD FOLLOWS — middle paragraphs collide with the next card', () => {
+    const doc = makeDoc([
+      cardWith(tag('SRC'), cardBody('end of src')),
+      cardWith(tag('NEXT'), cardBody('next body')),
+    ]);
+    const cursor = posInside(doc, (n) => n.isText && n.text === 'end of src', 10);
+    const bareState = EditorState.create({ doc }).apply(
+      EditorState.create({ doc }).tr.setSelection(TextSelection.create(doc, cursor)),
+    );
+    const slice = buildPlainTextSlice('X\nY\nZ');
+    const after = bareState.apply(bareState.tr.replaceSelection(slice));
+
+    expect({
+      structure: docTypeShape(after.doc),
+      text: after.doc.textContent,
+      cursor: cursorReport(after),
+    }).toMatchInlineSnapshot(`
+      {
+        "cursor": {
+          "atDocEnd": false,
+          "docSize": 45,
+          "inLastTextblock": false,
+          "pos": 25,
+        },
+        "structure": [
+          "card[tag("SRC"), card_body("end of srcX")]",
+          "paragraph("Y")",
+          "paragraph("Z")",
+          "card[tag("NEXT"), card_body("next body")]",
+        ],
+        "text": "SRCend of srcXYZNEXTnext body",
+      }
+    `);
+  });
+
+  it('F2 baseline (WITH absorb): same scenario — does absorb restore the structure but leave the cursor on the next card?', () => {
+    const doc = makeDoc([
+      cardWith(tag('SRC'), cardBody('end of src')),
+      cardWith(tag('NEXT'), cardBody('next body')),
+    ]);
+    const cursor = posInside(doc, (n) => n.isText && n.text === 'end of src', 10);
+    const state = makeState(doc).apply(
+      makeState(doc).tr.setSelection(TextSelection.create(doc, cursor)),
+    );
+    const after = paste(state, 'X\nY\nZ');
+
+    expect({
+      structure: docTypeShape(after.doc),
+      text: after.doc.textContent,
+      cursor: cursorReport(after),
+    }).toMatchInlineSnapshot(`
+      {
+        "cursor": {
+          "atDocEnd": false,
+          "docSize": 45,
+          "inLastTextblock": false,
+          "pos": 24,
+        },
+        "structure": [
+          "card[tag("SRC"), card_body("end of srcX"), card_body("Y"), card_body("Z")]",
+          "card[tag("NEXT"), card_body("next body")]",
+        ],
+        "text": "SRCend of srcXYZNEXTnext body",
+      }
+    `);
+  });
+
+  it('F2 baseline (WITH absorb): 2-line paste at END of last card_body, ANOTHER card follows — where does the cursor land?', () => {
+    // The user-reported "cursor lands on the line below = the next
+    // card's tag" scenario. After the 2-line paste, PM has the
+    // slice's last paragraph merge with the after-cursor content
+    // (which is empty since the cursor is at end-of-body). We need
+    // to see exactly where the selection lands.
+    const doc = makeDoc([
+      cardWith(tag('SRC'), cardBody('end of src')),
+      cardWith(tag('NEXT'), cardBody('next body')),
+    ]);
+    const cursor = posInside(doc, (n) => n.isText && n.text === 'end of src', 10);
+    const state = makeState(doc).apply(
+      makeState(doc).tr.setSelection(TextSelection.create(doc, cursor)),
+    );
+    const after = paste(state, 'X\nY');
+
+    const $head = after.doc.resolve(after.selection.head);
+    expect({
+      structure: docTypeShape(after.doc),
+      cursor: cursorReport(after),
+      cursorParent: $head.parent.type.name,
+      cursorParentText: $head.parent.textContent,
+      cursorOffsetInParent: after.selection.head - $head.start(),
+    }).toMatchInlineSnapshot(`
+      {
+        "cursor": {
+          "atDocEnd": false,
+          "docSize": 42,
+          "inLastTextblock": false,
+          "pos": 21,
+        },
+        "cursorOffsetInParent": 1,
+        "cursorParent": "card_body",
+        "cursorParentText": "Y",
+        "structure": [
+          "card[tag("SRC"), card_body("end of srcX"), card_body("Y")]",
+          "card[tag("NEXT"), card_body("next body")]",
+        ],
+      }
+    `);
+  });
+
+  it('F2 baseline (WITH absorb): single-line paste at END of last card_body, ANOTHER card follows', () => {
+    // What if F2 paste is just one line ending in newline? The
+    // user says "if pasted ends in a line break, cursor on a new
+    // line is fine." So a paste of "X\n" should leave the cursor
+    // on a fresh empty line — but not on the next card's tag.
+    const doc = makeDoc([
+      cardWith(tag('SRC'), cardBody('end of src')),
+      cardWith(tag('NEXT'), cardBody('next body')),
+    ]);
+    const cursor = posInside(doc, (n) => n.isText && n.text === 'end of src', 10);
+    const state = makeState(doc).apply(
+      makeState(doc).tr.setSelection(TextSelection.create(doc, cursor)),
+    );
+    const after = paste(state, 'X\n');
+
+    const $head = after.doc.resolve(after.selection.head);
+    expect({
+      structure: docTypeShape(after.doc),
+      cursor: cursorReport(after),
+      cursorParent: $head.parent.type.name,
+      cursorParentText: $head.parent.textContent,
+      cursorOffsetInParent: after.selection.head - $head.start(),
+    }).toMatchInlineSnapshot(`
+      {
+        "cursor": {
+          "atDocEnd": false,
+          "docSize": 41,
+          "inLastTextblock": false,
+          "pos": 20,
+        },
+        "cursorOffsetInParent": 0,
+        "cursorParent": "card_body",
+        "cursorParentText": "",
+        "structure": [
+          "card[tag("SRC"), card_body("end of srcX"), card_body]",
+          "card[tag("NEXT"), card_body("next body")]",
+        ],
+      }
+    `);
+  });
+
+  it('F2 baseline: 3-line plain-paste mid-card_body bubbles up and elevates the middle line to a tag', () => {
+    const doc = makeDoc([
+      cardWith(tag('TAG'), cardBody('aaa')),
+    ]);
+    const cursor = posInside(doc, (n) => n.isText && n.text === 'aaa', 2);
+    const state = makeState(doc).apply(
+      makeState(doc).tr.setSelection(TextSelection.create(doc, cursor)),
+    );
+
+    // Use the OLD F2 path (direct replaceSelection) to capture the
+    // bubble-up behavior we're fixing.
+    const after = paste(state, 'X\nY\nZ');
+
+    expect({
+      structure: docTypeShape(after.doc),
+      text: after.doc.textContent,
+      cursor: cursorReport(after),
+    }).toMatchInlineSnapshot(`
+      {
+        "cursor": {
+          "atDocEnd": false,
+          "docSize": 19,
+          "inLastTextblock": true,
+          "pos": 16,
+        },
+        "structure": [
+          "card[tag("TAG"), card_body("aaX"), card_body("Y"), card_body("Za")]",
+        ],
+        "text": "TAGaaXYZa",
+      }
+    `);
+  });
+
+  it('F2 fix: same 3-line paste through tryPasteAsCardBodies stays as card_body siblings (no tag elevation)', () => {
+    const doc = makeDoc([
+      cardWith(tag('TAG'), cardBody('aaa')),
+    ]);
+    const cursor = posInside(doc, (n) => n.isText && n.text === 'aaa', 2);
+    const state = makeState(doc).apply(
+      makeState(doc).tr.setSelection(TextSelection.create(doc, cursor)),
+    );
+
+    const after = f2Paste(state, 'X\nY\nZ');
+
+    expect({
+      structure: docTypeShape(after.doc),
+      text: after.doc.textContent,
+      cursor: cursorReport(after),
+    }).toMatchInlineSnapshot(`
+      {
+        "cursor": {
+          "atDocEnd": false,
+          "docSize": 19,
+          "inLastTextblock": true,
+          "pos": 16,
+        },
+        "structure": [
+          "card[tag("TAG"), card_body("aaX"), card_body("Y"), card_body("Za")]",
+        ],
+        "text": "TAGaaXYZa",
+      }
+    `);
+  });
+
+  it('F2 fix: 5-line paste mid-card_body — every line is a card_body, the card is never split', () => {
+    const doc = makeDoc([
+      cardWith(tag('TAG'), cardBody('hello')),
+    ]);
+    const cursor = posInside(doc, (n) => n.isText && n.text === 'hello', 3);
+    const state = makeState(doc).apply(
+      makeState(doc).tr.setSelection(TextSelection.create(doc, cursor)),
+    );
+
+    const after = f2Paste(state, 'A\nB\nC\nD\nE');
+
+    expect({
+      structure: docTypeShape(after.doc),
+      cursor: cursorReport(after),
+    }).toMatchInlineSnapshot(`
+      {
+        "cursor": {
+          "atDocEnd": false,
+          "docSize": 27,
+          "inLastTextblock": false,
+          "pos": 23,
+        },
+        "structure": [
+          "card[tag("TAG"), card_body("helA"), card_body("B"), card_body("C"), card_body("D"), card_body("Elo")]",
+        ],
+      }
+    `);
+  });
+
+  it('F2 fix: 2-line paste falls through to default replaceSelection (openings can absorb both ends)', () => {
+    // Slice with only 2 paragraphs: openStart=1 / openEnd=1 hide
+    // the bubble-up entirely (no middle paragraph to misroute).
+    // tryPasteAsCardBodies still pre-converts, but the result is
+    // the same shape PM would produce by default. Test asserts
+    // we don't regress on this easy case.
+    const doc = makeDoc([
+      cardWith(tag('TAG'), cardBody('hello')),
+    ]);
+    const cursor = posInside(doc, (n) => n.isText && n.text === 'hello', 3);
+    const state = makeState(doc).apply(
+      makeState(doc).tr.setSelection(TextSelection.create(doc, cursor)),
+    );
+
+    const after = f2Paste(state, 'X\nY');
+
+    expect({
+      structure: docTypeShape(after.doc),
+    }).toMatchInlineSnapshot(`
+      {
+        "structure": [
+          "card[tag("TAG"), card_body("helX"), card_body("Ylo")]",
+        ],
+      }
+    `);
+  });
+
+  it('F2 fix: 2-line paste at END of last card_body of card followed by another card — cursor lands at end of last pasted line, NOT on the next card\'s tag', () => {
+    // The specific user-reported case. With the bubble-up bug,
+    // PM could leave the cursor near (or on) the following card's
+    // tag during the lift-and-reabsorb dance. With
+    // tryPasteAsCardBodies in front of the dispatch, the slice
+    // stays inside SRC and the cursor stays inside the newly-
+    // inserted card_body("Y").
+    const doc = makeDoc([
+      cardWith(tag('SRC'), cardBody('end of src')),
+      cardWith(tag('NEXT'), cardBody('next body')),
+    ]);
+    const cursor = posInside(doc, (n) => n.isText && n.text === 'end of src', 10);
+    const state = makeState(doc).apply(
+      makeState(doc).tr.setSelection(TextSelection.create(doc, cursor)),
+    );
+    const after = f2Paste(state, 'X\nY');
+
+    const $head = after.doc.resolve(after.selection.head);
+    expect({
+      structure: docTypeShape(after.doc),
+      cursorParent: $head.parent.type.name,
+      cursorParentText: $head.parent.textContent,
+      cursorOffsetInParent: after.selection.head - $head.start(),
+    }).toMatchInlineSnapshot(`
+      {
+        "cursorOffsetInParent": 1,
+        "cursorParent": "card_body",
+        "cursorParentText": "Y",
+        "structure": [
+          "card[tag("SRC"), card_body("end of srcX"), card_body("Y")]",
+          "card[tag("NEXT"), card_body("next body")]",
+        ],
+      }
+    `);
+  });
+
+  it('F2 fix: paste ending in a newline — cursor lands on the trailing empty body (the "fresh line" case the user said is fine)', () => {
+    const doc = makeDoc([
+      cardWith(tag('SRC'), cardBody('end of src')),
+      cardWith(tag('NEXT'), cardBody('next body')),
+    ]);
+    const cursor = posInside(doc, (n) => n.isText && n.text === 'end of src', 10);
+    const state = makeState(doc).apply(
+      makeState(doc).tr.setSelection(TextSelection.create(doc, cursor)),
+    );
+    const after = f2Paste(state, 'X\n');
+
+    const $head = after.doc.resolve(after.selection.head);
+    expect({
+      structure: docTypeShape(after.doc),
+      cursorParent: $head.parent.type.name,
+      cursorParentText: $head.parent.textContent,
+      cursorOffsetInParent: after.selection.head - $head.start(),
+    }).toMatchInlineSnapshot(`
+      {
+        "cursorOffsetInParent": 0,
+        "cursorParent": "card_body",
+        "cursorParentText": "",
+        "structure": [
+          "card[tag("SRC"), card_body("end of srcX"), card_body]",
+          "card[tag("NEXT"), card_body("next body")]",
+        ],
+      }
+    `);
+  });
+
+  it('F2 fix: single-line paste keeps falling through to replaceSelection (slice has no paragraph children)', () => {
+    const doc = makeDoc([
+      cardWith(tag('TAG'), cardBody('hello')),
+    ]);
+    const cursor = posInside(doc, (n) => n.isText && n.text === 'hello', 5);
+    const state = makeState(doc).apply(
+      makeState(doc).tr.setSelection(TextSelection.create(doc, cursor)),
+    );
+
+    const after = f2Paste(state, 'ZZZ');
+
+    expect({
+      structure: docTypeShape(after.doc),
+    }).toMatchInlineSnapshot(`
+      {
+        "structure": [
+          "card[tag("TAG"), card_body("helloZZZ")]",
         ],
       }
     `);

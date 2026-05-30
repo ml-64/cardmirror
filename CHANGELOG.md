@@ -9,6 +9,20 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Fixed
 
+- **F2 plain-paste no longer occasionally elevates a pasted line into
+  a card tag.** Pasting 3+ lines of plain text into a card body used
+  to let PM's schema-fitting bubble the split up to the card itself —
+  which produced either content escaping the card to the document
+  level (the absorb plugin would clean it up immediately, but with
+  visible artifacts during the dance), or in worst cases a card
+  split where the second half's mandatory tag got synthesized from
+  one of the pasted lines (the "line becomes a heading with extra
+  spacing" report). The plain-paste path now uses the same pre-fit
+  the rich-paste path has had for a while: the paragraphs in the
+  pasted slice are converted to card-body nodes before insertion,
+  so the schema accepts them in place and no split bubbles up. As a
+  side effect, the cursor lands at the end of the pasted content
+  rather than bouncing through the lift-and-reabsorb dance.
 - **F12 (Clear to Normal) no longer rockets the cursor to the bottom
   of the doc when it dissolves a tagged card.** Cursor stays in the
   demoted (former-tag) paragraph at the same character offset, and

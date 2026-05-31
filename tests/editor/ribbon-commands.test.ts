@@ -4196,3 +4196,31 @@ describe('cycleTheme command', () => {
     expect(calls).toBe(1);
   });
 });
+
+// ── deleteCurrentHeading command ─────────────────────────────────────
+// New bindable command; the structure-deletion logic itself is covered
+// by delete-current-heading.test.ts. Here we lock down the registry
+// plumbing (mirrors selectCurrentHeading) and the ctx dispatch.
+describe('deleteCurrentHeading command', () => {
+  it('is registered with a label and is unbound by default', () => {
+    expect(RIBBON_COMMAND_IDS).toContain('deleteCurrentHeading');
+    expect(RIBBON_COMMAND_LABELS.deleteCurrentHeading).toBe('Delete Current Heading');
+    expect(DEFAULT_RIBBON_KEYS.deleteCurrentHeading).toBe('');
+  });
+
+  it('is searchable by "delete card" / "delete heading"', () => {
+    expect(RIBBON_COMMAND_ALIASES.deleteCurrentHeading).toEqual(
+      expect.arrayContaining(['delete card', 'delete heading']),
+    );
+  });
+
+  it('dispatches to ctx.deleteCurrentHeading only when a dispatch fn is present', () => {
+    let calls = 0;
+    const ctx = { deleteCurrentHeading: () => { calls++; } } as unknown as RibbonContext;
+    const cmd = getRibbonCommand('deleteCurrentHeading', ctx);
+    expect(cmd(null as never, undefined)).toBe(true);
+    expect(calls).toBe(0);
+    expect(cmd(null as never, () => {})).toBe(true);
+    expect(calls).toBe(1);
+  });
+});

@@ -14,7 +14,7 @@
  */
 
 import type { EditorView } from 'prosemirror-view';
-import { TextSelection } from 'prosemirror-state';
+import { TextSelection, type EditorState, type Transaction } from 'prosemirror-state';
 import { Slice, type Node as PMNode, type ResolvedPos } from 'prosemirror-model';
 import { closeHistory } from 'prosemirror-history';
 import { schema } from '../schema/index.js';
@@ -89,6 +89,28 @@ export function resolveSendRange(view: EditorView): SendRange | null {
  *  cursor." `null` if the cursor isn't inside a structure. */
 export function resolveCursorStructureRange(view: EditorView): SendRange | null {
   return enclosingStructureRange(view.state.doc, view.state.selection.$head);
+}
+
+/** Build a transaction that deletes the cursor's enclosing structure
+ *  (card / analytic_unit / heading + its subtree) outright — the whole
+ *  node range, so nothing is left behind. This is deliberately NOT the
+ *  same as selecting the structure and pressing Delete: a text-selection
+ *  delete over an isolating `card` empties its contents but keeps the
+ *  now-blank card shell, which is exactly what "Delete Current Heading"
+ *  must avoid. Returns null when the cursor isn't in a deletable
+ *  structure (e.g. a loose paragraph / empty doc). Re-homes the cursor
+ *  to the nearest valid spot where the structure used to be. */
+export function buildDeleteStructureTr(state: EditorState): Transaction | null {
+  const range = enclosingStructureRange(state.doc, state.selection.$head);
+  if (!range) return null;
+  const tr = state.tr.delete(range.from, range.to);
+  // Skip re-homing on a now-empty doc (no valid text position to land
+  // on); the mapped selection covers that degenerate case.
+  if (tr.doc.content.size > 0) {
+    const pos = Math.min(range.from, tr.doc.content.size);
+    tr.setSelection(TextSelection.near(tr.doc.resolve(pos)));
+  }
+  return tr.scrollIntoView();
 }
 
 /** Compute the slice to send from `sourceView`. Returns the user's

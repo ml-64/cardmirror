@@ -9,6 +9,13 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Added
 
+- **"Delete Current Heading" command.** Deletes the structure your
+  cursor is in — a card, an analytic, or a heading and everything under
+  it (the same thing "Select Current Heading" targets) — removed
+  outright, with no empty heading left behind. Unbound by default;
+  assign a key in Settings → Keybindings (or run it from the search
+  palette — it also answers to "delete card" / "delete heading").
+
 - **Search-Everything now finds settings and commands by their common
   names, not just their exact labels.** Searching "dark mode", "light
   mode", or "toggle theme" surfaces the Theme setting; "toggle

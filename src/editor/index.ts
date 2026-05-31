@@ -34,6 +34,7 @@ import {
   sendToSpeech as runSendToSpeech,
   resolveSendSlice,
   resolveCursorStructureRange,
+  buildDeleteStructureTr,
   installIncomingSpeechSliceHandler,
 } from './speech-doc-send.js';
 import { promptForText } from './text-prompt.js';
@@ -344,6 +345,17 @@ function selectCurrentHeadingIn(sourceView: EditorView): void {
   const { doc } = sourceView.state;
   const sel = TextSelection.between(doc.resolve(range.from), doc.resolve(range.to));
   sourceView.dispatch(sourceView.state.tr.setSelection(sel).scrollIntoView());
+  sourceView.focus();
+}
+
+/** Delete the cursor's enclosing structure (same bounds as
+ *  `selectCurrentHeadingIn`, cursor-only). Removes the whole node range
+ *  so nothing is left behind — notably no blank card shell, which is
+ *  what a select-then-Delete over an isolating card would leave. */
+function deleteCurrentHeadingIn(sourceView: EditorView): void {
+  const tr = buildDeleteStructureTr(sourceView.state);
+  if (!tr) return;
+  sourceView.dispatch(tr);
   sourceView.focus();
 }
 
@@ -971,6 +983,9 @@ const ribbonContext: RibbonContext = {
   // (`view` is the focused pane's view in both modes).
   selectCurrentHeading: () => {
     if (view) selectCurrentHeadingIn(view);
+  },
+  deleteCurrentHeading: () => {
+    if (view) deleteCurrentHeadingIn(view);
   },
   copyCurrentHeading: () => {
     if (view) void copyCurrentHeadingIn(view);

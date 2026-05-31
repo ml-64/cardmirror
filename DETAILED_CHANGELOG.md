@@ -7,6 +7,23 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **"Delete Current Heading" bindable command (`deleteCurrentHeading`).**
+  Sibling to `selectCurrentHeading` / `copyCurrentHeading` — same
+  cursor-only enclosing-structure bounds (`enclosingStructureRange` via
+  the shared `speech-doc-send.ts` helpers), but it removes the structure
+  instead of selecting it. Importantly it deletes the whole node range
+  (`tr.delete(from, to)`) rather than emulating select-then-Delete: a
+  text-selection delete over an `isolating` card empties the card but
+  keeps its now-blank shell, which this command must not do. New pure,
+  testable `buildDeleteStructureTr(state)` returns the delete transaction
+  (or null when the cursor isn't in a deletable structure) and re-homes
+  the cursor to the nearest valid spot; `deleteCurrentHeadingIn(view)` in
+  `index.ts` dispatches it via the same `view`-is-the-focused-pane ctx
+  hook the select/copy commands use (works single-doc + multi-pane).
+  Registered through the standard path (id union, IDs, label, alias
+  "delete card"/"delete heading", unbound default key, View ribbon
+  group, `commandFor` case, `RibbonContext` hook).
+
 - **Windows "New → CardMirror Document" context-menu entry (drafted,
   UNVERIFIED on Windows).** Scaffolding for a right-click "New" submenu
   item via the classic ShellNew registry mechanism — no shell-extension

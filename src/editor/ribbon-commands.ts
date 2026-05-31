@@ -3402,6 +3402,7 @@ export type RibbonCommandId =
   // bounds logic but keyed off the cursor — any active selection is
   // ignored. No default bindings — wire up via Settings → Keybindings.
   | 'selectCurrentHeading'
+  | 'deleteCurrentHeading'
   | 'copyCurrentHeading'
   // Quick Cards (see reference-docs/SPEC-quick-cards.md). Add saves the
   // current selection as a named, tagged snippet (no default binding);
@@ -3532,6 +3533,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'sendToSpeechAtEnd',
   'sendToDropzone',
   'selectCurrentHeading',
+  'deleteCurrentHeading',
   'copyCurrentHeading',
   'addQuickCard',
   'openQuickCardSearch',
@@ -3642,6 +3644,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   sendToSpeechAtEnd: 'Send to Speech (At End)',
   sendToDropzone: 'Send to Dropzone',
   selectCurrentHeading: 'Select Current Heading',
+  deleteCurrentHeading: 'Delete Current Heading',
   copyCurrentHeading: 'Copy Current Heading',
   addQuickCard: 'Add Quick Card',
   openQuickCardSearch: 'Search Everything',
@@ -3712,6 +3715,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   openShortcutsReference: ['hotkeys', 'key bindings', 'shortcuts'],
   zoomReset: ['actual size'],
   cycleTheme: ['dark mode', 'light mode', 'toggle theme', 'switch theme', 'appearance'],
+  deleteCurrentHeading: ['delete card', 'delete heading', 'remove card', 'delete current card'],
 };
 
 /**
@@ -3803,6 +3807,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   sendToSpeechAtEnd: 'Alt-`',
   sendToDropzone: 'Mod-`',
   selectCurrentHeading: '',
+  deleteCurrentHeading: '',
   copyCurrentHeading: '',
   addQuickCard: '',
   openQuickCardSearch: 'Mod-Shift-Space',
@@ -3959,6 +3964,9 @@ export interface RibbonContext {
    *  card / analytic_unit / heading + subtree). Keyed off the cursor;
    *  any active selection is ignored. */
   selectCurrentHeading: () => void;
+  /** Delete the cursor's enclosing structure (card / analytic_unit /
+   *  heading + subtree) outright — no blank heading left behind. */
+  deleteCurrentHeading: () => void;
   copyCurrentHeading: () => void;
   /** Save the current selection as a named, tagged quick card
    *  (opens the Add dialog). No-op + toast if the selection is empty. */
@@ -4062,6 +4070,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   sendToDropzone: () => {},
   sendToSpeechAtEnd: () => {},
   selectCurrentHeading: () => {},
+  deleteCurrentHeading: () => {},
   copyCurrentHeading: () => {},
   addQuickCard: () => {},
   openQuickCardSearch: () => {},
@@ -4331,6 +4340,12 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.selectCurrentHeading();
+        return true;
+      };
+    case 'deleteCurrentHeading':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.deleteCurrentHeading();
         return true;
       };
     case 'copyCurrentHeading':

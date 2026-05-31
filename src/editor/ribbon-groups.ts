@@ -97,6 +97,7 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
       'createReference',
       'insertImage',
       'selectCurrentHeading',
+      'deleteCurrentHeading',
       'copyCurrentHeading',
     ],
   },

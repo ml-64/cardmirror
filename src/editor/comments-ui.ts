@@ -56,10 +56,10 @@ import type { CardAnchor, AiThread, LocalComment } from './learn-store.js';
 /** Synthetic column-card id prefix for a flashcard, distinguishing it
  *  from a (numeric) comment thread id in the shared cardEls map / the
  *  `lastRanges` positioning map. */
-const FC_PREFIX = 'fc:';
+export const FC_PREFIX = 'fc:';
 /** Synthetic column-card id prefix for an AI thread (local annotation
  *  layer), distinct from comment-thread and flashcard ids. */
-const AI_PREFIX = 'ai:';
+export const AI_PREFIX = 'ai:';
 
 /** Resolve the configured AI persona (name + pronouns) from
  *  settings. Centralized here so every consumer (invokeAi,

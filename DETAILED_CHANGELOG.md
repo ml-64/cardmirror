@@ -7,6 +7,26 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Cursor focus for AI-comment / flashcard cards (consistent with
+  comments).** Clicking commented text focuses its thread because
+  `threadIdAtCursor` (`index.ts`) reads the `comment_range` mark at the
+  cursor and the existing `dispatchTransaction` wiring hands the id to
+  `commentsColumn.setActiveThread`. AI threads and flashcards are
+  local-only (`learnStore` + an `AnchorDescriptor`) and anchor via
+  `learnHighlightPlugin` decorations, not a mark — so they never
+  serialize, but a mark lookup missed them and `setActiveThread(null)`
+  actually cleared any active card. Fix: new pure
+  `flashcardRangeAt(state, pos)` in `learn-highlight-plugin.ts` returns
+  the resolved highlight range containing a position (both ends
+  inclusive, first match wins); `threadIdAtCursor` falls back to it when
+  no comment mark is found and returns the column's prefixed id
+  (`AI_PREFIX`/`FC_PREFIX`, now exported from `comments-ui.ts`) by
+  `range.kind`. Comment marks still win when text carries both.
+  Everything downstream (`setActiveThread`, card expand/scroll, in-doc
+  active-range emphasis) already keys on the prefixed id, so AI and
+  flashcard cards now focus on cursor exactly like comments and collapse
+  when the cursor leaves.
+
 - **Optional live selection word count (`liveSelectionWordCount`, default
   off).** The status-bar read-time counter (`refreshWordCount` in
   `index.ts`) only re-ran inside the debounced, `tx.docChanged`-gated

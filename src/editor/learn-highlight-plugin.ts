@@ -131,6 +131,18 @@ export function flashcardRanges(state: EditorState): FlashcardRange[] {
   return learnHighlightKey.getState(state)?.ranges ?? [];
 }
 
+/** The resolved annotation range containing `pos` (both ends inclusive),
+ *  or null. First match wins when ranges abut/overlap. Lets the cursor-
+ *  activation path focus the column card for AI / flashcard text — which
+ *  anchors via these decorations, not a `comment_range` mark — the same
+ *  way a comment focuses its thread. */
+export function flashcardRangeAt(state: EditorState, pos: number): FlashcardRange | null {
+  for (const r of flashcardRanges(state)) {
+    if (pos >= r.from && pos <= r.to) return r;
+  }
+  return null;
+}
+
 /** Map of cardId → live range, for the column's positioning. */
 export function flashcardRangeMap(state: EditorState): Map<string, { from: number; to: number }> {
   const out = new Map<string, { from: number; to: number }>();

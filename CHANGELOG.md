@@ -17,6 +17,14 @@ see `DETAILED_CHANGELOG.md`.
   the Word Count button (Σ). Leave it off on very large documents if you
   notice lag while dragging a selection.
 
+### Fixed
+
+- **Clicking AI-comment or flashcard text now focuses its card** in the
+  comments pane, the same way clicking commented text focuses its
+  comment. Previously only human comments responded to the cursor — AI
+  threads and flashcards would only open if you clicked their card in the
+  pane directly.
+
 ## 0.1.0-alpha.7 — 2026-05-30
 
 ### Added

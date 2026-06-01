@@ -80,10 +80,10 @@ import { openSaveAs } from './save-as-ui.js';
 import { highlightColorLabel, shadingColorLabel } from './color-palette.js';
 import { commentsPlugin, commentsKey, loadThreads, getCommentsState, gcOrphanThreads } from './comments-plugin.js';
 import { scheduleIdle, cancelIdle, type IdleHandle } from './idle-scheduler.js';
-import { CommentsColumn, addCommentToSelection } from './comments-ui.js';
+import { CommentsColumn, addCommentToSelection, FC_PREFIX, AI_PREFIX } from './comments-ui.js';
 import { runAiCreateCite } from './ai/cite-creator.js';
 import { readModePlugin, PMD_READ_MODE_TOGGLE } from './read-mode-plugin.js';
-import { learnHighlightPlugin } from './learn-highlight-plugin.js';
+import { learnHighlightPlugin, flashcardRangeAt } from './learn-highlight-plugin.js';
 import { absorbPlugin } from './absorb-plugin.js';
 import { citeClassifierPlugin } from './cite-classifier-plugin.js';
 import { namedStyleNormalizerPlugin } from './named-style-normalizer-plugin.js';
@@ -1604,12 +1604,19 @@ function applyAskAiButtonVisibility(enabled: boolean): void {
 }
 applyAskAiButtonVisibility(settings.get('aiFeaturesEnabled'));
 
-/** Find the threadId of a comment_range mark at the current cursor
- *  position. Returns null when the cursor isn't inside or touching
- *  one. Robust to the non-inclusive boundary cases: we check the
- *  inherited marks at $from / $to, plus the marks of the text node
- *  immediately before / after the cursor — so a cursor parked at
- *  the very start of a marked range still resolves to that thread. */
+/** Find the column-card id of the annotation at the current cursor
+ *  position — a comment thread, an AI thread, or a flashcard — so the
+ *  comments column can focus its card. Returns null when the cursor
+ *  isn't inside one.
+ *
+ *  Comments anchor via a `comment_range` mark (and serialize); we check
+ *  the inherited marks at $from / $to plus the text node immediately
+ *  before / after the cursor, so a cursor parked at the very start of a
+ *  marked range still resolves. AI threads and flashcards are local-only
+ *  and anchor via highlight-plugin decorations instead of a mark, so a
+ *  mark lookup misses them — fall back to the resolved highlight ranges
+ *  and return the column's prefixed id (`ai:` / `fc:`). Comment marks win
+ *  over a highlight range when text carries both. */
 export function threadIdAtCursor(state: EditorState): string | null {
   const sel = state.selection;
   const harvest = (markSources: readonly (readonly Mark[])[]): string | null => {
@@ -1623,12 +1630,19 @@ export function threadIdAtCursor(state: EditorState): string | null {
     }
     return null;
   };
-  return harvest([
+  const commentId = harvest([
     sel.$from.marks(),
     sel.$to.marks(),
     sel.$from.nodeAfter?.marks ?? [],
     sel.$to.nodeBefore?.marks ?? [],
   ]);
+  if (commentId) return commentId;
+  // Local annotation layer (AI threads / flashcards) — anchored by
+  // decoration, not a mark. Either selection endpoint inside a range
+  // focuses it, mirroring the comment harvest checking $from and $to.
+  const range = flashcardRangeAt(state, sel.from) ?? flashcardRangeAt(state, sel.to);
+  if (range) return (range.kind === 'ai' ? AI_PREFIX : FC_PREFIX) + range.cardId;
+  return null;
 }
 
 // Zoom controls.

@@ -107,6 +107,11 @@ see `DETAILED_CHANGELOG.md`.
   colors — a faint blue region band with orange match outlines — instead
   of two near-identical oranges that were hard to tell apart.
 
+- **The welcome guide is shorter, and now covers flashcards.** The
+  starter document you get on first launch (and on New Document) has been
+  tightened throughout and gained a "Study your evidence" section
+  introducing the spaced-repetition flashcards.
+
 ### Internal
 
 - **Diagnostic logging for a macOS multi-window issue.** This build
@@ -115,6 +120,10 @@ see `DETAILED_CHANGELOG.md`.
   three-pane toggle don't always coordinate between windows. It records
   window open/close coordination only — no document content — and will
   be removed once the cause is found.
+
+- **Project documentation streamlined.** The README, ARCHITECTURE, and
+  PROJECT docs were cut down and brought up to date — shorter, clearer,
+  and accurate about what's shipped versus planned.
 
 ### Fixed
 

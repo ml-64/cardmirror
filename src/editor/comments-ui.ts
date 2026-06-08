@@ -122,39 +122,24 @@ import {
   type Thread,
 } from './comments-plugin.js';
 
-/** Suffix appended to an AI comment's author name. Combined with
- *  fixed `'AI'` initials, gives us a round-trip-safe way to identify
- *  AI comments after docx export (which drops the `kind` flag). See
- *  `isAiComment`. */
-const AI_NAME_SUFFIX = ' (AI)';
-
 /** Recognize an AI comment from fields that survive docx round-trip
- *  (Word has no concept of AI vs human, so the schema's `kind`
- *  field is dropped on docx export and restored as `'human'` on
- *  re-import). New AI comments carry `initials: 'AI'` and an
- *  author name ending with `(AI)` — either signal is sufficient.
- *  `kind === 'ai'` is kept as a legacy back-compat fallback so
- *  comments saved before this switch (and round-tripped via
- *  `.cmir`, which preserves `kind`) still display as AI. */
+ *  (Word has no concept of AI vs human, so the schema's `kind` field is
+ *  dropped on docx export and restored as `'human'` on re-import). AI
+ *  comments carry `initials: 'AI'`, which round-trips (comments.xml
+ *  `w:initials`). The trailing-`(AI)` author check is a back-compat
+ *  fallback for comments written before we stopped suffixing the name;
+ *  `kind === 'ai'` likewise covers older `.cmir`-only saves. */
 function isAiComment(comment: { author: string; initials: string; kind?: Comment['kind'] }): boolean {
   if (comment.initials.trim().toUpperCase() === 'AI') return true;
   if (comment.author.trim().endsWith('(AI)')) return true;
   return comment.kind === 'ai';
 }
 
-/** Build the author name we write into a freshly-minted AI comment.
- *  When Clod is enabled, suffix the persona name with `(AI)` so the
- *  AI-ness is identifiable from the name field alone after a docx
- *  round-trip. When Clod is off, the name is already `'AI'` — no
- *  suffix needed, and `'AI (AI)'` would look silly. */
-function aiAuthorName(): string {
-  const useClod = settings.get('clodEnabled');
-  if (!useClod) return 'AI';
-  const persona = getAiPersona();
-  const base = persona.name.trim() || 'AI';
-  if (base.endsWith('(AI)')) return base; // defensive: don't double-suffix
-  if (base === 'AI') return base;
-  return `${base}${AI_NAME_SUFFIX}`;
+/** Strip a legacy trailing ` (AI)` from an AI comment's author for
+ *  display, so older comments read as just the persona name like the
+ *  rest of the interface. New AI comments no longer carry the suffix. */
+function displayAuthor(comment: { author: string }): string {
+  return (comment.author || 'Unknown').replace(/\s*\(AI\)$/i, '') || 'Unknown';
 }
 
 /** Author name for a LOCAL AI thread turn: the persona name, with no
@@ -1376,7 +1361,7 @@ export class CommentsColumn {
       ai: false,
     });
     this.suppressBlurReset = false;
-    this.invokeAiLocal(threadId);
+    this.invokeAiLocal('ai', threadId);
   }
 
   /** Run the AI explainer against a LOCAL AI thread. Mirrors `invokeAi`
@@ -1385,7 +1370,7 @@ export class CommentsColumn {
    *  nothing serializes into the shared doc. Builds the multi-turn
    *  message list (user turns → `user`, `ai: true` turns → `assistant`),
    *  wrapping the first user turn in the context-rich explainer prompt. */
-  private invokeAiLocal(threadId: string): void {
+  private invokeAiLocal(kind: 'ai' | 'note', id: string): void {
     const view = this.getView();
     if (!view) return;
     if (!settings.get('aiFeaturesEnabled')) {
@@ -1397,29 +1382,30 @@ export class CommentsColumn {
       showToast('Set an Anthropic API key in Settings to use AI features.');
       return;
     }
-    const thread = learnStore.getAiThread(threadId);
-    if (!thread) return;
+    const item = kind === 'ai' ? learnStore.getAiThread(id) : learnStore.getNote(id);
+    if (!item) return;
 
-    let ctx = this.aiContextByThread.get(threadId) ?? null;
-    if (!ctx) ctx = this.contextFromAiThread(threadId);
+    let ctx = this.aiContextByThread.get(id) ?? null;
+    if (!ctx) ctx = this.contextFromLocal(kind, id);
     if (!ctx) {
       showToast('Could not build context for AI request.');
       return;
     }
     const promptCtx = ctx;
-    this.aiContextByThread.set(threadId, promptCtx);
+    this.aiContextByThread.set(id, promptCtx);
 
-    const messages = thread.comments.flatMap((c, i): AnthropicMessage[] => {
+    const messages = item.comments.flatMap((c, i): AnthropicMessage[] => {
       if (!c.text.trim()) return [];
       if (c.ai) return [{ role: 'assistant', content: c.text }];
-      const isFirstUserTurn = !thread.comments.slice(0, i).some((p) => !p.ai && p.text.trim());
+      const isFirstUserTurn = !item.comments.slice(0, i).some((p) => !p.ai && p.text.trim());
       const content = isFirstUserTurn ? formatExplainFirstTurn(c.text, promptCtx) : c.text;
       return [{ role: 'user', content }];
     });
     if (messages.length === 0) return;
 
-    this.aiInFlight.add(threadId);
-    this.activeThreadId = AI_PREFIX + threadId;
+    const prefix = kind === 'ai' ? AI_PREFIX : NOTE_PREFIX;
+    this.aiInFlight.add(id);
+    this.activeThreadId = prefix + id;
     this.activeBy = 'click';
     this.refreshStickyDismissListener();
     this.render();
@@ -1430,19 +1416,21 @@ export class CommentsColumn {
         const reply = await callAnthropic({ apiKey, system: EXPLAIN_SYSTEM_PROMPT, messages });
         // Drop the in-flight flag BEFORE appending so the store-driven
         // re-render shows the reply without the Thinking… placeholder.
-        this.aiInFlight.delete(threadId);
+        this.aiInFlight.delete(id);
         if (this.aiInFlight.size === 0) this.stopActivityTicker();
-        learnStore.appendAiComment(threadId, {
+        const aiTurn = {
           author: aiPersonaName(),
           text: reply.text.trim(),
           at: new Date().toISOString(),
           ai: true,
-        });
+        };
+        if (kind === 'ai') learnStore.appendAiComment(id, aiTurn);
+        else learnStore.appendNoteComment(id, aiTurn);
       } catch (e) {
         if (e instanceof AnthropicError) showToast(`AI: ${e.message}`);
         else showToast(`AI error: ${e instanceof Error ? e.message : String(e)}`);
       } finally {
-        this.aiInFlight.delete(threadId);
+        this.aiInFlight.delete(id);
         if (this.aiInFlight.size === 0) this.stopActivityTicker();
         this.render();
       }
@@ -1453,14 +1441,18 @@ export class CommentsColumn {
    *  the live highlight range if resolved, else the stored descriptor —
    *  for the case where no context was cached at creation (e.g. a
    *  follow-up after reload). */
-  private contextFromAiThread(threadId: string): ReturnType<typeof buildExplainContext> {
+  private contextFromLocal(
+    kind: 'ai' | 'note',
+    id: string,
+  ): ReturnType<typeof buildExplainContext> {
     const view = this.getView();
     if (!view) return null;
-    let range = this.lastRanges.get(AI_PREFIX + threadId) ?? null;
+    const prefix = kind === 'ai' ? AI_PREFIX : NOTE_PREFIX;
+    let range = this.lastRanges.get(prefix + id) ?? null;
     if (!range) {
-      const t = learnStore.getAiThread(threadId);
-      if (t?.anchor) {
-        const r = resolveDescriptor(view.state.doc, t.anchor);
+      const item = kind === 'ai' ? learnStore.getAiThread(id) : learnStore.getNote(id);
+      if (item?.anchor) {
+        const r = resolveDescriptor(view.state.doc, item.anchor);
         if (r) range = { from: r.from, to: r.to };
       }
     }
@@ -1504,7 +1496,7 @@ export class CommentsColumn {
     }
     const thread = learnStore.getAiThread(threadId);
     if (!thread) return;
-    const ctx = this.aiContextByThread.get(threadId) ?? this.contextFromAiThread(threadId);
+    const ctx = this.aiContextByThread.get(threadId) ?? this.contextFromLocal('ai', threadId);
     if (!ctx) {
       showToast('Could not build context for the flashcard.');
       return;
@@ -1666,7 +1658,8 @@ export class CommentsColumn {
     const empty = (n?.comments.length ?? 0) === 0;
     return JSON.stringify({
       a: empty ? 'empty' : isActive,
-      c: (n?.comments ?? []).map((c) => [c.author, c.text]),
+      f: this.aiInFlight.has(noteId),
+      c: (n?.comments ?? []).map((c) => [c.author, c.text, c.ai ?? false]),
     });
   }
 
@@ -1696,11 +1689,13 @@ export class CommentsColumn {
         this.renderAiComment(c, i === 0, (text) => learnStore.editNoteComment(noteId, i, text)),
       ),
     );
+    if (this.aiInFlight.has(noteId)) card.appendChild(this.renderAiThinkingPlaceholder(true));
     card.appendChild(this.buildNoteInput(noteId, 'Reply…', 'Reply'));
   }
 
-  /** Message / reply input for a note. Mirrors `buildAiInput` but routes
-   *  to `addNoteComment` (no model call). */
+  /** Message / reply input for a note. Routes to `addNoteComment`, which
+   *  only calls the model when the message mentions `@AI` (or the note
+   *  already has an AI turn) — otherwise it's a plain private note. */
   private buildNoteInput(noteId: string, placeholder: string, submitLabel: string): HTMLFormElement {
     const itemId = NOTE_PREFIX + noteId;
     const form = document.createElement('form');
@@ -1759,6 +1754,9 @@ export class CommentsColumn {
     });
     this.suppressBlurReset = false;
     this.focusReplyForThread(NOTE_PREFIX + noteId);
+    // `@AI …` in a note summons the model too (the reply lands as a
+    // private AI turn on the note).
+    this.maybeInvokeAiForNote(noteId, text);
   }
 
   private deleteNote(noteId: string): void {
@@ -1881,7 +1879,7 @@ export class CommentsColumn {
     header.className = 'pmd-comment-header';
     const badge = document.createElement('span');
     badge.className = 'pmd-comment-initials';
-    const author = local ? aiPersonaName() : aiAuthorName();
+    const author = aiPersonaName();
     if (local) fillBadge(badge, author, aiPersonaInitials(author));
     else badge.textContent = 'AI';
     header.appendChild(badge);
@@ -1950,6 +1948,9 @@ export class CommentsColumn {
   private renderPrimaryInput(thread: Thread, root: Comment): HTMLElement {
     return this.buildInputForm(thread, 'Add a comment…', (text) => {
       this.commitRootText(thread.id, root.id, text);
+      // The first comment message is an AI trigger too — `@AI …` here
+      // must summon the model, not just replies.
+      this.maybeInvokeAiForComment(thread.id, text);
     }, 'Comment');
   }
 
@@ -2114,7 +2115,7 @@ export class CommentsColumn {
     header.appendChild(badge);
     const name = document.createElement('span');
     name.className = 'pmd-comment-author';
-    name.textContent = comment.author || 'Unknown';
+    name.textContent = isAiComment(comment) ? displayAuthor(comment) : comment.author || 'Unknown';
     header.appendChild(name);
     if (comment.date) {
       const date = document.createElement('span');
@@ -2180,20 +2181,35 @@ export class CommentsColumn {
     view.dispatch(view.state.tr.setMeta(commentsKey, addReplyMeta(threadId, comment)));
     this.suppressBlurReset = false;
     view.focus();
+    this.maybeInvokeAiForComment(threadId, text);
+  }
 
-    // AI re-invocation rules:
-    //   - If the thread already contains an AI comment (an AI
-    //     conversation in progress), every human reply re-invokes
-    //     the model with the full thread as message history.
-    //   - Otherwise, only an explicit `@AI` mention re-invokes
-    //     (turns a non-AI thread into one).
+  /** AI re-invocation rules for a comment thread, run on any new message
+   *  (the root's first text AND replies):
+   *   - if the thread already contains an AI comment, every human turn
+   *     re-invokes the model with the full thread as history;
+   *   - otherwise only an explicit `@AI` mention re-invokes (turning a
+   *     plain thread into an AI one).
+   *  Reads thread state AFTER the message landed, so the new text is
+   *  included in the history. */
+  private maybeInvokeAiForComment(threadId: string, text: string): void {
     if (!settings.get('aiFeaturesEnabled')) return;
-    const updatedThread = getCommentsState(view.state).threads.get(threadId);
-    if (!updatedThread) return;
-    const hasAiHistory = updatedThread.comments.some((c) => isAiComment(c));
-    if (hasAiHistory || hasAiMention(text)) {
-      this.invokeAi(threadId);
-    }
+    const view = this.getView();
+    if (!view) return;
+    const thread = getCommentsState(view.state).threads.get(threadId);
+    if (!thread) return;
+    const hasAiHistory = thread.comments.some((c) => isAiComment(c));
+    if (hasAiHistory || hasAiMention(text)) this.invokeAi(threadId);
+  }
+
+  /** Same rules for a note thread (uses the `ai` turn flag and the local
+   *  AI invoke). */
+  private maybeInvokeAiForNote(noteId: string, text: string): void {
+    if (!settings.get('aiFeaturesEnabled')) return;
+    const note = learnStore.getNote(noteId);
+    if (!note) return;
+    const hasAiHistory = note.comments.some((c) => c.ai);
+    if (hasAiHistory || hasAiMention(text)) this.invokeAiLocal('note', noteId);
   }
 
   /** Run the AI explainer against `threadId`. Builds the message
@@ -2245,14 +2261,13 @@ export class CommentsColumn {
     });
     if (messages.length === 0) return;
 
-    // Identity for the AI comment: fixed `'AI'` initials and an
-    // author name that either is `'AI'` (no persona) or ends with
-    // `(AI)` (persona enabled). Both signals survive docx
-    // round-trip; `isAiComment` keys off either to apply purple
-    // styling on re-import. The old `kind: 'ai'` flag is no
-    // longer used as the AI marker (it's stripped by Word) — new
-    // AI comments are written with `kind: 'human'`.
-    const aiAuthor = aiAuthorName();
+    // Identity for the AI comment: the persona name (or `'AI'` when Clod
+    // is off) plus fixed `'AI'` initials. The initials survive docx
+    // round-trip (comments.xml `w:initials`) and are what `isAiComment`
+    // keys off to re-apply purple styling on re-import — so the author
+    // name stays clean (no `(AI)` suffix). `kind` is written `'human'`
+    // (Word strips an unknown `kind` anyway).
+    const aiAuthor = aiPersonaName();
     const aiInitials = 'AI';
 
     this.aiInFlight.add(threadId);

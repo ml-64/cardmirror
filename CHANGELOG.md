@@ -19,6 +19,12 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Fixed
 
+- **`@AI` mentions work again in comments and notes.** Typing `@AI` now
+  summons the assistant from the **first** message of a comment (not just
+  replies), and works in note threads too — both had stopped firing. The
+  assistant's name also no longer shows a redundant `(AI)` after it (e.g.
+  just "Clod"), matching the rest of the interface.
+
 - **Opening an already-open file from Finder no longer makes a second
   copy.** Double-clicking a file in Finder (or "Open with… CardMirror")
   now jumps to the window that already has it open — the same thing the

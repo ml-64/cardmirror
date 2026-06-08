@@ -7,6 +7,20 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **`@AI` mentions fire from comments + notes again; AI author name
+  cleaned up** (`src/editor/comments-ui.ts`). The `@AI` / has-AI-history
+  re-invocation check lived only in `submitReply`, so it was lost on the
+  comment thread's first message (`commitRootText`) and was never wired
+  for notes (`addNoteComment`). Extracted into `maybeInvokeAiForComment`
+  (called from the root input and replies) and added `maybeInvokeAiForNote`;
+  `invokeAiLocal` / `contextFromLocal` are generalized over `'ai' | 'note'`
+  so a note's AI reply lands as a private `ai: true` turn (with the
+  Thinking placeholder + a re-render-signature flag added to notes). The
+  redundant ` (AI)` author suffix is dropped — AI comments now store the
+  plain persona name and rely on `initials: 'AI'` for round-trip
+  detection (it survives via comments.xml `w:initials`); a legacy trailing
+  `(AI)` is stripped at display and still recognized by `isAiComment`.
+
 - **Annotations (comment / note / ask-AI) work on images** (`learn-anchor.ts`,
   `comments-plugin.ts`, `comments-ui.ts`, `ai/explain-context.ts`,
   `ai/anthropic.ts`, `ai/image-ai.ts`, `import/importer.ts`, `index.ts`).

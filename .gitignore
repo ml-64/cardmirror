@@ -42,6 +42,11 @@ apps/desktop/dist/
 # Electron-builder artifacts (Phase 5).
 release/
 
+# Voice recognition assets (libvosk + the 128 MB vosk model) — fetched
+# by apps/desktop/scripts/fetch-voice-assets.cjs at build time, never
+# committed.
+apps/desktop/resources/voice/
+
 # `build/` is gitignored above as a generic build-output directory,
 # but electron-builder's `buildResources` lives at
 # apps/desktop/build/ and holds tracked source assets (icon.png).

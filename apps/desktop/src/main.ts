@@ -27,6 +27,7 @@ import {
   shell,
 } from 'electron';
 import { autoUpdater } from 'electron-updater';
+import { registerVoiceIpc } from './voice/ipc';
 import { promises as fs, realpathSync } from 'node:fs';
 import * as path from 'node:path';
 import { startFastPasteBridge, stopFastPasteBridge } from './fast-paste-bridge.js';
@@ -1510,6 +1511,10 @@ ipcMain.handle('host:open-path-release', async (event, p: string) => {
   openPathOwners.delete(norm);
   windowOpenPaths.get(win.id)?.delete(norm);
 });
+
+// Voice recognition service (SPEC-voice.md §12 item 2): session
+// lifecycle + PCM-in / parse-events-out channels live in voice/ipc.ts.
+registerVoiceIpc();
 
 ipcMain.handle('host:speech-set', async (event, uid: string | null) => {
   const senderWin = BrowserWindow.fromWebContents(event.sender);

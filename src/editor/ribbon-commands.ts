@@ -2380,6 +2380,33 @@ export function shrinkText(
   restoreOmissions: () => boolean,
   protectionPatterns: () => readonly RegExp[],
 ): Command {
+  return sizeCycleCommand(effectivePt, normalPt, restoreOmissions, protectionPatterns, nextShrinkSize);
+}
+
+/** Restore shrink-scope text straight to Normal size — the inverse of
+ *  the shrink cycle, sharing its scope/eligibility/protection logic. */
+export function regrowText(
+  effectivePt: (node: PMNode | null, parent: PMNode) => number,
+  normalPt: () => number,
+  restoreOmissions: () => boolean,
+  protectionPatterns: () => readonly RegExp[],
+): Command {
+  return sizeCycleCommand(
+    effectivePt,
+    normalPt,
+    restoreOmissions,
+    protectionPatterns,
+    (_sizes, normal) => normal,
+  );
+}
+
+function sizeCycleCommand(
+  effectivePt: (node: PMNode | null, parent: PMNode) => number,
+  normalPt: () => number,
+  restoreOmissions: () => boolean,
+  protectionPatterns: () => readonly RegExp[],
+  pickSize: (sizes: Set<number>, normalPt: number) => number,
+): Command {
   return (state, dispatch) => {
     const ranges = computeShrinkScope(state);
     if (ranges.length === 0) return false;
@@ -2418,7 +2445,7 @@ export function shrinkText(
     if (eligible.length === 0 && protectedRanges.length === 0) return false;
 
     const normal = normalPt();
-    const newSize = nextShrinkSize(sizes, normal);
+    const newSize = pickSize(sizes, normal);
     if (!dispatch) return true;
 
     const tr = state.tr;
@@ -3474,6 +3501,7 @@ export type RibbonCommandId =
   | 'pasteAsText'
   | 'clearToNormal'
   | 'shrink'
+  | 'regrow'
   | 'createReference'
   | 'extractUndertag'
   | 'highlightToShading'
@@ -3617,6 +3645,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'pasteAsText',
   'clearToNormal',
   'shrink',
+  'regrow',
   'createReference',
   'extractUndertag',
   'highlightToShading',
@@ -3736,6 +3765,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   pasteAsText: 'Paste Plain Text',
   clearToNormal: 'Clear',
   shrink: 'Shrink Card Text',
+  regrow: 'Restore Card Text Size',
   createReference: 'Create Reference',
   extractUndertag: 'Extract Undertag',
   highlightToShading: 'Highlight to Background',
@@ -3844,6 +3874,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   markActiveAsSpeech: ['toggle speech doc', 'set speech document'],
   // vague / Word-flavored labels
   clearToNormal: ['clear formatting', 'remove formatting', 'clear to normal'],
+  regrow: ['unshrink', 'regrow', 'restore text size', 'unshrink card text'],
   pasteAsText: ['paste without formatting', 'paste unformatted', 'paste text'],
   removeHyperlinks: ['remove links', 'delete links', 'unlink'],
   applyShading: ['shading', 'text highlight color'],
@@ -3895,6 +3926,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   pasteAsText: 'F2',
   clearToNormal: 'F12',
   shrink: 'Mod-8',
+  regrow: 'Mod-Shift-8',
   // Menu / button commands — exposed for user-defined bindings via
   // the keybinding editor; no default key.
   createReference: '',
@@ -4313,6 +4345,13 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return clearToNormal();
     case 'shrink':
       return shrinkText(
+        ctx.effectivePtForNode,
+        ctx.normalPt,
+        ctx.shrinkRestoresOmissionsToNormal,
+        ctx.shrinkProtectionPatterns,
+      );
+    case 'regrow':
+      return regrowText(
         ctx.effectivePtForNode,
         ctx.normalPt,
         ctx.shrinkRestoresOmissionsToNormal,

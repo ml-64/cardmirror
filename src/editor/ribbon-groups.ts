@@ -94,6 +94,7 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
       'pasteAsText',
       'clearToNormal',
       'shrink',
+      'regrow',
       'copyPreviousCite',
       'createReference',
       'extractUndertag',

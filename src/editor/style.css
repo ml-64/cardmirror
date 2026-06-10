@@ -9418,3 +9418,253 @@ html.pmd-emphasis-box .pmd-pane-editor .pmd-emphasis {
   text-decoration: red wavy underline;
   text-decoration-skip-ink: none;
 }
+
+/* ── Voice pill ─────────────────────────────────────────────
+   Status pill for the voice session (SPEC-voice.md §9): mode dot +
+   parse echo + input-level meter. Same visual language as the
+   dropzone pill (.pmd-dropzone-bar): 30px bar, soft surface, instant
+   state flips, bottom-anchored above the status bar — but right
+   corner, mirroring the dropzone's left. */
+.pmd-voice-pill {
+  position: fixed;
+  bottom: calc(var(--status-bar-height) + 0.5rem);
+  right: 0.5rem;
+  z-index: 220; /* same band as the dropzone pill */
+  display: none;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.55rem;
+  height: 30px;
+  max-width: 420px;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--pmd-c-text-muted);
+  background: var(--pmd-c-surface-soft);
+  border: 1px solid var(--pmd-c-border-soft);
+  border-radius: 6px;
+  box-shadow: 0 2px 6px var(--pmd-c-shadow-fade);
+  user-select: none;
+  cursor: pointer;
+  transition: none; /* state morphs read better instant (dropzone A/B) */
+}
+.pmd-voice-pill:hover {
+  background: var(--pmd-c-hover);
+  color: var(--pmd-c-text);
+}
+body.pmd-multi-doc .pmd-voice-pill {
+  bottom: calc(var(--status-bar-height) + var(--pmd-pane-footer-height) + 0.5rem);
+}
+.pmd-voice-pill.pmd-voice-on {
+  display: flex;
+}
+.pmd-voice-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--pmd-c-text-faint);
+}
+.pmd-voice-pill.pmd-voice-mode-command .pmd-voice-dot { background: var(--pmd-c-accent); }
+.pmd-voice-pill.pmd-voice-mode-dictation .pmd-voice-dot { background: var(--pmd-c-success); }
+.pmd-voice-pill.pmd-voice-mode-asleep .pmd-voice-dot { background: var(--pmd-c-text-faint); }
+.pmd-voice-echo {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pmd-voice-echo.pmd-voice-rejected {
+  color: var(--pmd-c-error);
+}
+.pmd-voice-meter {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+  background: var(--pmd-c-divider);
+  overflow: hidden;
+}
+.pmd-voice-meter > div {
+  height: 100%;
+  width: 0;
+  background: var(--pmd-c-success);
+}
+/* Streaming dictation transcript at the cursor — provisional, becomes
+   real text when the utterance closes. */
+.pmd-voice-ghost {
+  color: var(--pmd-c-text-faint);
+  font-style: italic;
+}
+.pmd-voice-ghost::before {
+  content: ' ';
+}
+/* Active-pen badge inside the voice pill (sticky pen state, always
+   visible) and the paint-mode dot hue. */
+.pmd-voice-pen {
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: var(--pmd-c-accent-soft);
+  color: var(--pmd-c-accent);
+  border-radius: 999px;
+  padding: 0 0.4rem;
+}
+.pmd-voice-pill.pmd-voice-mode-paint .pmd-voice-dot { background: var(--pmd-c-warning); }
+/* Quote-disambiguation badges (§4.1): numbered chips on candidate
+   matches, dismissed by pick/cancel/any other command. */
+.pmd-voice-candidate {
+  background: var(--pmd-c-accent-soft);
+  border-radius: 2px;
+}
+.pmd-voice-candidate-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.05rem;
+  height: 1.05rem;
+  margin-right: 2px;
+  border-radius: 999px;
+  background: var(--pmd-c-accent);
+  color: var(--pmd-c-text-on-accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  vertical-align: text-bottom;
+  user-select: none;
+}
+/* Card ordinal badges in the nav panel (§4.2.1) — pure CSS counters
+   over card (tag) entries, visible only while voice is listening, so
+   "card <number>" always resolves against numbers the user can see. */
+body.pmd-voice-listening .pmd-nav-list {
+  counter-reset: pmd-voice-card;
+}
+body.pmd-voice-listening .pmd-nav-item.pmd-nav-type-tag .pmd-nav-label::before {
+  counter-increment: pmd-voice-card;
+  content: counter(pmd-voice-card);
+  display: inline-block;
+  min-width: 1rem;
+  margin-right: 0.3rem;
+  border-radius: 999px;
+  background: var(--pmd-c-accent-soft);
+  color: var(--pmd-c-accent);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-align: center;
+}
+/* Speak-to-target reach: the near-cursor span whose words feed the
+   recognizer's quote vocabulary. Deliberately near-subliminal — it
+   should read as "warmth around the cursor," not highlighting. */
+:root {
+  --pmd-c-voice-reach: rgba(37, 99, 235, 0.045);
+}
+:root[data-theme="dark"] {
+  --pmd-c-voice-reach: rgba(96, 145, 240, 0.07);
+}
+.pmd-voice-reach {
+  background: var(--pmd-c-voice-reach);
+}
+/* Karaoke paint (§6): provisional ink — visibly tentative, distinct
+   from committed pen marks — and the reading-head indicator. */
+.pmd-voice-paint-provisional {
+  background: var(--pmd-c-accent-soft);
+  box-shadow: inset 0 -2px 0 var(--pmd-c-accent);
+}
+.pmd-voice-paint-head {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin: 0 1px -0.15em 1px;
+  background: var(--pmd-c-warning);
+  animation: pmd-voice-head-pulse 1s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pmd-voice-paint-head { animation: none; }
+}
+@keyframes pmd-voice-head-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+/* Voice pill session menu: mic picker + stop. Same panel language as
+   the open dropzone shelf. */
+.pmd-voice-menu {
+  position: fixed;
+  right: 0.5rem;
+  bottom: calc(var(--status-bar-height) + 0.5rem + 36px);
+  z-index: 221;
+  min-width: 220px;
+  padding: 0.4rem;
+  background: var(--pmd-c-bg);
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px var(--pmd-c-shadow-fade);
+  font-size: 0.8rem;
+  color: var(--pmd-c-text);
+}
+.pmd-voice-menu-title {
+  padding: 0.15rem 0.35rem 0.3rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-voice-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.3rem 0.35rem;
+  border-radius: 5px;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.pmd-voice-menu-row:hover {
+  background: var(--pmd-c-hover);
+}
+.pmd-voice-menu-stop {
+  display: block;
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.35rem;
+  font: inherit;
+  color: var(--pmd-c-error);
+  background: transparent;
+  border: 1px solid var(--pmd-c-border-soft);
+  border-radius: 5px;
+  cursor: pointer;
+}
+.pmd-voice-menu-stop:hover {
+  background: var(--pmd-c-error-bg);
+}
+/* Auto-sleep countdown: the pill dims over the final ten idle seconds
+   (§2.1) — visible warning that the mic is about to park itself. */
+.pmd-voice-pill.pmd-voice-drowsy {
+  opacity: var(--voice-drowsy, 1);
+}
+/* Editor border tint per voice mode (§9 — the drag-accept tinting idea
+   with per-mode hues). Subtle inset ring on the editor viewport. */
+body.pmd-voice-listening #editor {
+  box-shadow: inset 0 0 0 2px transparent;
+}
+body.pmd-voice-m-command #editor { box-shadow: inset 0 0 0 2px var(--pmd-c-accent-soft); }
+body.pmd-voice-m-dictation #editor { box-shadow: inset 0 0 0 2px var(--pmd-c-success-soft); }
+body.pmd-voice-m-paint #editor { box-shadow: inset 0 0 0 2px var(--pmd-c-warning-soft); }
+body.pmd-voice-m-asleep #editor { box-shadow: none; }
+/* Dictation-model download status in settings. */
+.pmd-voice-model-status {
+  margin-top: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-voice-model-download {
+  margin-top: 0.25rem;
+  padding: 0.3rem 0.6rem;
+  font: inherit;
+  font-size: 0.8rem;
+  background: var(--pmd-c-bg);
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 5px;
+  cursor: pointer;
+}
+.pmd-voice-model-download:hover {
+  background: var(--pmd-c-hover);
+}

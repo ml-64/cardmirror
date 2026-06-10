@@ -286,6 +286,70 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('host:speech-set', uid),
   speechGet: () => ipcRenderer.invoke('host:speech-get'),
 
+  /** Voice recognition (SPEC-voice.md §12 item 2). One session at a
+   *  time, owned by the window that started it. The renderer captures
+   *  mic audio (getUserMedia → 16 kHz mono s16le PCM) and streams it
+   *  down; recognition runs in main; typed parse events come back on
+   *  `voice:event`, input-level reports on `voice:level`. */
+  voiceStart: (opts?: {
+    modelDir?: string;
+    rmsGate?: number;
+    minWordConf?: number;
+    autoSleepSeconds?: number;
+    dictationModel?: 'standard' | 'large';
+  }) =>
+    ipcRenderer.invoke('host:voice-start', opts ?? {}) as Promise<{
+      ok: boolean;
+      error?: string;
+      modelLoadMs?: number;
+      largeDictationMissing?: boolean;
+    }>,
+  /** Opt-in large dictation model (~1.8 GB, stored in userData). */
+  voiceDictationModelInfo: () =>
+    ipcRenderer.invoke('host:voice-dictation-model-info') as Promise<{
+      present: boolean;
+      downloading: boolean;
+    }>,
+  voiceDownloadDictationModel: () =>
+    ipcRenderer.invoke('host:voice-download-dictation-model') as Promise<{
+      ok: boolean;
+      error?: string;
+    }>,
+  onVoiceDownloadProgress(
+    handler: (p: { pct: number; receivedMB?: number; extracting?: boolean }) => void,
+  ): () => void {
+    const listener = (
+      _evt: unknown,
+      payload: { pct: number; receivedMB?: number; extracting?: boolean },
+    ): void => handler(payload);
+    ipcRenderer.on('voice:download-progress', listener);
+    return () => ipcRenderer.removeListener('voice:download-progress', listener);
+  },
+  voiceStop: () => ipcRenderer.invoke('host:voice-stop'),
+  /** Fire-and-forget PCM chunk (ArrayBuffer of s16le samples). */
+  voicePushAudio: (chunk: ArrayBuffer) =>
+    ipcRenderer.send('host:voice-audio', chunk),
+  /** Viewport/document text for quote-targeting vocabulary; debounce
+   *  caller-side (~150 ms per spec §12 item 4). */
+  voiceSetVocabulary: (docText: string) =>
+    ipcRenderer.invoke('host:voice-set-vocabulary', docText),
+  /** Native clipboard ops (same paths as Mod-C/X/V). */
+  voiceClipboard: (op: 'copy' | 'cut' | 'paste') =>
+    ipcRenderer.invoke('host:voice-clipboard', op),
+  onVoiceEvent(handler: (event: unknown) => void): () => void {
+    const listener = (_evt: unknown, payload: unknown): void => handler(payload);
+    ipcRenderer.on('voice:event', listener);
+    return () => ipcRenderer.removeListener('voice:event', listener);
+  },
+  onVoiceLevel(handler: (level: { rms: number; gate: number; calibrating: boolean }) => void): () => void {
+    const listener = (
+      _evt: unknown,
+      payload: { rms: number; gate: number; calibrating: boolean },
+    ): void => handler(payload);
+    ipcRenderer.on('voice:level', listener);
+    return () => ipcRenderer.removeListener('voice:level', listener);
+  },
+
   /** Push the active filename for a registered uid so the
    *  Select-Speech-Doc modal can label every doc across every
    *  window. Call on mount and whenever the filename changes

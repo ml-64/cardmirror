@@ -69,6 +69,8 @@ import {
 import { buildDescriptor, resolveDescriptor, type AnchorDescriptor } from './learn-anchor.js';
 import { countSelectionImages } from './ai/explain-context.js';
 import { preciseScrollIntoView } from './precise-scroll.js';
+import { voicePlugin } from './voice/plugin.js';
+import { VoiceController } from './voice/controller.js';
 import { openCardEditor } from './learn-create-ui.js';
 import { openLearnManage } from './learn-manage-ui.js';
 import { openBulkConvert } from './bulk-convert-ui.js';
@@ -3567,7 +3569,28 @@ export function buildEditorPlugins(): Plugin[] {
   // Editor spellcheck — viewport-scoped custom checker, gated internally
   // on the `editorSpellcheck` setting (does nothing when off).
   plugins.push(viewportSpellcheckPlugin());
+  // Voice control (SPEC-voice.md §12 item 3): plugin state (mode, pen,
+  // utterance atomicity) + the session toggle. Desktop-only at runtime;
+  // the plugin itself is inert without a session.
+  plugins.push(voicePlugin());
+  plugins.push(
+    keymap({
+      'Mod-Shift-V': () => {
+        void getVoiceController().toggle();
+        return true;
+      },
+    }),
+  );
   return plugins;
+}
+
+let voiceController: VoiceController | null = null;
+function getVoiceController(): VoiceController {
+  voiceController ??= new VoiceController({
+    getView: getActiveView,
+    ribbonCtx: ribbonContext,
+  });
+  return voiceController;
 }
 
 function mountView(doc: PMNode, threads: Thread[] = []): void {

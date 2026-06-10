@@ -14,9 +14,10 @@
     "start:web": "npm --prefix ../.. run dev",
     "start:electron": "wait-on http://localhost:5173 && electron .",
     "dev": "npm run build:main && concurrently --kill-others-on-fail --names \"vite,electron\" --prefix-colors \"cyan,magenta\" \"npm:start:web\" \"npm:start:electron\"",
-    "pack": "npm run build:renderer && npm run build:main && electron-builder --dir",
-    "dist": "npm run build:renderer && npm run build:main && electron-builder",
-    "release": "npm run build:renderer && npm run build:main && electron-builder --publish always"
+    "fetch:voice": "node scripts/fetch-voice-assets.cjs",
+    "pack": "npm run fetch:voice && npm run build:renderer && npm run build:main && electron-builder --dir",
+    "dist": "npm run fetch:voice && npm run build:renderer && npm run build:main && electron-builder",
+    "release": "npm run fetch:voice && npm run build:renderer && npm run build:main && electron-builder --publish always"
   },
   "build": {
     "appId": "com.cardmirror.app",
@@ -42,6 +43,10 @@
       {
         "from": "resources/new-template.cmir",
         "to": "new-template.cmir"
+      },
+      {
+        "from": "resources/voice",
+        "to": "voice"
       }
     ],
     "fileAssociations": [
@@ -126,7 +131,8 @@
     }
   },
   "dependencies": {
-    "electron-updater": "^6.8.3"
+    "electron-updater": "^6.8.3",
+    "koffi": "^3.0.2"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",

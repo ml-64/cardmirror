@@ -628,6 +628,22 @@ class SettingsModal {
       row.appendChild(text);
       row.appendChild(buildMultiDocLayoutModeEditor());
       return row;
+    } else if (meta.kind === 'number') {
+      row.appendChild(text);
+      row.appendChild(buildNumberEditor(meta.key as keyof Settings));
+      return row;
+    } else if (meta.kind === 'voiceInputDevice') {
+      row.appendChild(text);
+      row.appendChild(buildVoiceInputDeviceEditor());
+      return row;
+    } else if (meta.kind === 'voiceDashStyle') {
+      row.appendChild(text);
+      row.appendChild(buildVoiceDashStyleEditor());
+      return row;
+    } else if (meta.kind === 'voiceDictationModel') {
+      row.appendChild(text);
+      row.appendChild(buildVoiceDictationModelEditor());
+      return row;
     } else if (meta.kind === 'speechDocFormat') {
       row.appendChild(text);
       row.appendChild(buildSpeechDocFormatEditor());
@@ -1578,6 +1594,166 @@ function buildFormattingPanelModeEditor(): HTMLElement {
     settings.set('formattingPanelMode', select.value as FormattingPanelMode);
   });
   return select;
+}
+
+/** Microphone picker for voice control. Options populate async from
+ *  enumerateDevices(); labels are blank until some getUserMedia call
+ *  has been granted (the first voice session does this), so a generic
+ *  "Microphone N" fallback keeps the list usable. */
+function buildVoiceInputDeviceEditor(): HTMLElement {
+  const select = document.createElement('select');
+  select.className = 'pmd-body-font-select'; // shared themed-select style
+  const current = settings.get('voiceInputDeviceId');
+
+  const addOption = (value: string, label: string): void => {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = label;
+    opt.selected = value === current;
+    select.appendChild(opt);
+  };
+  addOption('', 'System default');
+
+  if (navigator.mediaDevices?.enumerateDevices) {
+    void navigator.mediaDevices.enumerateDevices().then((devices) => {
+      let n = 0;
+      let sawCurrent = current === '';
+      for (const d of devices) {
+        if (d.kind !== 'audioinput' || d.deviceId === 'default') continue;
+        n += 1;
+        addOption(d.deviceId, d.label || `Microphone ${n}`);
+        if (d.deviceId === current) sawCurrent = true;
+      }
+      // A previously-chosen device that's now unplugged still shows,
+      // so the user can see (and clear) a stale selection.
+      if (!sawCurrent) addOption(current, 'Saved device (not connected)');
+    });
+  }
+
+  select.addEventListener('change', () => {
+    settings.set('voiceInputDeviceId', select.value);
+  });
+  return select;
+}
+
+/** Generic editor for plain numeric settings (kind: 'number'). */
+function buildNumberEditor(key: keyof Settings): HTMLElement {
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.className = 'pmd-line-height-input';
+  input.min = '0';
+  input.step = '1';
+  input.value = String(settings.get(key));
+  input.addEventListener('change', () => {
+    const v = Math.max(0, Math.round(parseFloat(input.value)));
+    if (!Number.isFinite(v)) {
+      input.value = String(settings.get(key));
+      return;
+    }
+    settings.set(key, v as never);
+    input.value = String(settings.get(key));
+  });
+  return input;
+}
+
+function buildVoiceDashStyleEditor(): HTMLElement {
+  const select = document.createElement('select');
+  select.className = 'pmd-body-font-select';
+  const current = settings.get('voiceDashStyle');
+  const options: Array<{ value: typeof current; label: string }> = [
+    { value: 'em', label: '— em dash (default)' },
+    { value: 'em-spaced', label: ' — em dash, spaced' },
+    { value: 'en', label: '– en dash' },
+    { value: 'en-spaced', label: ' – en dash, spaced' },
+    { value: 'hyphen', label: '- hyphen' },
+    { value: 'hyphen-spaced', label: ' - hyphen, spaced' },
+    { value: 'double', label: '-- double dash' },
+    { value: 'double-spaced', label: ' -- double dash, spaced' },
+    { value: 'triple', label: '--- triple dash' },
+    { value: 'triple-spaced', label: ' --- triple dash, spaced' },
+  ];
+  for (const o of options) {
+    const opt = document.createElement('option');
+    opt.value = o.value;
+    opt.textContent = o.label;
+    opt.selected = o.value === current;
+    select.appendChild(opt);
+  }
+  select.addEventListener('change', () => {
+    settings.set('voiceDashStyle', select.value as typeof current);
+  });
+  return select;
+}
+
+function buildVoiceDictationModelEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-multi-doc-layout-mode-editor';
+  const api = (window as unknown as {
+    electronAPI?: {
+      voiceDictationModelInfo(): Promise<{ present: boolean; downloading: boolean }>;
+      voiceDownloadDictationModel(): Promise<{ ok: boolean; error?: string }>;
+      onVoiceDownloadProgress(h: (p: { pct: number; extracting?: boolean }) => void): () => void;
+    };
+  }).electronAPI;
+
+  const groupName = `pmd-voice-dict-model-${Math.random().toString(36).slice(2, 8)}`;
+  for (const o of [
+    { value: 'standard' as const, label: 'Standard — ships with CardMirror' },
+    { value: 'large' as const, label: 'Large — better general-English dictation' },
+  ]) {
+    const row = document.createElement('label');
+    row.className = 'pmd-multi-doc-layout-mode-row';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = groupName;
+    input.checked = o.value === settings.get('voiceDictationModel');
+    input.addEventListener('change', () => {
+      if (input.checked) settings.set('voiceDictationModel', o.value);
+    });
+    const labelText = document.createElement('span');
+    labelText.textContent = o.label;
+    row.append(input, labelText);
+    wrap.appendChild(row);
+  }
+
+  const status = document.createElement('div');
+  status.className = 'pmd-voice-model-status';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'pmd-voice-model-download';
+  wrap.append(status, button);
+
+  const refresh = async (): Promise<void> => {
+    if (!api) {
+      status.textContent = 'Desktop only.';
+      button.style.display = 'none';
+      return;
+    }
+    const info = await api.voiceDictationModelInfo();
+    if (info.present) {
+      status.textContent = 'Large model downloaded ✓';
+      button.style.display = 'none';
+    } else {
+      status.textContent = info.downloading ? 'Downloading…' : 'Large model not downloaded.';
+      button.style.display = info.downloading ? 'none' : '';
+      button.textContent = 'Download large model (1.8 GB)';
+    }
+  };
+  void refresh();
+
+  button.addEventListener('click', () => {
+    if (!api) return;
+    button.style.display = 'none';
+    const unsub = api.onVoiceDownloadProgress((p) => {
+      status.textContent = p.extracting ? 'Extracting…' : `Downloading… ${p.pct}%`;
+    });
+    void api.voiceDownloadDictationModel().then((res) => {
+      unsub();
+      if (!res.ok) status.textContent = `Download failed: ${res.error ?? 'unknown'}`;
+      void refresh();
+    });
+  });
+  return wrap;
 }
 
 function buildSpeechDocFormatEditor(): HTMLElement {

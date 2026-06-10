@@ -410,6 +410,19 @@ export interface Settings {
    *  Ignore. Off by default because debate evidence (author names,
    *  jargon) produces many false positives. */
   editorSpellcheck: boolean;
+  /** Microphone for voice control (MediaDeviceInfo.deviceId).
+   *  Empty string = system default. Desktop only. */
+  voiceInputDeviceId: string;
+  /** Idle seconds before the voice session auto-sleeps. 0 disables. */
+  voiceAutoSleepSeconds: number;
+  /** Glyph the bare spoken word "dash" inserts during dictation.
+   *  Explicit names (hyphen, m dash, …) always bypass this. */
+  voiceDashStyle:
+    | 'em' | 'em-spaced' | 'en' | 'en-spaced' | 'hyphen' | 'hyphen-spaced'
+    | 'double' | 'double-spaced' | 'triple' | 'triple-spaced';
+  /** Dictation decode model: shipped standard, or the opt-in large
+   *  download (better general-English accuracy; ~5 GB RAM). */
+  voiceDictationModel: 'standard' | 'large';
   /** Whether autosave is on. When true, doc-changing edits schedule
    *  a background write-back to the file's existing on-disk
    *  location, debounced by ~5s of idle. Only fires for `.cmir`
@@ -843,6 +856,11 @@ const HEADING_MODES: HeadingMode[] = ['strict', 'respect', 'demolish'];
 export type FormattingPanelMode = 'labels' | 'shortcuts' | 'both' | 'hidden';
 const FORMATTING_PANEL_MODES: FormattingPanelMode[] = ['labels', 'shortcuts', 'both', 'hidden'];
 
+export const VOICE_DASH_STYLES: ReadonlyArray<Settings['voiceDashStyle']> = [
+  'em', 'em-spaced', 'en', 'en-spaced', 'hyphen', 'hyphen-spaced',
+  'double', 'double-spaced', 'triple', 'triple-spaced',
+];
+
 const DEFAULTS: Settings = {
   navWidth: 300,
   navMaxLevel: 3,
@@ -888,6 +906,10 @@ const DEFAULTS: Settings = {
   showCitePreview: true,
   flashcardDueDot: true,
   editorSpellcheck: false,
+  voiceInputDeviceId: '',
+  voiceAutoSleepSeconds: 60,
+  voiceDashStyle: 'em',
+  voiceDictationModel: 'standard',
   // Default OFF — autosave is meaningful only when the user has
   // saved at least once (so we have a handle) AND the doc is in
   // .cmir format. We let the user opt in via the ribbon toggle
@@ -1042,6 +1064,9 @@ export interface SettingMeta {
     | 'timerProfileDurations'
     | 'timerPrepLabel'
     | 'password'
+    | 'voiceInputDevice'
+    | 'voiceDashStyle'
+    | 'voiceDictationModel'
     | 'clod'
     | 'aiCitePrompt'
     | 'translationConfig'
@@ -1082,6 +1107,38 @@ export const SETTING_METADATA: SettingMeta[] = [
       "Off by default. When on, the bottom bar's word count / read time updates the moment you change the selection, showing the selection's read time. Off keeps the bar on the whole-doc count — use the Word Count button (Σ) for a selection's read time on demand. Live updates re-count on every selection change, so leave this off on very large documents if you notice drag lag.",
     kind: 'toggle',
     category: 'general',
+  },
+  {
+    key: 'voiceInputDeviceId',
+    label: 'Voice control microphone',
+    description:
+      'Which microphone the voice session (Ctrl-Shift-V) listens to. "System default" follows the OS setting. Device names appear after the first voice session grants microphone access. Desktop only.',
+    kind: 'voiceInputDevice',
+    category: 'accessibility',
+  },
+  {
+    key: 'voiceAutoSleepSeconds',
+    label: 'Voice auto-sleep (seconds)',
+    description:
+      'How long the voice session can sit idle before it parks itself asleep, so a forgotten mic doesn\'t eat a conversation. The status pill dims during the last ten seconds. Say "voice wake" to resume. 0 disables auto-sleep.',
+    kind: 'number',
+    category: 'accessibility',
+  },
+  {
+    key: 'voiceDashStyle',
+    label: 'Spoken "dash" inserts',
+    description:
+      'The glyph dictated by the bare word "dash". Explicit names always work regardless of this setting: "hyphen", "n dash", "m dash", "double dash", "triple dash", each optionally followed by "spaced".',
+    kind: 'voiceDashStyle',
+    category: 'accessibility',
+  },
+  {
+    key: 'voiceDictationModel',
+    label: 'Dictation accuracy model',
+    description:
+      'The standard model ships with CardMirror and handles commands and dictation. The large model (a one-time 1.8 GB download, ~5 GB of memory while voice is on) roughly halves dictation word errors on general English — it does not affect commands, targeting, paint, or debate jargon. Takes effect the next time voice starts.',
+    kind: 'voiceDictationModel',
+    category: 'accessibility',
   },
   {
     key: 'multiDocWorkspace',
@@ -1909,6 +1966,15 @@ function sanitize(s: Settings): Settings {
     showCitePreview: !!s.showCitePreview,
     flashcardDueDot: s.flashcardDueDot === false ? false : true,
     editorSpellcheck: !!s.editorSpellcheck,
+    voiceInputDeviceId: typeof s.voiceInputDeviceId === 'string' ? s.voiceInputDeviceId : '',
+    voiceAutoSleepSeconds:
+      typeof s.voiceAutoSleepSeconds === 'number' && s.voiceAutoSleepSeconds >= 0
+        ? Math.round(s.voiceAutoSleepSeconds)
+        : 60,
+    voiceDashStyle: VOICE_DASH_STYLES.includes(s.voiceDashStyle as Settings['voiceDashStyle'])
+      ? (s.voiceDashStyle as Settings['voiceDashStyle'])
+      : 'em',
+    voiceDictationModel: s.voiceDictationModel === 'large' ? 'large' : 'standard',
     autosaveEnabled: !!s.autosaveEnabled,
     readMode: !!s.readMode,
     hideEmphasisBordersInReadMode: !!s.hideEmphasisBordersInReadMode,

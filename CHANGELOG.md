@@ -7,6 +7,29 @@ see `DETAILED_CHANGELOG.md`.
 
 ## Unreleased
 
+### Added
+
+- **Voice control (alpha, desktop only).** Press **Ctrl-Shift-V** to start a
+  hands-free editing session — recognition runs entirely on your machine
+  (no network, ever). Speak commands like `pen highlight` · `take <words
+  you can see>` · `mark` · `next card` · `condense` · `go back`, dictate
+  with `start typing` … `stop typing` (your words stream in as gray
+  preview text while you talk), or enter **paint mode** (`paint`) where
+  the words you read aloud are inked with the active pen — the
+  voice-native version of working a card. A status pill shows the
+  listening state, active pen, what was heard, and your mic level; `voice
+  sleep` / `voice wake` park the mic when someone walks up. Every voice
+  action is one undo step, and voice undo (`scratch that`) and Ctrl-Z
+  always agree. Dictation supports spoken punctuation ("period", "comma",
+  "question mark", quotes), a configurable dash word, `literal <words>` for
+  dictating command words, and automatic sentence capitalization. The
+  session auto-sleeps after sitting idle (configurable; the pill dims as a
+  warning), and clicking the pill opens a microphone picker. Voice options
+  live under Settings → Accessibility — including an optional large
+  dictation model (one-time 1.8 GB download) that roughly halves
+  general-English dictation errors. Speech models ship with the app
+  (installers grow by roughly 130 MB).
+
 ## 0.1.0-alpha.10 — 2026-06-08
 
 ### Added

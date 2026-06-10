@@ -7,6 +7,29 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Structural command with a selection inside a same-type head fixed**
+  (`src/editor/ribbon-commands.ts` `applyStructuralToSelection` /
+  `transformDocChild`). With a non-empty selection, F7 routed through
+  the selection path, which marked the tag as "touched": the tag was
+  re-wrapped as its own card, but every following card child was lifted
+  to doc level — the cite_paragraph became a plain paragraph (losing
+  the cite slot and styling) and the body detached from the card. The
+  cursor path treats F7-in-a-tag as a no-op, so the two gestures
+  disagreed destructively. Subtle in practice because the tag keeps its
+  card wrapper — the visible symptoms are the cite losing its
+  formatting and condense no longer folding the body. Fix: a child the
+  command would re-create as the type it already is (tag under setTag,
+  analytic under setAnalytic, undertag under setUndertag, matching
+  heading under setPocket/Hat/Block) now counts as untouched, and a
+  changed-content check makes a fully same-type selection return false
+  instead of dispatching an identical replace (which burned an undo
+  step and yanked the cursor). The deliberate split semantics —
+  selection in a card_body splits a new card; multi-paragraph
+  selections wrap each paragraph — are unchanged. Known residual
+  asymmetry: a CROSS-type selection on a head (F7 with analytic text
+  selected) still converts only the head where the cursor path converts
+  the whole unit; recorded in the audit doc.
+
 - **NavigationPanel leak on doc close fixed** (`src/editor/nav-panel.ts`,
   `src/editor/multi-pane-shell.ts`). The multi-pane shell creates one
   NavigationPanel per open doc; closing a doc destroyed the EditorView

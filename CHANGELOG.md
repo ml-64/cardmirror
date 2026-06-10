@@ -34,6 +34,13 @@ see `DETAILED_CHANGELOG.md`.
   doing work during drags. Long sessions that open and close many
   files (a tournament day) no longer accumulate that weight.
 
+- **F7 with text selected inside a tag no longer breaks up the card.**
+  Selecting a word in a tag and pressing F7 quietly pushed the card's
+  cite and body out as plain paragraphs (the cite lost its formatting;
+  condense stopped folding the body). With the cursor in a tag F7
+  correctly did nothing — now the selection does nothing too. Same fix
+  for Mod-F7 on analytic text and F8 on an undertag.
+
 ### Added
 
 - **Voice control (alpha, desktop only).** Press **Ctrl-Shift-V** to start a

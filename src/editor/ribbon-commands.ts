@@ -3338,11 +3338,11 @@ function applyStructuralToSelection(
     p = cEnd;
   });
   if (firstIdx === -1) return false;
-  if (!dispatch) return true;
 
   let replaceFrom = -1;
   let replaceTo = -1;
   const newChildren: PMNode[] = [];
+  const originalChildren: PMNode[] = [];
   p = 0;
   state.doc.forEach((child, _offset, idx) => {
     const cStart = p;
@@ -3351,10 +3351,19 @@ function applyStructuralToSelection(
     if (idx < firstIdx || idx > lastIdx) return;
     if (idx === firstIdx) replaceFrom = cStart;
     if (idx === lastIdx) replaceTo = cEnd;
+    originalChildren.push(child);
     transformDocChild(child, cStart, from, to, opts, newChildren);
   });
 
   if (newChildren.length === 0) return false;
+  // Nothing actually transformed (e.g. the selection only touched
+  // same-type heads): report false instead of dispatching an identical
+  // replace — which would burn an undo step and yank the cursor.
+  const unchanged =
+    newChildren.length === originalChildren.length &&
+    newChildren.every((n, i) => n === originalChildren[i] || n.eq(originalChildren[i]!));
+  if (unchanged) return false;
+  if (!dispatch) return true;
   const tr = state.tr.replaceWith(
     replaceFrom,
     replaceTo,
@@ -3395,7 +3404,13 @@ function transformDocChild(
     child.forEach((g, offset) => {
       const gStart = childStart + 1 + offset;
       const gEnd = gStart + g.nodeSize;
-      const gTouched = gEnd > selFrom && gStart < selTo;
+      // A child the command would re-create as the type it already is
+      // (F7 with a selection inside a tag, Mod-F7 on analytic text,
+      // F8 on an undertag) counts as UNTOUCHED: the equivalent cursor
+      // gesture is a no-op, and treating it as touched dissolved the
+      // container — orphaning the cite/body that followed (audit
+      // 2026-06-10 P1#4).
+      const gTouched = gEnd > selFrom && gStart < selTo && !isSameTypeTarget(g, opts);
       if (gTouched) {
         hitTouched = true;
         liftedChildren.push(asTransformed(g, opts));
@@ -3421,6 +3436,18 @@ function transformDocChild(
 
   // Anything else (e.g., nested doc structures not in our schema) — pass through.
   out.push(child);
+}
+
+/** True when the transform would re-create the node as the same
+ *  structural type it already is. */
+function isSameTypeTarget(child: PMNode, opts: StructuralMode): boolean {
+  const t = child.type.name;
+  return (
+    (opts.mode === 'tag' && t === 'tag') ||
+    (opts.mode === 'analytic' && t === 'analytic') ||
+    (opts.mode === 'undertag' && t === 'undertag') ||
+    (opts.mode === 'heading' && t === opts.headingType)
+  );
 }
 
 function asTransformed(child: PMNode, opts: StructuralMode): PMNode {

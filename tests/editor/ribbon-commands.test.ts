@@ -1032,6 +1032,69 @@ describe('setTag/setAnalytic on a multi-paragraph selection', () => {
   });
 });
 
+describe('structural command with a selection inside a same-type head (audit 2026-06-10 P1#4)', () => {
+  /** Select [fromOff, toOff) inside the first node matching `typeName`. */
+  function selectInsideNode(
+    doc: ReturnType<typeof makeDoc>,
+    typeName: string,
+    fromOff: number,
+    toOff: number,
+  ): EditorState {
+    let start = -1;
+    doc.descendants((n, p) => {
+      if (start === -1 && n.type.name === typeName) start = p + 1;
+      return start === -1;
+    });
+    if (start < 0) throw new Error(`${typeName} not found`);
+    const base = EditorState.create({ doc });
+    return base.apply(
+      base.tr.setSelection(TextSelection.create(base.doc, start + fromOff, start + toOff)),
+    );
+  }
+
+  it('F7 with a word selected inside a tag preserves the card (mirrors cursor no-op)', () => {
+    const doc = makeDoc([
+      cardWith(tag('Aggression likely'), citePara('Author 24'), cardBody('warrant text')),
+    ]);
+    const state = selectInsideNode(doc, 'tag', 0, 10);
+    const next = apply(state, setTag());
+    expect(next === null || next.doc.eq(doc)).toBe(true);
+  });
+
+  it('Mod-F7 with a selection on analytic text preserves the analytic_unit', () => {
+    const doc = makeDoc([
+      analyticUnit(analytic('Extend this'), cardBody('because reasons')),
+    ]);
+    const state = selectInsideNode(doc, 'analytic', 0, 6);
+    const next = apply(state, setAnalytic());
+    expect(next === null || next.doc.eq(doc)).toBe(true);
+  });
+
+  it('F8 with a selection on an undertag preserves the card', () => {
+    const doc = makeDoc([
+      cardWith(tag('T'), undertag('sub claim'), cardBody('body')),
+    ]);
+    const state = selectInsideNode(doc, 'undertag', 0, 3);
+    const next = apply(state, setUndertag());
+    expect(next === null || next.doc.eq(doc)).toBe(true);
+  });
+
+  it('selection spanning tag into body still splits the body off, tag card intact', () => {
+    const doc = makeDoc([cardWith(tag('First'), cardBody('warrant'))]);
+    const state = selectionAcross(
+      doc,
+      (n) => n.type.name === 'tag',
+      (n) => n.type.name === 'card_body',
+    );
+    const next = apply(state, setTag());
+    expect(next).not.toBeNull();
+    const types = next!.doc.content.content.map((c) => c.type.name);
+    expect(types).toEqual(['card', 'card']);
+    expect(next!.doc.content.content[0]!.firstChild!.textContent).toBe('First');
+    expect(next!.doc.content.content[1]!.firstChild!.textContent).toBe('warrant');
+  });
+});
+
 // ---- copyPreviousCite ----
 
 function cardWithChildren(...children: import('prosemirror-model').Node[]) {

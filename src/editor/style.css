@@ -10242,3 +10242,9 @@ body.pmd-mobile-tablet .pmd-mobile-movesheet {
 .pmd-movesheet-danger {
   color: var(--pmd-c-error);
 }
+
+/* The drawer's width is fixed on mobile — the desktop resize handle
+   would only swallow edge drags meant as scrolls. */
+body.pmd-mobile .pmd-nav-resize-handle {
+  display: none;
+}

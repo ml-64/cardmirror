@@ -130,20 +130,52 @@ export const mobilePlugin: Plugin<MobileShellState> = new Plugin<MobileShellStat
       if (!sel) return null;
       return selectionDecorations(state.doc, sel);
     },
-    handleClick(view, pos): boolean {
-      if (!mobileShellActive) return false;
-      // Move mode wins over read-mode markers (the shell never leaves
-      // both on, but the precedence keeps a race harmless).
-      if (moveModeOn) {
-        const unit = unitRangeAtPos(view.state.doc, pos);
-        setMobileUnitSelection(view, unit);
-        unitTapHandler?.(unit);
-        return true;
-      }
-      if (!readModePlugin.getState(view.state)?.on) return false;
-      const $pos = view.state.doc.resolve(pos);
-      view.dispatch(view.state.tr.setSelection(TextSelection.near($pos)));
-      return toggleReadingMarker(view);
+    /** Tap detection via raw pointer events, NOT PM's `handleClick`:
+     *  the word-selection plugin owns `mousedown` and handles single
+     *  clicks itself, so PM's built-in click pipeline (which is what
+     *  dispatches handleClick) never runs for text clicks. This
+     *  plugin sits first in the plugin array, so these handlers see
+     *  the events before word-selection does. A tap = down→up under
+     *  10px and 500ms; anything longer or farther is a scroll or a
+     *  long-press and is left alone. */
+    handleDOMEvents: {
+      pointerdown(_view, e): boolean {
+        if (!mobileShellActive || !e.isPrimary) return false;
+        tapStart = { id: e.pointerId, x: e.clientX, y: e.clientY, t: Date.now() };
+        return false;
+      },
+      pointercancel(): boolean {
+        tapStart = null;
+        return false;
+      },
+      pointerup(view, e): boolean {
+        if (!mobileShellActive || !tapStart || e.pointerId !== tapStart.id) return false;
+        const start = tapStart;
+        tapStart = null;
+        const dx = e.clientX - start.x;
+        const dy = e.clientY - start.y;
+        if (dx * dx + dy * dy > 100 || Date.now() - start.t > 500) return false;
+        const hit = view.posAtCoords({ left: e.clientX, top: e.clientY });
+        if (!hit) return false;
+        // Move mode wins over read-mode markers (the shell never
+        // leaves both on; precedence keeps a race harmless).
+        if (moveModeOn) {
+          const unit = unitRangeAtPos(view.state.doc, hit.pos);
+          console.log(
+            `[cardmirror] mobile: move tap pos=${hit.pos} → ${unit ? `${unit.type} "${unit.label.slice(0, 40)}"` : 'no unit'}`,
+          );
+          setMobileUnitSelection(view, unit);
+          unitTapHandler?.(unit);
+          return true;
+        }
+        if (!readModePlugin.getState(view.state)?.on) return false;
+        const $pos = view.state.doc.resolve(hit.pos);
+        view.dispatch(view.state.tr.setSelection(TextSelection.near($pos)));
+        return toggleReadingMarker(view);
+      },
     },
   },
 });
+
+/** In-flight tap candidate on the editor surface. */
+let tapStart: { id: number; x: number; y: number; t: number } | null = null;

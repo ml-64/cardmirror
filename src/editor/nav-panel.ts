@@ -152,7 +152,10 @@ export class NavigationPanel {
   /** Mobile drag-to-scroll: once movement cancels the long-press,
    *  the list pans under the pointer. Owned manually (the list has
    *  `touch-action: none` on mobile) so mouse, emulated touch, and
-   *  real touch all behave identically. */
+   *  real touch all behave identically. `panPointer` tracks the
+   *  candidate gesture from pointerdown anywhere in the list;
+   *  `manualPan` is set once movement commits it to a scroll. */
+  private panPointer: { id: number; startX: number; startY: number } | null = null;
   private manualPan: { lastY: number } | null = null;
 
   /** When set (multi-pane sections), the outline-level filter is
@@ -215,6 +218,18 @@ export class NavigationPanel {
     this.listEl = document.createElement('ol');
     this.listEl.className = 'pmd-nav-list';
     this.root.appendChild(this.listEl);
+    // Mobile drag-to-scroll engages from ANY pointerdown in the list
+    // — rows and the blank space below them alike (`touch-action:
+    // none` on the list means nothing scrolls unless we do it).
+    this.listEl.addEventListener('pointerdown', (e) => {
+      if (!isMobileShellActive() || !e.isPrimary) return;
+      this.panPointer = {
+        id: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+      };
+      this.attachDragHandlers();
+    });
 
     this.emptyEl = document.createElement('p');
     this.emptyEl.className = 'pmd-nav-empty';
@@ -843,15 +858,21 @@ export class NavigationPanel {
       }, NAV_LONG_PRESS_MS);
     }
 
-    if (!this.dragHandlersAttached) {
-      document.addEventListener('pointermove', this.boundOnDragMove);
-      document.addEventListener('pointerup', this.boundOnDragUp);
-      document.addEventListener('keydown', this.boundOnDragKey);
-      // keyup so the copy-modifier indicator clears the moment the
-      // user releases Ctrl/Option mid-drag without moving the pointer.
-      document.addEventListener('keyup', this.boundOnDragKeyUp);
-      this.dragHandlersAttached = true;
-    }
+    this.attachDragHandlers();
+  }
+
+  /** Attach the document-level gesture handlers (idempotent). Used by
+   *  both row pointerdowns (click / drag / long-press) and list-level
+   *  pointerdowns (mobile pan). Detached in `cleanupDrag`. */
+  private attachDragHandlers(): void {
+    if (this.dragHandlersAttached) return;
+    document.addEventListener('pointermove', this.boundOnDragMove);
+    document.addEventListener('pointerup', this.boundOnDragUp);
+    document.addEventListener('keydown', this.boundOnDragKey);
+    // keyup so the copy-modifier indicator clears the moment the
+    // user releases Ctrl/Option mid-drag without moving the pointer.
+    document.addEventListener('keyup', this.boundOnDragKeyUp);
+    this.dragHandlersAttached = true;
   }
 
   private cancelLongPress(): void {
@@ -997,7 +1018,9 @@ export class NavigationPanel {
   }
 
   private onDragMove(e: PointerEvent): void {
-    if (!this.dragStartEntry) return;
+    // Mobile pans engage from anywhere in the list — they have a
+    // panPointer but no drag-start row.
+    if (!this.dragStartEntry && !this.panPointer) return;
 
     if (!dragController.isActive()) {
       const dx = e.clientX - this.dragStartX;
@@ -1005,15 +1028,22 @@ export class NavigationPanel {
       // Mobile: movement never arms a drag — it cancels the pending
       // long-press and becomes a manual list pan.
       if (isMobileShellActive()) {
+        const pan = this.panPointer;
+        if (!pan || e.pointerId !== pan.id) return;
         if (this.manualPan) {
           const panDy = e.clientY - this.manualPan.lastY;
           this.manualPan.lastY = e.clientY;
           this.listEl.scrollTop -= panDy;
           return;
         }
-        if (dx * dx + dy * dy > 64) {
+        const px = e.clientX - pan.startX;
+        const py = e.clientY - pan.startY;
+        if (px * px + py * py > 64) {
           this.cancelLongPress();
           this.manualPan = { lastY: e.clientY };
+          console.log(
+            `[cardmirror] mobile: nav pan engaged scrollTop=${this.listEl.scrollTop} scrollHeight=${this.listEl.scrollHeight} clientHeight=${this.listEl.clientHeight}`,
+          );
           // Keep the stream alive even if the starting row re-renders
           // out from under the gesture.
           try {
@@ -1078,6 +1108,7 @@ export class NavigationPanel {
     this.deferredClickFinalize = null;
     this.pointerDownModifier = 'none';
     this.manualPan = null;
+    this.panPointer = null;
     this.cancelLongPress();
     this.cleanupDrag(committed);
   }

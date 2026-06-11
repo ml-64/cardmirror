@@ -25,7 +25,24 @@ in each release, see `CHANGELOG.md`.
   repainted it. DocRecord now carries an `owner: Slot` backref that
   `Slot.push` re-points on every move, and both dispatch-path refresh
   sites use `record.owner` instead of the captured slot. Settings-
-  change and mount paths were already parity-correct. (`src/editor/ribbon-commands.ts` `smartShrinkText`;
+  change and mount paths were already parity-correct. THE ACTUAL
+  reported bug sat one layer up (found by instrumenting the path
+  after the owner fix didn't resolve it — the trace showed flushes
+  scheduled but never completing): the shell's send-to-speech wrapper
+  passes an afterInsert hook that CANCELLED the destination record's
+  pending heavy-update timer ("so the new headings show up
+  immediately") without performing the work the timer owed — the
+  word-count refresh and full nav rebuild silently never ran, on
+  every send. The cross-pane drag-drop handler had the same
+  cancel-without-flush pattern. Both now call a shared
+  `flushHeavyUpdateNow(record)` (cancel + nav update + word-count
+  refresh, synchronously), so the count updates instantly on send —
+  ahead of the 200ms debounce an ordinary edit gets. The console
+  bridge also now forwards all error-level renderer output
+  unconditionally; invisible exceptions in deferred callbacks were
+  repeatedly the missing diagnostic.
+
+- **Smart Shrink** (`src/editor/ribbon-commands.ts` `smartShrinkText`;
   ribbon `smartShrink`, Mod-Alt-8, grouped beside Shrink/Regrow).
   One-shot per-paragraph shrink depth: a block with no
   underline_mark / underline_direct / emphasis_mark anywhere goes

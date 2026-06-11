@@ -967,6 +967,22 @@ class Slot {
   }
 }
 
+/** Run a record's debounced heavy-update work NOW (nav rebuild +
+ *  word-count refresh), cancelling the pending timer. The send-to-
+ *  speech and cross-pane-drop paths used to CANCEL the timer to get
+ *  "immediate" nav updates — but only cancelled, never flushed, so
+ *  the word count (and full nav rebuild) the timer owed simply never
+ *  happened. Live finding 2026-06-10: send-to-speech in multi-pane
+ *  left the speech pane's count stale until something else refreshed. */
+function flushHeavyUpdateNow(record: DocRecord): void {
+  if (record.heavyUpdateTimer !== null) {
+    cancelIdle(record.heavyUpdateTimer);
+    record.heavyUpdateTimer = null;
+  }
+  record.navPanel.update(record.view.state.doc);
+  record.owner.refreshWordCount();
+}
+
 let openStackDropdownEl: HTMLElement | null = null;
 function closeOpenStackDropdown(): void {
   if (!openStackDropdownEl) return;
@@ -1162,13 +1178,12 @@ class MultiPaneShell {
         ) {
           const targetSlot = this.findSlotByView(lastTargetView);
           if (targetSlot?.visible) {
-            // Flush the pane's debounced nav update so this runs
-            // against the post-drop doc and the new IDs are visible.
+            // Flush the pane's debounced heavy update so this runs
+            // against the post-drop doc and the new IDs are visible
+            // (flush, not just cancel — the timer also owes the
+            // word-count refresh).
             const rec = targetSlot.visible;
-            if (rec.heavyUpdateTimer !== null) {
-              cancelIdle(rec.heavyUpdateTimer);
-              rec.heavyUpdateTimer = null;
-            }
+            flushHeavyUpdateNow(rec);
             rec.navPanel.applyMaxLevelToNewHeadings();
           }
         }
@@ -2032,18 +2047,17 @@ class MultiPaneShell {
       located.slot.showRecord(located.record);
     }
     runSendToSpeech(sourceRec.view, atEnd, () => {
-      // Post-insert: focus the destination slot and cancel its
-      // debounced heavy-update timer so the new headings show up
-      // in the nav immediately. Nav-collapse-for-new-headings is
-      // handled by the resolver's onSliceLanded hook (registered
+      // Post-insert: focus the destination slot and FLUSH its
+      // debounced heavy update so the new headings and word count
+      // show up immediately. This used to only CANCEL the timer —
+      // killing the word-count refresh it owed, so the speech pane's
+      // count froze after every send. Nav-collapse-for-new-headings
+      // is handled by the resolver's onSliceLanded hook (registered
       // in `buildDocRecord`), so it fires the same way for cross-
       // window receives.
       if (!located) return;
       this.focusSlot(located.slot);
-      if (located.record.heavyUpdateTimer !== null) {
-        cancelIdle(located.record.heavyUpdateTimer);
-        located.record.heavyUpdateTimer = null;
-      }
+      flushHeavyUpdateNow(located.record);
     });
   }
 
@@ -2262,14 +2276,6 @@ function buildDocRecord(
         console.warn(
           `[cardmirror] wc: docChanged "${record.filename}" → scheduling flush (owner=${record.owner.id})`,
         );
-        // Probe: is requestIdleCallback starved? A plain timer fires
-        // regardless; if it reports the flush still pending, the idle
-        // callback's 200ms timeout is not being honored.
-        setTimeout(() => {
-          console.warn(
-            `[cardmirror] wc: probe(400ms) flushStillPending=${record.heavyUpdateTimer !== null}`,
-          );
-        }, 400);
         record.heavyUpdateTimer = scheduleIdle(() => {
           record.heavyUpdateTimer = null;
           console.warn(

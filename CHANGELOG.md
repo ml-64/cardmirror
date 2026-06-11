@@ -17,13 +17,16 @@ see `DETAILED_CHANGELOG.md`.
 ### Fixed
 
 - **Pane word counts update live after Send to Speech in multi-pane.**
-  A document that had been moved between panes (Send Doc to Slot)
-  kept refreshing its OLD pane's word count — so sending cards to a
-  moved speech doc never updated its footer until something else
-  forced a refresh. Each pane's count now follows the document
+  Two stacked causes. The send path's "show the new headings
+  immediately" hook cancelled the pending refresh without doing the
+  refresh's work — so the speech pane's count froze after every send
+  (cross-pane card drops had the same flaw); the hook now flushes the
+  nav rebuild and word count on the spot, making the count update
+  instantly on send — faster than single-pane's debounce. Separately,
+  a document moved between panes (Send Doc to Slot) kept refreshing
+  its OLD pane's count; each pane's count now follows the document
   wherever it lives, for edits, sends, and live selection counts
-  alike — matching single-pane behavior under every word-count
-  setting.
+  alike, under every word-count setting.
 
 - **Repair Text now places far more of its fixes on imported cards.**
   The model frequently echoes straight quotes and apostrophes where

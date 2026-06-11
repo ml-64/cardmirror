@@ -115,10 +115,47 @@ export function salvageJson(s: string): string {
   return out;
 }
 
+/** Balanced top-level `{...}` chunks in `s`, tracked string-aware so
+ *  braces inside values don't miscount. Prose between objects is
+ *  skipped. Exported for testing. */
+export function extractJsonObjects(s: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let objStart = -1;
+  let inStr = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i]!;
+    if (inStr) {
+      if (ch === '\\') i++;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') {
+      if (depth > 0) inStr = true;
+      continue;
+    }
+    if (ch === '{') {
+      if (depth === 0) objStart = i;
+      depth++;
+    } else if (ch === '}' && depth > 0) {
+      depth--;
+      if (depth === 0 && objStart >= 0) {
+        out.push(s.slice(objStart, i + 1));
+        objStart = -1;
+      }
+    }
+  }
+  return out;
+}
+
 /** Parse the model's JSON reply into a list of fixes. Tolerates code
- *  fences / surrounding prose by extracting the outermost `{...}`, and
- *  unescaped interior quotes via `salvageJson`. Drops malformed
- *  entries; throws only when no parseable JSON object is present. */
+ *  fences / surrounding prose (outermost `{...}` extraction), unescaped
+ *  interior quotes (`salvageJson`), and MULTIPLE top-level JSON objects
+ *  or trailing junk (live failure: a complete object followed by a
+ *  second one — first-to-LAST-brace slicing poisoned the parse even
+ *  though each piece was fine; balanced objects are parsed separately
+ *  and their fixes merged). Drops malformed entries; throws only when
+ *  nothing parseable is present. */
 export function parseRepairResponse(text: string): RepairFix[] {
   const start = text.indexOf('{');
   const end = text.lastIndexOf('}');
@@ -127,6 +164,7 @@ export function parseRepairResponse(text: string): RepairFix[] {
   }
   const raw = text.slice(start, end + 1);
   let parsed: unknown;
+  let mergedFixes: unknown[] | null = null;
   try {
     parsed = JSON.parse(raw);
   } catch (e) {
@@ -134,12 +172,30 @@ export function parseRepairResponse(text: string): RepairFix[] {
       parsed = JSON.parse(salvageJson(raw));
       console.warn('[repair] response JSON needed quote-escape salvage');
     } catch {
-      throw new Error(
-        `Repair response was not valid JSON: ${e instanceof Error ? e.message : String(e)}`,
+      const chunks = extractJsonObjects(salvageJson(raw));
+      const merged: unknown[] = [];
+      let parsedChunks = 0;
+      for (const c of chunks) {
+        try {
+          const o = JSON.parse(c) as { fixes?: unknown };
+          parsedChunks++;
+          if (Array.isArray(o?.fixes)) merged.push(...o.fixes);
+        } catch {
+          // skip the unparseable chunk; others may still carry fixes
+        }
+      }
+      if (parsedChunks === 0) {
+        throw new Error(
+          `Repair response was not valid JSON: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+      console.warn(
+        `[repair] response carried ${chunks.length} JSON objects — parsed ${parsedChunks}, merged fixes`,
       );
+      mergedFixes = merged;
     }
   }
-  const rawFixes = (parsed as { fixes?: unknown })?.fixes;
+  const rawFixes = mergedFixes ?? (parsed as { fixes?: unknown })?.fixes;
   if (!Array.isArray(rawFixes)) return [];
   const out: RepairFix[] = [];
   for (const f of rawFixes) {

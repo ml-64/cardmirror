@@ -31,7 +31,7 @@ import type { Node as PMNode } from 'prosemirror-model';
 import { schema } from '../../schema/index.js';
 import { settings } from '../settings.js';
 import { callAnthropic, AnthropicError } from './anthropic.js';
-import { salvageJson } from './repair-text.js';
+import { salvageJson, extractJsonObjects } from './repair-text.js';
 import { showToast } from '../toast.js';
 import { ThinkingTooltip } from './thinking-tooltip.js';
 import { setRepairFlashes, clearRepairFlashes } from '../repair-highlight-plugin.js';
@@ -330,14 +330,29 @@ export function parseFormatResponse(
     parsed = JSON.parse(raw);
   } catch (e) {
     // Exception fragments are verbatim evidence text — unescaped
-    // interior quotes happen; salvage before giving up.
+    // interior quotes happen; salvage before giving up, then fall back
+    // to balanced-object extraction (trailing junk / repeated objects).
     try {
       parsed = JSON.parse(salvageJson(raw));
       console.warn('[repair-fmt] response JSON needed quote-escape salvage');
     } catch {
-      throw new Error(
-        `Formatting response was not valid JSON: ${e instanceof Error ? e.message : String(e)}`,
-      );
+      for (const chunk of extractJsonObjects(salvageJson(raw))) {
+        try {
+          const o = JSON.parse(chunk) as { map?: unknown };
+          if (o && typeof o.map === 'object') {
+            parsed = o;
+            console.warn('[repair-fmt] response carried extra JSON — used the first object with a map');
+            break;
+          }
+        } catch {
+          // try the next chunk
+        }
+      }
+      if (parsed === undefined) {
+        throw new Error(
+          `Formatting response was not valid JSON: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
     }
   }
   const dropped: string[] = [];

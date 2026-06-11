@@ -53,8 +53,14 @@ in each release, see `CHANGELOG.md`.
   tracking inside-string state and escapes any interior quote not
   followed by a structural character (and folds literal newlines to
   \\n), logging when salvage was needed; the prompt also now tells the
-  model explicitly to escape interior quotes. Only if salvage also
-  fails does the original error surface.
+  model explicitly to escape interior quotes. A second live failure —
+  a complete JSON object followed by ANOTHER object or trailing prose
+  ("unexpected non-whitespace character after JSON"; first-to-LAST-
+  brace slicing poisoned the parse even though each piece was fine) —
+  falls back to string-aware balanced-object extraction: each
+  top-level {...} parses separately and the fixes arrays merge
+  (formatting repair takes the first object carrying a map). Only when
+  nothing parses does the original error surface.
   output cap raised; failure paths logged**
   (`src/editor/ai/repair-text.ts`, console forwarding in
   `apps/desktop/src/main.ts`). Live diagnosis on a real imported card

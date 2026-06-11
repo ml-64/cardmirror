@@ -65,6 +65,27 @@ describe('parseRepairResponse', () => {
     );
     expect(out).toEqual([{ find: 're-\nsearch', replace: 'research' }]);
   });
+
+  // Live failure 2026-06-10 #2: a complete JSON object followed by a
+  // SECOND one ("Unexpected non-whitespace character after JSON") —
+  // first-to-last-brace slicing poisoned the parse even though each
+  // object was fine.
+  it('merges fixes when the model emits multiple JSON objects', () => {
+    const out = parseRepairResponse(
+      '{"fixes":[{"find":"aa","replace":"bb"}]}\n{"fixes":[{"find":"cc","replace":"dd"}]}',
+    );
+    expect(out).toEqual([
+      { find: 'aa', replace: 'bb' },
+      { find: 'cc', replace: 'dd' },
+    ]);
+  });
+
+  it('survives trailing prose containing a brace after the object', () => {
+    const out = parseRepairResponse(
+      '{"fixes":[{"find":"aa","replace":"bb"}]}\nNote: fixed it all }',
+    );
+    expect(out).toEqual([{ find: 'aa', replace: 'bb' }]);
+  });
 });
 
 describe('flattenSelection', () => {

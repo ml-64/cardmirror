@@ -149,6 +149,11 @@ export class NavigationPanel {
   /** Destination mode ("Send to…" on mobile): row taps call this
    *  instead of navigating. */
   private destinationCb: ((entry: HeadingEntry) => void) | null = null;
+  /** Mobile drag-to-scroll: once movement cancels the long-press,
+   *  the list pans under the pointer. Owned manually (the list has
+   *  `touch-action: none` on mobile) so mouse, emulated touch, and
+   *  real touch all behave identically. */
+  private manualPan: { lastY: number } | null = null;
 
   /** When set (multi-pane sections), the outline-level filter is
    *  per-instance instead of shared via the `navMaxLevel` setting. */
@@ -998,9 +1003,25 @@ export class NavigationPanel {
       const dx = e.clientX - this.dragStartX;
       const dy = e.clientY - this.dragStartY;
       // Mobile: movement never arms a drag — it cancels the pending
-      // long-press and lets the browser's pan take the gesture.
+      // long-press and becomes a manual list pan.
       if (isMobileShellActive()) {
-        if (dx * dx + dy * dy > 64) this.cancelLongPress();
+        if (this.manualPan) {
+          const panDy = e.clientY - this.manualPan.lastY;
+          this.manualPan.lastY = e.clientY;
+          this.listEl.scrollTop -= panDy;
+          return;
+        }
+        if (dx * dx + dy * dy > 64) {
+          this.cancelLongPress();
+          this.manualPan = { lastY: e.clientY };
+          // Keep the stream alive even if the starting row re-renders
+          // out from under the gesture.
+          try {
+            this.listEl.setPointerCapture(e.pointerId);
+          } catch {
+            /* capture is best-effort */
+          }
+        }
         return;
       }
       // 5px threshold — below this, count as a click, not a drag.
@@ -1037,7 +1058,10 @@ export class NavigationPanel {
       // - Plain click otherwise: jump to the entry (selection already
       //   updated at pointerdown).
       // - Ctrl/Shift click: selection was already updated; don't navigate.
-      if (this.pointerDownModifier === 'none') {
+      if (this.manualPan) {
+        // The gesture was a scroll, not a click — no navigation.
+        this.manualPan = null;
+      } else if (this.pointerDownModifier === 'none') {
         if (this.destinationCb) {
           // Destination mode: the tap picks a "Send to…" target
           // instead of navigating. The callback owns mode exit.
@@ -1053,6 +1077,7 @@ export class NavigationPanel {
     }
     this.deferredClickFinalize = null;
     this.pointerDownModifier = 'none';
+    this.manualPan = null;
     this.cancelLongPress();
     this.cleanupDrag(committed);
   }

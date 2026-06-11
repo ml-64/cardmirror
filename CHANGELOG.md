@@ -9,7 +9,7 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Added
 
-- **A mobile layout for the web edition (first cut).** Opening
+- **A mobile layout for the web edition.** Opening
   CardMirror in a phone or tablet browser — or any browser window
   narrower than 768px (touch screens up to 1024px) — now gets a
   view-first layout built for small screens: a slim top bar (outline
@@ -36,7 +36,7 @@ see `DETAILED_CHANGELOG.md`.
   destination straight from the outline), **Copy**, and **Delete** —
   every move is one undo step. In the outline itself, press and hold
   a row for a moment to pick it up and drag it (a plain swipe still
-  scrolls). The AI repairs from the phone are planned next.
+  scrolls).
 
 ### Changed
 

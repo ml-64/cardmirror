@@ -10126,11 +10126,13 @@ body.pmd-mobile .pmd-nav-label {
   line-clamp: 3;
   overflow: hidden;
 }
-/* Native vertical panning scrolls the outline; a touch drag has to
-   move sideways first to read as a row drag. (Long-press pickup is
-   the P3 design — this keeps scroll usable meanwhile.) */
+/* The outline owns its gestures on mobile: drag-to-scroll is manual
+   (nav-panel pans the list under the pointer once movement cancels
+   the long-press), so mouse, emulated touch, and real touch behave
+   identically; long-press picks the row up. `none` keeps the
+   browser's native pan from double-scrolling alongside ours. */
 body.pmd-mobile .pmd-nav-list {
-  touch-action: pan-y;
+  touch-action: none;
   overscroll-behavior: contain;
 }
 

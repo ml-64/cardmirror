@@ -5,7 +5,7 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
-## Unreleased
+## 0.1.0-alpha.13 — 2026-06-12
 
 - **AI edit coordinator** (`ai/edit-coordinator.ts`, wired in `index.ts` +
   `multi-pane-shell.ts`, `style.css`). AI operations apply their edits after

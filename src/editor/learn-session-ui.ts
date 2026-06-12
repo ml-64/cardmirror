@@ -17,6 +17,7 @@ import {
   type ShowInContextRequest,
 } from './learn-store-host.js';
 import type { Scope, CardAnchor, DocRegistryEntry } from './learn-store.js';
+import { pushOverlay, popOverlay, isTopOverlay } from './overlay-stack.js';
 
 /** Pure: pick a card's openable source — the first of its anchors whose
  *  doc has a known on-disk path. Null when the card is unanchored, or no
@@ -64,9 +65,11 @@ export function openLearnSession(scope: Scope, opts: SessionOpts = {}): void {
   panel.className = 'pmd-learn-session';
   overlay.appendChild(panel);
 
+  const overlayToken = pushOverlay();
   const cleanup = (): void => {
     overlay.remove();
     document.removeEventListener('keydown', onKey, true);
+    popOverlay(overlayToken);
   };
 
   const onKey = (e: KeyboardEvent): void => {
@@ -75,6 +78,9 @@ export function openLearnSession(scope: Scope, opts: SessionOpts = {}): void {
     // 1/2/3/4 action keys, which sit under this session.
     e.stopPropagation();
     if (e.key === 'Escape') {
+      // Only the topmost overlay reacts (a stacked dialog shouldn't
+      // collapse the whole stack on one Escape).
+      if (!isTopOverlay(overlayToken)) return;
       e.preventDefault();
       cleanup();
       return;

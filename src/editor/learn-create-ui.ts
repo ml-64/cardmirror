@@ -8,6 +8,8 @@
  * surface is a later step; the card model is identical either way.)
  */
 
+import { pushOverlay, popOverlay, isTopOverlay } from './overlay-stack.js';
+
 export interface NewCardDef {
   type: 'qa' | 'cloze';
   front: string;
@@ -105,9 +107,11 @@ export function openCardEditor(
 
     const buttons = document.createElement('div');
     buttons.className = 'pmd-text-prompt-buttons';
+    const overlayToken = pushOverlay();
     const cleanup = (): void => {
       overlay.remove();
       document.removeEventListener('keydown', onKey, true);
+      popOverlay(overlayToken);
     };
     const cancel = document.createElement('button');
     cancel.type = 'button';
@@ -148,6 +152,7 @@ export function openCardEditor(
 
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
+        if (!isTopOverlay(overlayToken)) return; // topmost overlay only
         e.preventDefault();
         e.stopPropagation();
         cleanup();

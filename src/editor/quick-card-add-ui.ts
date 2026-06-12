@@ -15,6 +15,7 @@
 
 import { normalizeTag, type QuickCard } from './quick-cards-store.js';
 import { setIcon } from './icons';
+import { pushOverlay, popOverlay, isTopOverlay } from './overlay-stack.js';
 
 export interface QuickCardAddResult {
   name: string;
@@ -67,6 +68,7 @@ class QuickCardAddModal {
     this.overlay.addEventListener('click', (e) => {
       if (e.target === this.overlay) this.cancel();
     });
+    this.overlayToken = pushOverlay();
     document.addEventListener('keydown', this.handleKey, true);
 
     this.render();
@@ -78,9 +80,14 @@ class QuickCardAddModal {
     });
   }
 
+  private overlayToken: symbol | null = null;
+
   private handleKey = (e: KeyboardEvent): void => {
     if (this.settled) return;
     if (e.key === 'Escape') {
+      // Only the topmost overlay reacts, so a stacked dialog doesn't
+      // collapse the whole stack on one Escape.
+      if (this.overlayToken && !isTopOverlay(this.overlayToken)) return;
       e.preventDefault();
       e.stopPropagation();
       this.cancel();
@@ -312,6 +319,7 @@ class QuickCardAddModal {
     if (this.settled) return;
     this.settled = true;
     document.removeEventListener('keydown', this.handleKey, true);
+    if (this.overlayToken) popOverlay(this.overlayToken);
     this.overlay.remove();
     this.settle(result);
   }

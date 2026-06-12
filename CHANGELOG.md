@@ -69,6 +69,10 @@ see `DETAILED_CHANGELOG.md`.
   elements. (A page break still comes back as a line break — the break
   type isn't tracked yet.)
 
+- **Escape closes one dialog at a time.** With two dialogs stacked (e.g.
+  editing a card from the Quick Cards or flashcard manager), Escape used to
+  close both at once; it now closes only the topmost.
+
 - **Undoing a deletion restores its comments too.** Deleting commented text
   and then undoing used to bring the text back but leave the comment gone;
   the comment now comes back with it.

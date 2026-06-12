@@ -18,6 +18,7 @@ import type { CardState } from './learn-scheduler.js';
 import type { CardDef, ExportedCard } from './learn-store.js';
 import type { AnchorDescriptor } from './learn-anchor.js';
 import { getHost } from './host/index.js';
+import { pushOverlay, popOverlay, isTopOverlay } from './overlay-stack.js';
 import { icon } from './icons.js';
 import { showToast } from './toast.js';
 import { readDocIdFromBytes, stampDocId } from '../index.js';
@@ -225,6 +226,7 @@ export function openLearnManage(): void {
   panel.append(bar, toolbar, listEl);
 
   const unsubscribe = learnStore.subscribe(renderList);
+  const overlayToken = pushOverlay();
   document.addEventListener('keydown', onKey, true);
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) cleanup();
@@ -232,6 +234,7 @@ export function openLearnManage(): void {
 
   function onKey(e: KeyboardEvent): void {
     if (e.key === 'Escape') {
+      if (!isTopOverlay(overlayToken)) return; // topmost overlay only
       e.preventDefault();
       e.stopPropagation();
       cleanup();
@@ -241,6 +244,7 @@ export function openLearnManage(): void {
   function cleanup(): void {
     unsubscribe();
     document.removeEventListener('keydown', onKey, true);
+    popOverlay(overlayToken);
     overlay.remove();
     openOverlay = null;
   }

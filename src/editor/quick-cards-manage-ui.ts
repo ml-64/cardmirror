@@ -31,6 +31,7 @@ import {
   type QuickCard,
 } from './quick-cards-store.js';
 import { setIcon } from './icons';
+import { pushOverlay, popOverlay, isTopOverlay } from './overlay-stack.js';
 
 type SortMode = 'updated' | 'name' | 'source';
 
@@ -94,6 +95,7 @@ class QuickCardsManageUI {
     // On `document` (capture) — not `this.root` — so Esc closes from
     // anywhere, including before the user has focused any control in
     // the overlay (focus is still on the doc underneath on open).
+    this.overlayToken = pushOverlay();
     document.addEventListener('keydown', this.onKeyDown, true);
 
     this.renderHeaderActions();
@@ -128,16 +130,22 @@ class QuickCardsManageUI {
     this.unsubscribe?.();
     this.unsubscribe = null;
     document.removeEventListener('keydown', this.onKeyDown, true);
+    if (this.overlayToken) popOverlay(this.overlayToken);
     this.root.remove();
     this.root = null;
     document.documentElement.classList.remove('pmd-qc-manage-active');
   }
+
+  private overlayToken: symbol | null = null;
 
   private onKeyDown = (e: KeyboardEvent): void => {
     // Esc always closes the overlay (like the × button), even from
     // inside the embedded editor or a text field. Capture-phase (see
     // the listener registration) so it wins over the editor's keymap.
     if (e.key === 'Escape') {
+      // Only the topmost overlay reacts, so a stacked dialog doesn't
+      // collapse the whole stack on one Escape.
+      if (this.overlayToken && !isTopOverlay(this.overlayToken)) return;
       e.preventDefault();
       e.stopPropagation();
       this.close();

@@ -133,6 +133,22 @@ code (`reference-docs/AUDIT-2026-06-10.md`):
   re-exports as a plain `<w:br/>` — because the doc model has no node for
   it; tracked separately. Test in `tests/round-trip/inverse.test.ts`.
 
+- **Escape collapsed every stacked overlay at once** (new
+  `overlay-stack.ts`; `learn-session-ui.ts`, `learn-create-ui.ts`,
+  `learn-manage-ui.ts`, `quick-card-add-ui.ts`, `quick-cards-manage-ui.ts`).
+  Those dialogs each attach a `document`-capture Escape listener;
+  `stopPropagation` doesn't stop sibling listeners on the same node, so two
+  stacked dialogs (e.g. opening the add/edit dialog from a manager list)
+  both closed on one Escape. Added a shared overlay stack: each overlay
+  pushes a token on open, pops it on close (paired with the existing
+  `removeEventListener`), and guards its Escape branch with
+  `isTopOverlay(token)` so only the most recently opened reacts. The
+  command/search palette uses an input-scoped (target-phase) Escape, not a
+  document-capture one, so it isn't part of this and is unchanged; broader
+  rollout to other modals (settings, save-as, …) and a full shared-modal
+  primitive (focus trap, `role="dialog"`) remain follow-ups. Logic test in
+  `tests/editor/overlay-stack.test.ts`.
+
 - **Comment lost when undoing a deletion** (`comments-plugin.ts`).
   `gcOrphanThreads` removed a thread whose `comment_range` mark was gone via
   a non-undoable transaction, so undoing the deletion restored the text and

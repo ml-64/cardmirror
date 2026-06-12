@@ -7,6 +7,17 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Line-spacing reset left stale input values** (`settings-ui.ts`,
+  `buildLineHeightsEditor`). The editor re-renders on settings change only
+  when focus isn't inside it (so it can't clobber a value mid-edit) — but
+  the reset button holds focus, so clicking it set the settings (and CSS
+  vars) without redrawing the number inputs. The reset handler now calls
+  `render()` explicitly.
+
+- **Appearance tab order** (`settings.ts`). Moved the `bodyFont` and
+  `lineHeight` metadata entries to directly after `displayTypography` so
+  Body font and Line spacing group with the other type controls.
+
 - **Mobile starter doc** (`index.ts`, `makeMobileStarterDoc` +
   `isMobileLayout`). `makeNewDocBody` now picks a layout-specific
   onboarding doc: the desktop starter is all ribbon buttons / F-keys /

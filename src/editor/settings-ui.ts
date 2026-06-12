@@ -1436,6 +1436,11 @@ function buildLineHeightsEditor(): HTMLElement {
     for (const { key } of LINE_HEIGHT_ROWS) {
       settings.set(key, SETTINGS_DEFAULTS[key]);
     }
+    // Re-sync the inputs to the defaults. The settings subscriber skips
+    // re-rendering while focus is inside this editor (so it can't clobber
+    // a value you're typing) — and the reset button itself holds focus —
+    // so the reset must redraw explicitly.
+    render();
   });
   footer.appendChild(resetBtn);
   wrap.appendChild(footer);

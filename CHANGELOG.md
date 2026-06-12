@@ -20,7 +20,15 @@ see `DETAILED_CHANGELOG.md`.
   Read / Move / Repair mode bar) instead of the desktop ribbon and keyboard
   shortcuts.
 
+- **Appearance settings: Body font and Line spacing sit under Style
+  typography.** Grouped with the other type controls instead of further
+  down the tab.
+
 ### Fixed
+
+- **Line spacing reset now updates the boxes too.** Pressing the line-
+  spacing reset restored the actual spacing but left the old numbers in the
+  input fields; the fields now refresh to the defaults.
 
 - **Mobile: the outline drawer slides out on top of the mode panels.**
   Opening the outline while the Repair (or Move) panel was up left the

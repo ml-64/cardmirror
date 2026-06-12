@@ -1483,6 +1483,24 @@ export const SETTING_METADATA: SettingMeta[] = [
     mobile: true,
   },
   {
+    key: 'bodyFont',
+    label: 'Body font',
+    description:
+      'Font family for body text.',
+    kind: 'bodyFont',
+    category: 'appearance',
+    aliases: ['document font', 'card font', 'editor font'],
+  },
+  {
+    key: 'lineHeight',
+    label: 'Line spacing',
+    description:
+      'Line-spacing multiplier per paragraph type (unitless × font-size).',
+    kind: 'lineHeights',
+    category: 'appearance',
+    aliases: ['line height'],
+  },
+  {
     key: 'displayColors',
     label: 'Style colors',
     description:
@@ -1597,24 +1615,6 @@ export const SETTING_METADATA: SettingMeta[] = [
     kind: 'uiFont',
     category: 'accessibility',
     aliases: ['ui font', 'app font'],
-  },
-  {
-    key: 'bodyFont',
-    label: 'Body font',
-    description:
-      'Font family for body text.',
-    kind: 'bodyFont',
-    category: 'appearance',
-    aliases: ['document font', 'card font', 'editor font'],
-  },
-  {
-    key: 'lineHeight',
-    label: 'Line spacing',
-    description:
-      'Line-spacing multiplier per paragraph type (unitless × font-size).',
-    kind: 'lineHeights',
-    category: 'appearance',
-    aliases: ['line height'],
   },
   {
     key: 'ribbonTooltipMode',

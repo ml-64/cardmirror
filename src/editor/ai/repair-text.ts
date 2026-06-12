@@ -25,6 +25,7 @@ import { settings } from '../settings.js';
 import { callAnthropic, AnthropicError } from './anthropic.js';
 import { showToast } from '../toast.js';
 import { AiActivity } from './ai-activity.js';
+import { claimRegion, type EditLease } from './edit-coordinator.js';
 import { setRepairFlashes, clearRepairFlashes } from '../repair-highlight-plugin.js';
 
 export const DEFAULT_REPAIR_PROMPT = `You are a specialized text repair tool. Your task is to identify and fix common OCR and PDF text-extraction errors while preserving the original meaning and content exactly.
@@ -646,43 +647,49 @@ async function fetchFixes(
 function applyPass(
   view: EditorView,
   located: readonly LocatedFix[],
-  selFrom: number,
-  selTo: number,
-): { selFrom: number; selTo: number } {
+  lease: EditLease,
+): void {
   const { tr, ranges } = buildRepairTransaction(view.state, located);
   tr.setMeta('addToHistory', false);
-  view.dispatch(tr);
+  // Through the lease so it bypasses the in-region edit block; the lease
+  // remaps its own bounds through this write, so the next pass reads the
+  // updated region.
+  lease.apply(tr);
   setRepairFlashes(view, ranges);
-  return { selFrom: tr.mapping.map(selFrom, -1), selTo: tr.mapping.map(selTo, 1) };
 }
 
-/** Collapse the off-history edits made since `startDoc` into a SINGLE undo
- *  item, so one Ctrl-Z rolls back the whole repair (both passes). Reverts
- *  the doc to `startDoc` and re-applies the corrected content in two
- *  synchronous dispatches — the intermediate state never paints, so there's
- *  no flicker. The revert is off-history; the re-apply is the one recorded
- *  change. Returns the repaired region in the final doc. */
+/** Collapse the off-history pass edits into a SINGLE undo item, so one
+ *  Ctrl-Z rolls back the whole repair (both passes). Confined to the
+ *  leased region: reverts JUST that range to its pre-repair content
+ *  (off-history) and re-applies the corrected content (the one recorded
+ *  change) in two synchronous dispatches — the intermediate state never
+ *  paints, so there's no flicker, and edits elsewhere in the doc (another
+ *  AI op, allowed user edits) are untouched. Both writes go through the
+ *  lease so they bypass the in-region block. */
 function collapseToSingleUndo(
   view: EditorView,
   startDoc: PMNode,
   origSelFrom: number,
   origSelTo: number,
-): { from: number; to: number } {
-  const endContent = view.state.doc.content; // corrected (immutable fragment)
-  const startContent = startDoc.content;
-  view.dispatch(
-    view.state.tr.replaceWith(0, view.state.doc.content.size, startContent).setMeta('addToHistory', false),
-  );
-  const trApply = view.state.tr.replaceWith(0, view.state.doc.content.size, endContent);
+  lease: EditLease,
+): void {
+  const cur = lease.region();
+  if (!cur) return; // region gone — nothing to collapse
+  const endSlice = view.state.doc.slice(cur.from, cur.to); // corrected
+  const startSlice = startDoc.slice(origSelFrom, origSelTo); // pre-repair
+  // Revert the region only (off-history)…
+  lease.apply(view.state.tr.replace(cur.from, cur.to, startSlice).setMeta('addToHistory', false));
+  // …then re-apply the corrected region as the ONE recorded change.
+  const reFrom = cur.from;
+  const reTo = cur.from + startSlice.content.size;
+  const trApply = view.state.tr.replace(reFrom, reTo, endSlice);
   const caret = Math.min(origSelFrom, trApply.doc.content.size);
   try {
     trApply.setSelection(Selection.near(trApply.doc.resolve(caret)));
   } catch {
     // Leave the default mapped selection.
   }
-  view.dispatch(trApply);
-  const netDelta = endContent.size - startContent.size;
-  return { from: origSelFrom, to: Math.min(origSelTo + netDelta, view.state.doc.content.size) };
+  lease.apply(trApply);
 }
 
 /** Entry point — fires on the `repairText` ribbon command. Runs up to two
@@ -715,42 +722,55 @@ export function runRepairText(view: EditorView): void {
   const startDoc = view.state.doc;
   const origSelFrom = sel.from;
   const origSelTo = sel.to;
-  let selFrom = origSelFrom;
-  let selTo = origSelTo;
+
+  // Lease the selection: edits elsewhere in the doc shift it (each pass
+  // reads the lease's current bounds), edits inside it are held so the
+  // located fixes stay valid across the two passes.
+  const lease = claimRegion(view, { from: origSelFrom, to: origSelTo }, { label: 'repair-text' });
+  if (!lease) {
+    showToast('Another AI edit is working on this selection — try again in a moment.');
+    return;
+  }
+
   // Pill + purple tint over the range being repaired; re-anchored after
   // each pass as the bounds shift, and pinned to the editor edge when
   // the range scrolls out of view.
-  const activity = new AiActivity(view, { from: selFrom, to: selTo }, 'selection');
+  const activity = new AiActivity(view, { from: origSelFrom, to: origSelTo }, 'selection');
   activity.start();
 
   void (async () => {
     let applied = 0;
     try {
-      // PASS 1.
-      const p1 = await fetchFixes(view, apiKey, selFrom, selTo);
+      // PASS 1. Bounds come from the lease so edits elsewhere in the doc
+      // (while the request was in flight) are accounted for.
+      const r0 = lease.region();
+      if (!r0) {
+        showToast('Repair: the selected text is no longer in the document.');
+        return;
+      }
+      const p1 = await fetchFixes(view, apiKey, r0.from, r0.to);
       let skipped = p1.skipped;
       if (p1.located.length) {
-        const r = applyPass(view, p1.located, selFrom, selTo);
-        selFrom = r.selFrom;
-        selTo = r.selTo;
-        activity.setRange({ from: selFrom, to: selTo });
+        applyPass(view, p1.located, lease);
+        const r = lease.region();
+        if (r) activity.setRange(r);
         applied += p1.located.length;
       }
 
       // PASS 2 — only when pass 1 found errors (catches single-read misses).
       if (p1.fixesReturned > 0) {
-        const p2 = await fetchFixes(view, apiKey, selFrom, selTo);
-        skipped += p2.skipped;
-        if (p2.located.length) {
-          const r = applyPass(view, p2.located, selFrom, selTo);
-          selFrom = r.selFrom;
-          selTo = r.selTo;
-          activity.setRange({ from: selFrom, to: selTo });
-          applied += p2.located.length;
+        const r1 = lease.region();
+        if (r1) {
+          const p2 = await fetchFixes(view, apiKey, r1.from, r1.to);
+          skipped += p2.skipped;
+          if (p2.located.length) {
+            applyPass(view, p2.located, lease);
+            const r = lease.region();
+            if (r) activity.setRange(r);
+            applied += p2.located.length;
+          }
         }
       }
-
-      activity.stop();
 
       if (applied === 0) {
         showToast(p1.fixesReturned === 0 ? 'No OCR errors found.' : 'Could not place any of the suggested fixes.');
@@ -761,19 +781,18 @@ export function runRepairText(view: EditorView): void {
       // one undo item.
       await delay(FLASH_MS + 200);
       clearRepairFlashes(view);
-      collapseToSingleUndo(view, startDoc, origSelFrom, origSelTo);
+      collapseToSingleUndo(view, startDoc, origSelFrom, origSelTo, lease);
 
       showToast(
         `Repaired ${applied} ${applied === 1 ? 'spot' : 'spots'}` +
           (skipped > 0 ? ` (${skipped} couldn't be placed)` : '') + '.',
       );
     } catch (e) {
-      activity.stop();
       // Make whatever landed undoable in one step before surfacing the error.
       if (applied > 0) {
         clearRepairFlashes(view);
         try {
-          collapseToSingleUndo(view, startDoc, origSelFrom, origSelTo);
+          collapseToSingleUndo(view, startDoc, origSelFrom, origSelTo, lease);
         } catch {
           // Best effort.
         }
@@ -783,6 +802,9 @@ export function runRepairText(view: EditorView): void {
       console.warn(`[repair] error: ${e instanceof Error ? e.message : String(e)}`);
       if (e instanceof AnthropicError) showToast(`Repair: ${e.message}`);
       else showToast(`Repair: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      activity.stop();
+      lease.release();
     }
   })();
 }

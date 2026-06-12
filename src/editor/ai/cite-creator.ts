@@ -30,6 +30,7 @@ import { schema } from '../../schema/index.js';
 import { settings } from '../settings.js';
 import { callAnthropic, AnthropicError } from './anthropic.js';
 import { AiActivity } from './ai-activity.js';
+import { claimRegion } from './edit-coordinator.js';
 import { showToast } from '../toast.js';
 
 /** Today's-date placeholder substituted into the prompt at run
@@ -310,10 +311,11 @@ export function applyCiteToSelection(
   from: number,
   to: number,
   result: AiCiteResult,
+  dispatch: (tr: Transaction) => void = (tr) => view.dispatch(tr),
 ): boolean {
   const tr = buildCiteTransaction(view.state, from, to, result);
   if (!tr) return false;
-  view.dispatch(tr);
+  dispatch(tr);
   return true;
 }
 
@@ -351,16 +353,18 @@ export function runAiCreateCite(view: EditorView): void {
   const promptTemplate = settings.get('aiCitePrompt').trim() || DEFAULT_AI_CITE_PROMPT;
   const systemPrompt = resolveCitePrompt(promptTemplate);
 
+  // Lease the selection so the cite lands where the user selected even if
+  // the doc shifts during the request, and user edits inside it are held.
+  const lease = claimRegion(view, { from: sel.from, to: sel.to }, { label: 'cite' });
+  if (!lease) {
+    showToast('Another AI edit is working on this selection — try again in a moment.');
+    return;
+  }
+
   // Pill + purple tint over the selection being formatted.
   if (activeActivity) activeActivity.stop();
   activeActivity = new AiActivity(view, { from: sel.from, to: sel.to }, 'selection');
   activeActivity.start();
-
-  // Capture the bounds NOW; if the user edits during the request
-  // the original selection might shift, but we want to replace
-  // what they originally selected.
-  const fromAtRequest = sel.from;
-  const toAtRequest = sel.to;
 
   void (async () => {
     try {
@@ -370,11 +374,15 @@ export function runAiCreateCite(view: EditorView): void {
         messages: [{ role: 'user', content: raw }],
       });
       const parsed = parseCiteResponse(reply.text);
-      // Apply against the live view. If the user has somehow
-      // deleted the range while the request was in flight, the
-      // mark application step inside applyCiteToSelection will
-      // throw — the catch below surfaces it as a toast.
-      applyCiteToSelection(view, fromAtRequest, toAtRequest, parsed);
+      // Apply at the lease's CURRENT (remapped) bounds — edits elsewhere in
+      // the doc during the request have shifted them. Null means the range
+      // collapsed (its container was removed); surface that as a toast.
+      const region = lease.region();
+      if (!region) {
+        showToast('Cite: the selected text is no longer in the document.');
+        return;
+      }
+      applyCiteToSelection(view, region.from, region.to, parsed, (tr) => lease.apply(tr));
     } catch (e) {
       if (e instanceof AnthropicError) {
         showToast(`Cite: ${e.message}`);
@@ -382,6 +390,7 @@ export function runAiCreateCite(view: EditorView): void {
         showToast(`Cite: ${e instanceof Error ? e.message : String(e)}`);
       }
     } finally {
+      lease.release();
       if (activeActivity) {
         activeActivity.stop();
         activeActivity = null;

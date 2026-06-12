@@ -19,6 +19,7 @@
  */
 
 import type { Node as PMNode, Mark } from 'prosemirror-model';
+import type { Transaction } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import { schema } from '../../schema/index.js';
 import {
@@ -35,6 +36,7 @@ import {
   type AnthropicContentBlock,
 } from './anthropic.js';
 import { AiActivity } from './ai-activity.js';
+import { claimRegion } from './edit-coordinator.js';
 
 /** Resolve the user-configured omission-bracket pair. Matches the
  *  same delimiter setting `Condense with warning` uses, so a doc
@@ -193,6 +195,7 @@ function applyAltTextResult(
   imagePos: number,
   altText: string,
   options: { writeAttribute: boolean },
+  dispatch: (tr: Transaction) => void = (tr) => view.dispatch(tr),
 ): boolean {
   const { open, close } = currentOmissionBrackets();
   const labelText = `${open}ALT TEXT: ${altText}${close}`;
@@ -217,7 +220,7 @@ function applyAltTextResult(
     tr = tr.setNodeMarkup(imagePos, undefined, { ...live.attrs, alt: altText });
   }
   tr = tr.insert(target.insertPos, sibling);
-  view.dispatch(tr.scrollIntoView());
+  dispatch(tr.scrollIntoView());
   return true;
 }
 
@@ -282,6 +285,15 @@ function runAiAltTextRequest(
     return;
   }
 
+  // Lease the image node so the alt-text bracket lands at the image even
+  // if the doc shifts during the request, and the image can't be deleted
+  // out from under the op.
+  const lease = claimRegion(view, imageRange(view, imagePos), { label: 'image-alt' });
+  if (!lease) {
+    showToast('Another AI edit is working on this image — try again in a moment.');
+    return;
+  }
+
   const activity = new AiActivity(view, imageRange(view, imagePos), 'selection');
   activity.start();
 
@@ -310,8 +322,15 @@ function runAiAltTextRequest(
       // containing the image (paragraph, card_body, etc.) so PM's
       // structural fitting doesn't bounce the new node out of the
       // surrounding container. Also writes the result back to
-      // `image.attrs.alt` so OOXML export preserves it.
-      applyAltTextResult(view, imagePos, altText, { writeAttribute: true });
+      // `image.attrs.alt` so OOXML export preserves it. The image's
+      // current position comes from the lease (edits elsewhere may have
+      // shifted it); null means it was removed.
+      const region = lease.region();
+      if (!region) {
+        showToast('Image moved while generating — alt text not applied.');
+        return;
+      }
+      applyAltTextResult(view, region.from, altText, { writeAttribute: true }, (tr) => lease.apply(tr));
     } catch (err) {
       if (err instanceof AnthropicError) {
         showToast(`Alt text: ${err.message}`);
@@ -319,6 +338,7 @@ function runAiAltTextRequest(
         showToast(`Alt text: ${err instanceof Error ? err.message : String(err)}`);
       }
     } finally {
+      lease.release();
       activity.stop();
     }
   })();
@@ -476,6 +496,14 @@ export function runGenerateTable(
     return;
   }
 
+  // Lease the image node so the extracted table inserts at the image even
+  // if the doc shifts during the (possibly two-call) request.
+  const lease = claimRegion(view, imageRange(view, imagePos), { label: 'image-table' });
+  if (!lease) {
+    showToast('Another AI edit is working on this image — try again in a moment.');
+    return;
+  }
+
   const activity = new AiActivity(view, imageRange(view, imagePos), 'selection');
   activity.start();
 
@@ -535,13 +563,20 @@ export function runGenerateTable(
         return;
       }
       const tableNode = buildTableNode(spec);
-      const target = findImageContainerInsertion(view, imagePos);
+      // The image's current position comes from the lease (edits elsewhere
+      // may have shifted it); null means it was removed mid-request.
+      const region = lease.region();
+      if (!region) {
+        showToast('Image moved while extracting — table not inserted.');
+        return;
+      }
+      const target = findImageContainerInsertion(view, region.from);
       if (!target) {
         showToast('Could not locate insertion point.');
         return;
       }
       const tr = view.state.tr.insert(target.insertPos, tableNode);
-      view.dispatch(tr.scrollIntoView());
+      lease.apply(tr.scrollIntoView());
     } catch (err) {
       if (err instanceof AnthropicError) {
         showToast(`Table: ${err.message}`);
@@ -549,6 +584,7 @@ export function runGenerateTable(
         showToast(`Table: ${err instanceof Error ? err.message : String(err)}`);
       }
     } finally {
+      lease.release();
       activity.stop();
     }
   })();

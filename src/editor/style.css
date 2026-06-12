@@ -6101,6 +6101,22 @@ body:has(#comments-column:not([hidden])) :is(#editor, .pmd-pane-editor) .pmd-com
   background: color-mix(in srgb, var(--pmd-c-comment-thread) 12%, transparent);
   border-radius: 3px;
 }
+/* Locked-region flash: pulses the AI-leased region when the user tries to
+   edit inside it (the edit is rejected). Same purple accent as the working
+   box; a short attention pulse, then it clears (edit-coordinator.ts). */
+@keyframes pmd-ai-locked-flash {
+  0% { background: color-mix(in srgb, var(--pmd-c-comment-thread) 38%, transparent); }
+  100% { background: color-mix(in srgb, var(--pmd-c-comment-thread) 0%, transparent); }
+}
+:is(#editor, .pmd-pane-editor) .pmd-ai-locked-flash {
+  border-radius: 3px;
+  animation: pmd-ai-locked-flash 450ms ease-out both;
+}
+:root[data-motion="reduce"] :is(#editor, .pmd-pane-editor) .pmd-ai-locked-flash {
+  animation: none;
+  background: color-mix(in srgb, var(--pmd-c-comment-thread) 24%, transparent);
+}
+
 /* Card-cutter trim-checklist hover preview: a purple box hugging each
    run of highlighted words a checklist row would affect. */
 :is(#editor, .pmd-pane-editor) .pmd-cc-preview {

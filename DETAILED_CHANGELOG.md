@@ -7,6 +7,37 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **AI edit coordinator** (`ai/edit-coordinator.ts`, wired in `index.ts` +
+  `multi-pane-shell.ts`, `style.css`). AI operations apply their edits after
+  an async model call, capturing target positions up front. Concurrent ops —
+  another AI op, or the user typing — moved the document underneath them, so
+  positions drifted (cites landed at the wrong offset) or the op aborted
+  outright (formatting repair bailed on any doc change). A new per-view
+  plugin holds **edit leases**: each in-flight op claims its region, and the
+  plugin remaps every lease through `tr.mapping` on every transaction (the
+  same anchoring the comment marks and voice plugin use). Two guarantees fall
+  out: edits *outside* a lease remap it (the op reads `lease.region()` at
+  apply time instead of a stale offset), and edits *inside* a lease are
+  blocked (`filterTransaction` rejects a non-bypass transaction that changes
+  content length inside any live lease; the op's own writes carry a bypass
+  meta). The shells also pre-check `coordinatorBlocks` in `dispatchTransaction`
+  so a rejected user edit flashes the locked region (`.pmd-ai-locked-flash`).
+  Disjoint ops run concurrently; an overlapping claim is rejected
+  (`claimRegion` returns null → the caller toasts "try again in a moment").
+  Leases are plugin state, never serialized; register/release/flash are
+  meta-only, so they add no undo steps, and `markBypass` deliberately does
+  *not* force `addToHistory: false` so an AI content edit stays undoable.
+  Migrated every async doc-mutating AI op onto leases: cite creation
+  (`cite-creator.ts`), text repair (`repair-text.ts` — its two passes share
+  one lease, and `collapseToSingleUndo` was confined to the leased range via
+  slices so it no longer reverts the whole doc, which would clobber a
+  concurrent op's edits elsewhere), formatting repair (`repair-formatting.ts`
+  — dropped the `doc !== startDoc` hard-abort; `applyFormatPlan` takes a
+  uniform `delta` since in-region edits are blocked), and image alt-text and
+  table extraction (`image-ai.ts`). For ops that captured many interior
+  positions, a single `delta` re-anchors them all (valid because in-region
+  edits are blocked, so the whole region moves uniformly).
+
 - **Per-style paragraph spacing** (`settings.ts`, `settings-ui.ts`,
   `index.ts`, `style.css`). New `displayParagraphSpacing` setting — a
   `Record<'<style>Before' | '<style>After', number>` in points — defaulting

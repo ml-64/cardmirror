@@ -9,6 +9,16 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Added
 
+- **AI edits no longer collide.** Each AI action (cite creation, text and
+  formatting repair, image alt-text and table extraction, and others) now
+  reserves the part of the document it's working on for the duration of the
+  request. Edits anywhere else — another AI action, or your own typing —
+  shift its target along instead of landing the result in the wrong place.
+  While an AI action is working on a stretch of text, edits to *that* stretch
+  are held and the locked region flashes if you try; the rest of the document
+  stays fully editable. Two AI actions on the same text won't run at once —
+  the second asks you to try again in a moment.
+
 - **Paragraph spacing controls.** Settings → Appearance → Paragraph spacing
   (just under Line spacing) sets the blank space *before* and *after* each
   paragraph type — Body, Cites, Tags, Analytics, Pockets, Hats, Blocks, and

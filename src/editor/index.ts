@@ -119,6 +119,7 @@ import {
 import { learnHighlightPlugin, flashcardRangeAt } from './learn-highlight-plugin.js';
 import { repairHighlightPlugin } from './repair-highlight-plugin.js';
 import { aiWorkingPlugin } from './ai/ai-working-plugin.js';
+import { editCoordinatorPlugin, coordinatorBlocks, flashLockedLeases } from './ai/edit-coordinator.js';
 import { cardCutterPreviewPlugin } from './card-cutter-preview-plugin.js';
 import { italicCaretPlugin } from './italic-caret-plugin.js';
 import { absorbPlugin } from './absorb-plugin.js';
@@ -3671,6 +3672,10 @@ export function buildEditorPlugins(): Plugin[] {
     learnHighlightPlugin,
     repairHighlightPlugin,
     aiWorkingPlugin,
+    // Sits next to the AI-working highlight: holds the leases AI ops claim
+    // over the regions they're editing, remaps them through every
+    // transaction, and blocks user edits inside an active lease.
+    editCoordinatorPlugin,
     cardCutterPreviewPlugin,
     italicCaretPlugin,
     frozenSelectionPlugin,
@@ -3762,6 +3767,12 @@ function mountView(doc: PMNode, threads: Thread[] = []): void {
     attributes: { spellcheck: 'false' },
     dispatchTransaction(tx) {
       if (!view) return;
+      // A user edit inside a region an AI op has leased is rejected and the
+      // locked region flashes. AI writes carry a bypass tag, so they pass.
+      if (coordinatorBlocks(view.state, tx)) {
+        flashLockedLeases(view, tx);
+        return;
+      }
       const prevState = view.state;
       const prevCommentsState = commentsKey.getState(prevState);
       const next = view.state.apply(tx);

@@ -487,6 +487,27 @@ All Anthropic calls resolve their model through `resolveAiModel()` (the
 constant); a retired/unknown model surfaces a friendly `'model'`-kind
 `AnthropicError` pointing the user at the override or an app update.
 
+**Edit coordination.** Every AI op applies its edit *after* an async model
+call, so the document can move between capturing a target position and
+dispatching the edit — another AI op finishing, or the user typing.
+`edit-coordinator.ts` resolves this with **leases**. A per-view plugin holds
+each in-flight op's claimed region and remaps it through `tr.mapping` on
+every transaction (the anchoring pattern §6 comments marks and the voice
+plugin use). Two guarantees compose: edits *outside* a lease remap it, so the
+op reads `lease.region()` (or a uniform `delta()`) at apply time instead of a
+stale offset; edits *inside* a lease are blocked — `filterTransaction` (plus
+a `coordinatorBlocks` pre-check in each shell's `dispatchTransaction` that
+flashes the locked region) rejects any non-bypass transaction changing
+content length inside a live lease, so an op's content plan stays valid while
+nobody can retype under it. The op's own writes carry a bypass meta; because
+leases remap, disjoint ops run concurrently while an overlapping `claimRegion`
+is rejected (the caller toasts). Leases are view-only plugin state; the
+bookkeeping transactions are meta-only and `markBypass` leaves `addToHistory`
+alone, so an AI content edit stays a normal undo step. Every async
+doc-mutating AI op (cite, text/format repair, image alt-text/table, and the
+other in-flight editors) claims a lease for its request window and releases
+it in a `finally`.
+
 ## 15. Accessibility and theming
 
 Accessibility is a ground-floor requirement, served by the same display

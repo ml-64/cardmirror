@@ -859,6 +859,15 @@ release) in Settings → Comments & AI. If a model is ever retired, AI
 features show a message telling you to update CardMirror or set a newer
 model id there.
 
+You can keep working while an AI action runs, and you can run more than one
+at once — they don't trip over each other. Each action reserves the stretch
+of text it's working on: edits you make elsewhere (or another AI action's
+edits) move its target along so the result still lands in the right place.
+While an action is working on a stretch, that stretch is locked — typing
+into it does nothing and the locked text flashes — but the rest of the
+document stays editable. Starting a second action on text another action is
+already working on just asks you to try again in a moment.
+
 ### Repair Text
 
 Select text pulled from a PDF or OCR and press **Mod-Shift-R** to clean up

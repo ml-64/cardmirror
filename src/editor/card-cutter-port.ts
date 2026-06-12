@@ -19,6 +19,7 @@
 
 import type { EditorView } from 'prosemirror-view';
 import { TextSelection } from 'prosemirror-state';
+import type { Transaction } from 'prosemirror-state';
 import type { Node as PMNode } from 'prosemirror-model';
 import { schema } from '../schema/index.js';
 import { settings } from './settings.js';
@@ -26,6 +27,7 @@ import { callAnthropic } from './ai/anthropic.js';
 import { resolveAiModel } from './ai/anthropic.js';
 import { showToast } from './toast.js';
 import { AiActivity } from './ai/ai-activity.js';
+import { claimRegion, type EditLease } from './ai/edit-coordinator.js';
 import { setCardCutterPreview } from './card-cutter-preview-plugin.js';
 import { getElectronHost } from './host/index.js';
 
@@ -354,6 +356,7 @@ export function applyCutToCard(
   focused: FocusedCard,
   spans: MarkSpan[],
   layers?: Layer[],
+  dispatch: (tr: Transaction) => void = (tr) => view.dispatch(tr),
 ): void {
   const tr = view.state.tr;
   const color = resolveHighlightColor(view);
@@ -372,7 +375,32 @@ export function applyCutToCard(
   if (!tr.docChanged && tr.steps.length === 0) return;
   // Park the selection at the top of the card so the result is visible.
   tr.setSelection(TextSelection.create(tr.doc, focused.cardFrom + 1));
-  view.dispatch(tr.scrollIntoView());
+  dispatch(tr.scrollIntoView());
+}
+
+/** Shift a focused card's doc positions by `delta` — used after the
+ *  coordinator lease reports the card moved (an edit elsewhere in the doc
+ *  shifted it during the model call). Marks are position-stable inside the
+ *  leased card, so one uniform delta re-anchors every position. */
+function shiftFocused(focused: FocusedCard, delta: number): FocusedCard {
+  if (delta === 0) return focused;
+  return {
+    ...focused,
+    cardFrom: focused.cardFrom + delta,
+    cardTo: focused.cardTo + delta,
+    paraStarts: focused.paraStarts.map((p) => p + delta),
+  };
+}
+
+/** Claim a coordinator lease over the focused card for the duration of an
+ *  async card-cutter op. Returns null (with a toast) if another AI edit
+ *  already holds this card. */
+function claimCardLease(view: EditorView, focused: FocusedCard, label: string): EditLease | null {
+  const lease = claimRegion(view, { from: focused.cardFrom, to: focused.cardTo }, { label });
+  if (!lease) {
+    showToast('Another AI edit is working on this card — try again in a moment.');
+  }
+  return lease;
 }
 
 // ─── The one public entry the command layer calls ─────────────────
@@ -435,6 +463,10 @@ export async function cutFocusedCard(
     model: resolveAiModel(),
     terminalImpact: api.detectTerminalImpact(focused.card.tag),
   };
+  // Lease the card so the cut lands on it even if the doc shifts during
+  // the model call, and user edits to the card are held meanwhile.
+  const lease = claimCardLease(view, focused, 'card-cut');
+  if (!lease) return null;
   // Pill + purple tint over the whole card while the model works.
   const activity = new AiActivity(view, { from: focused.cardFrom, to: focused.cardTo });
   activity.start();
@@ -446,12 +478,20 @@ export async function cutFocusedCard(
     const result = hasUnderline
       ? await api.highlightCard(focused.card, focused.existing, opts, llm)
       : await api.cutCard(focused.card, opts, llm);
-    applyCutToCard(view, focused, result.spans, hasUnderline ? ['hl'] : undefined);
+    // Re-anchor to the card's current position (edits elsewhere may have
+    // shifted it). Null delta → the card was removed mid-cut.
+    const delta = lease.delta();
+    if (delta === null) {
+      showToast('The card moved while cutting — cut not applied.');
+      return null;
+    }
+    const placed = shiftFocused(focused, delta);
+    applyCutToCard(view, placed, result.spans, hasUnderline ? ['hl'] : undefined, (tr) => lease.apply(tr));
     for (const w of result.warnings) console.log(`[cardcutter] ${w}`);
     showToast(hasUnderline ? 'Card highlighted — ↶ to undo' : 'Card cut — ↶ to undo');
     return {
-      focused,
-      map: cardMapAfter(focused, result.spans),
+      focused: placed,
+      map: cardMapAfter(placed, result.spans),
       readWords: result.readWords ?? 0,
       ...(result.shortfall ? { shortfall: result.shortfall } : {}),
     };
@@ -461,6 +501,7 @@ export async function cutFocusedCard(
     return null;
   } finally {
     activity.stop();
+    lease.release();
   }
 }
 
@@ -592,6 +633,7 @@ function applyHlDiff(
   focused: FocusedCard,
   original: MarkMap,
   result: MarkMap,
+  dispatch: (tr: Transaction) => void = (tr) => view.dispatch(tr),
 ): void {
   const tr = view.state.tr;
   const hlType = schema.marks['highlight'];
@@ -618,7 +660,7 @@ function applyHlDiff(
       } else i++;
     }
   }
-  if (tr.steps.length > 0) view.dispatch(tr.scrollIntoView());
+  if (tr.steps.length > 0) dispatch(tr.scrollIntoView());
 }
 
 /** Options for the dehighlight skill — every field optional and
@@ -665,6 +707,8 @@ export async function refineHighlightFocusedCard(
     ? Math.max(10, Math.round((inv.readTimeSec * readerWpm()) / 60))
     : undefined;
   const original = buildMarkMap(focused);
+  const lease = claimCardLease(view, focused, 'card-refine');
+  if (!lease) return;
   const activity = new AiActivity(view, { from: focused.cardFrom, to: focused.cardTo });
   activity.start();
   try {
@@ -682,7 +726,12 @@ export async function refineHighlightFocusedCard(
       },
       makeLlm(),
     );
-    applyHlDiff(view, focused, original, result.map);
+    const delta = lease.delta();
+    if (delta === null) {
+      showToast('The card moved while refining — refine not applied.');
+      return;
+    }
+    applyHlDiff(view, shiftFocused(focused, delta), original, result.map, (tr) => lease.apply(tr));
     for (const w of result.warnings) console.log(`[cardcutter] ${w}`);
     const sec = Math.round((result.words / readerWpm()) * 60);
     if (result.shortfall && inv.readTimeSec) {
@@ -699,6 +748,7 @@ export async function refineHighlightFocusedCard(
     showToast(`Refine failed: ${(err as Error).message}`);
   } finally {
     activity.stop();
+    lease.release();
   }
 }
 
@@ -757,6 +807,8 @@ export async function addHighlightFocusedCard(view: EditorView): Promise<void> {
     role: 'block',
     model: resolveAiModel(),
   };
+  const lease = claimCardLease(view, focused, 'card-add-highlight');
+  if (!lease) return;
   const activity = new AiActivity(view, { from: focused.cardFrom, to: focused.cardTo });
   activity.start();
   opts.onStage = (s) => activity.setStage(STAGE_LABEL[s]);
@@ -766,11 +818,17 @@ export async function addHighlightFocusedCard(view: EditorView): Promise<void> {
       showToast(scope ? 'Nothing tag-relevant to add in the selection.' : 'Nothing more to add.');
       return;
     }
+    const shift = lease.delta();
+    if (shift === null) {
+      showToast('The card moved while adding highlight — not applied.');
+      return;
+    }
+    const placed = shiftFocused(focused, shift);
     // Add the delta marks (u + hl) without moving the selection.
     const tr = view.state.tr;
     const color = resolveHighlightColor(view);
     for (const s of result.spans) {
-      const base = focused.paraStarts[s.p];
+      const base = placed.paraStarts[s.p];
       if (base === undefined) continue;
       const from = base + s.start;
       const to = base + s.end;
@@ -780,12 +838,13 @@ export async function addHighlightFocusedCard(view: EditorView): Promise<void> {
       tr.addMark(from, to, s.layer === 'hl' ? type.create({ color }) : type.create());
     }
     for (const w of result.warnings) console.log(`[cardcutter] ${w}`);
-    if (tr.steps.length > 0) view.dispatch(tr.scrollIntoView());
+    if (tr.steps.length > 0) lease.apply(tr.scrollIntoView());
     showToast('Highlight added — ↶ to undo');
   } catch (err) {
     console.error('[cardcutter] add-highlight failed:', err);
     showToast(`Add highlight failed: ${(err as Error).message}`);
   } finally {
     activity.stop();
+    lease.release();
   }
 }

@@ -34,6 +34,7 @@ import { callAnthropic, AnthropicError } from './anthropic.js';
 import { salvageJson, extractJsonObjects } from './repair-text.js';
 import { showToast } from '../toast.js';
 import { AiActivity } from './ai-activity.js';
+import { claimRegion } from './edit-coordinator.js';
 import { setRepairFlashes, clearRepairFlashes } from '../repair-highlight-plugin.js';
 
 export const DEFAULT_FORMAT_REPAIR_PROMPT = `You are a debate-evidence formatting repair tool. Cut cards use Verbatim's body-text scheme — four layers, each a subset of the one before:
@@ -467,6 +468,7 @@ export function applyFormatPlan(
   tr: Transaction,
   analysis: CardAnalysis,
   plan: FormatPlan,
+  delta = 0,
 ): Array<{ from: number; to: number }> {
   const touched: Array<{ from: number; to: number }> = [];
   const removeTypes = SCHEME_MARK_NAMES.map((n) => schema.marks[n]!);
@@ -481,8 +483,11 @@ export function applyFormatPlan(
   ): void => {
     const map = analysis.charPos[blockIndex]!;
     if (endChar <= startChar || startChar >= map.length) return;
-    const from = map[startChar]!;
-    const to = map[Math.min(endChar, map.length) - 1]! + 1;
+    // `delta` shifts the analysis's absolute positions to their current
+    // location: edits elsewhere in the doc moved the whole leased region
+    // by a uniform offset (edits inside it are blocked).
+    const from = map[startChar]! + delta;
+    const to = map[Math.min(endChar, map.length) - 1]! + 1 + delta;
     for (const type of removeTypes) tr.removeMark(from, to, type);
     addTargetMarks(tr, from, to, target, hlColor, shdColor);
     touched.push({ from, to });
@@ -541,7 +546,15 @@ export function runRepairFormatting(view: EditorView): void {
     return;
   }
   const groups = groupBlocksByCard(view.state.doc, blocks);
-  const startDoc = view.state.doc;
+
+  // Lease the selection: edits elsewhere shift it (we apply a uniform
+  // delta at the end), edits inside it are held so the analysis stays
+  // valid for the whole multi-card request.
+  const lease = claimRegion(view, { from: sel.from, to: sel.to }, { label: 'repair-formatting' });
+  if (!lease) {
+    showToast('Another AI edit is working on this selection — try again in a moment.');
+    return;
+  }
 
   const activity = new AiActivity(view, { from: sel.from, to: sel.to }, 'selection');
   activity.start();
@@ -594,16 +607,19 @@ export function runRepairFormatting(view: EditorView): void {
         results.push({ analysis, plan });
       }
 
-      activity.stop();
-      if (view.state.doc !== startDoc) {
-        showToast('Document changed while analyzing — formatting repair cancelled.');
+      // The leased selection may have shifted while we were analyzing
+      // (edits elsewhere in the doc); apply the analysis at the current
+      // offset. A null delta means the region was removed entirely.
+      const delta = lease.delta();
+      if (delta === null) {
+        showToast('Repair formatting: the selected text is no longer in the document.');
         return;
       }
       const tr = view.state.tr;
       const touched: Array<{ from: number; to: number }> = [];
       for (const r of results) {
         const before = touched.length;
-        touched.push(...applyFormatPlan(tr, r.analysis, r.plan));
+        touched.push(...applyFormatPlan(tr, r.analysis, r.plan, delta));
         console.warn(
           `[repair-fmt] applied: ${touched.length - before} of ${r.analysis.runs.length} runs rewritten`,
         );
@@ -612,7 +628,7 @@ export function runRepairFormatting(view: EditorView): void {
         showToast('Formatting already matches the scheme — nothing to change.');
         return;
       }
-      view.dispatch(tr);
+      lease.apply(tr);
       setRepairFlashes(view, touched);
       setTimeout(() => clearRepairFlashes(view), FLASH_MS + 200);
       const blockCount = results.reduce((n, r) => n + r.analysis.blocks.length, 0);
@@ -622,10 +638,12 @@ export function runRepairFormatting(view: EditorView): void {
           '.',
       );
     } catch (e) {
-      activity.stop();
       console.warn(`[repair-fmt] error: ${e instanceof Error ? e.message : String(e)}`);
       if (e instanceof AnthropicError) showToast(`Repair formatting: ${e.message}`);
       else showToast(`Repair formatting: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      activity.stop();
+      lease.release();
     }
   })();
 }

@@ -80,6 +80,7 @@ import {
   notifyCommentsForActiveTransaction,
   sendViewToDropzone,
 } from './index.js';
+import { coordinatorBlocks, flashLockedLeases } from './ai/edit-coordinator.js';
 import { icon, setIcon } from './icons';
 
 type SlotId = 'slot1' | 'slot2' | 'slot3';
@@ -2243,6 +2244,12 @@ function buildDocRecord(
     // served by the custom viewport checker (viewport-spellcheck.ts).
     attributes: { spellcheck: 'false' },
     dispatchTransaction(tx) {
+      // Reject a user edit inside a region an AI op has leased; flash the
+      // locked region. AI writes carry a bypass tag and pass through.
+      if (coordinatorBlocks(view.state, tx)) {
+        flashLockedLeases(view, tx);
+        return;
+      }
       const prevState = view.state;
       const next = view.state.apply(tx);
       view.updateState(next);

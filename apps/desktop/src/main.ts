@@ -1883,6 +1883,12 @@ function buildMenu(): Menu {
         accelerator: menuAccelerator('openShortcutsReference'),
         click: () => dispatchMenuCommand('openShortcutsReference'),
       },
+      {
+        label: 'User Manual',
+        click: () => {
+          void shell.openExternal(MANUAL_URL);
+        },
+      },
       { type: 'separator' },
       {
         label: 'Check for Updates…',
@@ -2008,6 +2014,10 @@ ipcMain.handle(
 /** Public GitHub Releases page — fallback link surfaced in update
  *  dialogs so users always have a manual-download path. */
 const RELEASES_URL = 'https://github.com/ant981228/cardmirror/releases';
+
+/** The user manual (MANUAL.md), rendered on GitHub. Linked from the Help
+ *  menu so the full guide is one click away. */
+const MANUAL_URL = 'https://github.com/ant981228/cardmirror/blob/main/MANUAL.md';
 
 /** Best-effort dialog-parent lookup. Prefers the focused window,
  *  but if the user has alt-tabbed away between clicking

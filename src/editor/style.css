@@ -10069,6 +10069,18 @@ body.pmd-mobile-tablet .pmd-mobile-sheet {
   min-width: 0;
   flex: 1 1 auto;
 }
+/* Block editors (readers, per-style steppers/toggles) stack their control
+   under the label + description, full width, so a long description has
+   room instead of being squeezed beside a 16rem control. */
+.pmd-msettings-row-block {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.6rem;
+}
+.pmd-msettings-row-block .pmd-msettings-steppers,
+.pmd-msettings-row-block .pmd-msettings-readers {
+  flex: 1 1 auto;
+}
 .pmd-msettings-desc {
   font-size: 0.78rem;
   color: var(--pmd-c-text-secondary);

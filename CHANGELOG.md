@@ -20,6 +20,14 @@ see `DETAILED_CHANGELOG.md`.
   Connection** command, or turn on **"Keep a Verbatim Flow connection
   warm"** in Settings to have it ready the moment CardMirror launches.
 
+- **The Help menu links to the user manual.** Help → User Manual opens
+  the full manual.
+
+- **Mobile settings can customize style typography.** The mobile settings
+  page now offers the same per-style typography toggles as the desktop —
+  cite underline, undertag and emphasis bold/italic, the emphasis box and
+  its thickness — not just the per-style font sizes.
+
 ### Changed
 
 - **The voice-control shortcut is now rebindable.** Turning voice mode on
@@ -47,6 +55,17 @@ see `DETAILED_CHANGELOG.md`.
   Dismissing the "there's already text where you're sending" confirmation
   with Cancel used to leave the editor unable to accept keystrokes until
   you clicked it; it now keeps focus.
+
+- **The "AI is working" pill now appears next to an image being edited.**
+  When generating alt text or a table from an image, the progress pill
+  jumped to the editor's top-left corner instead of sitting by the image.
+  It now anchors to the image like the other AI cues, pinning to the
+  corner only when the image scrolls out of view.
+
+- **Mobile settings: editors with a long description lay out better.** The
+  reader time-estimate editor (and the other per-style editors) now stack
+  their controls below the description instead of squeezing them into a
+  narrow side column, so the text no longer piles up on a phone screen.
 
 ## 0.1.0-alpha.11 — 2026-06-11
 

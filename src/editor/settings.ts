@@ -1480,6 +1480,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     label: 'Style typography',
     kind: 'displayTypography',
     category: 'appearance',
+    mobile: true,
   },
   {
     key: 'displayColors',

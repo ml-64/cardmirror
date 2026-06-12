@@ -11,8 +11,8 @@
  *
  * Renderers cover the kinds the flagged entries actually use:
  * toggle, text, password, number, theme / reduceMotion / saveFormat /
- * mobileLayout (segments), displaySizes (steppers), readers (rows).
- * Flag a new kind → add its renderer here.
+ * mobileLayout (segments), displaySizes + displayTypography (steppers /
+ * toggles), readers (rows). Flag a new kind → add its renderer here.
  */
 
 import {
@@ -23,6 +23,7 @@ import {
   type SettingsCategory,
   type ReaderConfig,
   type DisplaySizes,
+  type DisplayTypography,
 } from './settings.js';
 
 const CATEGORY_LABELS: Partial<Record<SettingsCategory, string>> = {
@@ -96,9 +97,20 @@ export function closeMobileSettings(): void {
   pageUnsubs = [];
 }
 
+/** Kinds whose editor is a multi-row block (readers list, per-style
+ *  steppers/toggles). These stack the control BELOW the label +
+ *  description instead of squeezing it into a right-hand column, so the
+ *  description doesn't pile up on a narrow screen. */
+const BLOCK_EDITOR_KINDS = new Set<SettingMeta['kind']>([
+  'readers',
+  'displaySizes',
+  'displayTypography',
+]);
+
 function buildRow(meta: SettingMeta): HTMLElement {
   const row = document.createElement('div');
   row.className = 'pmd-msettings-row';
+  if (BLOCK_EDITOR_KINDS.has(meta.kind)) row.classList.add('pmd-msettings-row-block');
 
   const text = document.createElement('div');
   text.className = 'pmd-msettings-rowtext';
@@ -146,6 +158,8 @@ function buildEditor(meta: SettingMeta): HTMLElement {
       return buildMobileLayoutSegment();
     case 'displaySizes':
       return buildDisplaySizeSteppers();
+    case 'displayTypography':
+      return buildDisplayTypographyEditor();
     case 'readers':
       return buildReadersEditor();
     case 'clod':
@@ -288,6 +302,82 @@ function buildDisplaySizeSteppers(): HTMLElement {
     row.appendChild(plus);
     wrap.appendChild(row);
   }
+  return wrap;
+}
+
+/** Per-style typography flags (bold/italic/underline/box) + the emphasis
+ *  box thickness — the mobile counterpart of the desktop "Style
+ *  typography" editor. Reuses the stepper row layout for a consistent
+ *  look. */
+function buildDisplayTypographyEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-msettings-steppers';
+
+  const flags: Array<[keyof DisplayTypography, string]> = [
+    ['citeUnderlined', 'Cite: underlined'],
+    ['underlineBold', 'Underline: bold'],
+    ['undertagItalic', 'Undertag: italic'],
+    ['undertagBold', 'Undertag: bold'],
+    ['emphasisBold', 'Emphasis: bold'],
+    ['emphasisItalic', 'Emphasis: italic'],
+    ['emphasisBox', 'Emphasis: boxed'],
+  ];
+  for (const [key, labelText] of flags) {
+    const row = document.createElement('div');
+    row.className = 'pmd-msettings-stepper';
+    const label = document.createElement('span');
+    label.textContent = labelText;
+    row.appendChild(label);
+    const sw = document.createElement('input');
+    sw.type = 'checkbox';
+    sw.className = 'pmd-msettings-switch';
+    const sync = (): void => {
+      sw.checked = !!settings.get('displayTypography')[key];
+    };
+    sync();
+    pageSubscribe(sync);
+    sw.addEventListener('change', () => {
+      settings.set('displayTypography', {
+        ...settings.get('displayTypography'),
+        [key]: sw.checked,
+      });
+    });
+    row.appendChild(sw);
+    wrap.appendChild(row);
+  }
+
+  // Emphasis box thickness (pt) — a stepper like the size steppers,
+  // matching the desktop editor's 0.25–12 pt range / 0.25 step.
+  const trow = document.createElement('div');
+  trow.className = 'pmd-msettings-stepper';
+  const tlabel = document.createElement('span');
+  tlabel.textContent = 'Emphasis box thickness';
+  trow.appendChild(tlabel);
+  const tval = document.createElement('span');
+  tval.className = 'pmd-msettings-stepper-value';
+  const tsync = (): void => {
+    tval.textContent = `${settings.get('displayTypography').emphasisBoxSize} pt`;
+  };
+  tsync();
+  pageSubscribe(tsync);
+  const tstep = (delta: number): void => {
+    const cur = settings.get('displayTypography');
+    const next = Math.max(0.25, Math.min(12, Math.round((cur.emphasisBoxSize + delta) * 4) / 4));
+    settings.set('displayTypography', { ...cur, emphasisBoxSize: next });
+  };
+  const minus = document.createElement('button');
+  minus.type = 'button';
+  minus.textContent = '−';
+  minus.addEventListener('click', () => tstep(-0.25));
+  const plus = document.createElement('button');
+  plus.type = 'button';
+  plus.textContent = '+';
+  plus.addEventListener('click', () => tstep(0.25));
+  trow.appendChild(minus);
+  trow.appendChild(tval);
+  trow.appendChild(plus);
+  wrap.appendChild(trow);
+
   return wrap;
 }
 

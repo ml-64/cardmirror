@@ -73,6 +73,35 @@ in each release, see `CHANGELOG.md`.
   silently stopped accepting keystrokes. Both the cancel and success paths
   now call `view.focus()` — the same fix `speech-doc-send.ts` already used.
 
+- **Help → User Manual** (`main.ts`). The native Help menu links to the
+  manual (MANUAL.md on GitHub) via `shell.openExternal`, alongside the
+  existing Keyboard Shortcuts entry.
+
+- **AI "Thinking…" pill anchors to an image's real box** (`thinking-
+  tooltip.ts`, `ai-working-box.ts`). The shared pill positioned itself
+  from `coordsAtPos(from/to)`, which returns only a degenerate caret rect
+  for an inline atom like an image — so image alt-text / table-from-image
+  ops pinned the pill to the editor's top-left corner. `rangeRect()` (the
+  DOM-Range bounding box already used by the purple working box) is now
+  exported and used by the pill too, so it anchors to the image and clamps
+  to the corner only when the image scrolls off. Equivalent to the old
+  behavior for text ranges; a collapsed range still falls back to a
+  `coordsAtPos` point anchor.
+
+- **Mobile settings gained the style-typography editor** (`mobile-
+  settings-ui.ts`; `displayTypography` now `mobile: true`). A touch
+  renderer for the `displayTypography` kind exposes the same per-style
+  flags as the desktop (cite underline; undertag/emphasis bold-italic;
+  emphasis box) plus an emphasis-box-thickness stepper (0.25–12 pt), not
+  just the font-size steppers.
+
+- **Mobile settings stack block editors under their description**
+  (`mobile-settings-ui.ts`, `style.css`). The readers list and the
+  per-style stepper/toggle editors used to sit in a fixed right-hand
+  column, crushing a long description on a narrow screen. Rows whose kind
+  is a multi-row block editor now get `pmd-msettings-row-block`, which
+  switches the row to a vertical stack with a full-width control.
+
 ## 0.1.0-alpha.11 — 2026-06-11
 
 - **Revamped "AI is working" affordance** (new `src/editor/ai/

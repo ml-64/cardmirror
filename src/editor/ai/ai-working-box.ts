@@ -19,8 +19,11 @@ interface Range {
   to: number;
 }
 
-/** The bounding rectangle of `range` in viewport coords, or null. */
-function rangeRect(view: EditorView, range: Range): DOMRect | null {
+/** The bounding rectangle of `range` in viewport coords, or null. Uses a
+ *  DOM Range so it bounds atoms (e.g. an image) correctly, where
+ *  `coordsAtPos` returns only a degenerate caret rect. Shared with the
+ *  "Thinking…" pill so both cues anchor to the same box. */
+export function rangeRect(view: EditorView, range: Range): DOMRect | null {
   if (range.to <= range.from) return null;
   try {
     const a = view.domAtPos(range.from);

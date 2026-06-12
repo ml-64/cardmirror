@@ -99,8 +99,6 @@ function findImageContainerInsertion(
   };
 }
 
-/** Anchor for the in-flight tooltip — pinned just below the image's
- *  bottom edge in viewport coords. */
 /** The image node's doc range, for anchoring the AI-activity cues. */
 function imageRange(view: EditorView, imagePos: number): { from: number; to: number } {
   const node = view.state.doc.nodeAt(imagePos);

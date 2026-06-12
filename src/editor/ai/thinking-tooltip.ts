@@ -19,6 +19,7 @@
 
 import type { EditorView } from 'prosemirror-view';
 import { settings } from '../settings.js';
+import { rangeRect } from './ai-working-box.js';
 import {
   activitiesForNow,
   pickRandomActivity,
@@ -145,18 +146,26 @@ export class ThinkingTooltip {
     const bandBottom = Math.min(box.bottom, window.innerHeight) - EDGE;
     const pillH = this.el.offsetHeight || 28;
 
-    // Where the target sits in the viewport (may be off-screen).
+    // Where the target sits in the viewport (may be off-screen). Use the
+    // range's DOM bounding rect so an image (an inline atom) anchors to
+    // its real box — `coordsAtPos` returns only a degenerate caret rect
+    // for an atom, which pinned the pill to the top-left corner.
     let selTop: number;
     let selBottom: number;
-    try {
-      const a = this.view.coordsAtPos(this.range.from);
-      const b =
-        this.range.to > this.range.from ? this.view.coordsAtPos(this.range.to) : a;
-      selTop = Math.min(a.top, b.top);
-      selBottom = Math.max(a.bottom, b.bottom);
-    } catch {
-      selTop = bandTop;
-      selBottom = bandTop;
+    const rect = rangeRect(this.view, this.range);
+    if (rect) {
+      selTop = rect.top;
+      selBottom = rect.bottom;
+    } else {
+      // Collapsed range (no width): a point anchor.
+      try {
+        const a = this.view.coordsAtPos(this.range.from);
+        selTop = a.top;
+        selBottom = a.bottom;
+      } catch {
+        selTop = bandTop;
+        selBottom = bandTop;
+      }
     }
 
     // The pill's own bottom must clear the dropzone when it sits low.

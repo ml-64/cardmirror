@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Microphone access for voice control / dictation. Under the hardened
+       runtime (electron-builder's default on macOS) the mic returns SILENCE
+       without this entitlement, even though getUserMedia "succeeds". Must be
+       on both the app and its (inherited) helper processes — the renderer
+       helper is what opens the device. -->
+  <key>com.apple.security.device.audio-input</key>
+  <true/>
+  <!-- Electron's standard hardened-runtime requirements (V8 JIT). These
+       mirror electron-builder's default entitlements, which this file
+       replaces. -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+  <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+  <true/>
+</dict>
+</plist>

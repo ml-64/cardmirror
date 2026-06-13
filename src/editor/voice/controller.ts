@@ -132,12 +132,15 @@ export class VoiceController {
     }
     if (!res.ok) {
       this.pill.setListening(false);
-      showToast(
-        res.error === 'voice-assets-missing'
-          ? 'Voice model not found (set CARDMIRROR_VOICE_DIR)'
-          : `Voice failed to start: ${res.error}`,
-        { durationMs: 2400 },
-      );
+      let msg: string;
+      if (res.error === 'voice-assets-missing') {
+        msg = 'Voice model not found (set CARDMIRROR_VOICE_DIR)';
+      } else if (res.error === 'voice-mic-denied') {
+        msg = 'Microphone access denied — enable it in System Settings → Privacy & Security → Microphone';
+      } else {
+        msg = `Voice failed to start: ${res.error}`;
+      }
+      showToast(msg, { durationMs: res.error === 'voice-mic-denied' ? 4000 : 2400 });
       return;
     }
 

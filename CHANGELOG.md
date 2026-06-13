@@ -44,13 +44,16 @@ see `DETAILED_CHANGELOG.md`.
 ### Fixed
 
 - **macOS voice: capture the microphone correctly.** Voice mode could connect
-  to a mic but receive no audio on macOS. Two fixes: the audio engine is now
-  resumed after it starts (it could come up paused and never deliver sound),
-  and the mic is recorded at its own sample rate and converted to 16 kHz
-  in-app instead of forcing a 16 kHz engine (which made macOS hand back
-  silence). This release also writes voice-capture diagnostics to the
-  developer console to confirm the fix and pinpoint any remaining cause — that
-  logging is **temporary** and will be removed in a later release.
+  to a mic but receive no audio on macOS. The main cause was that the packaged
+  app lacked the microphone entitlement and usage permission, so macOS handed
+  back a *silent* track even though the mic appeared connected — the app now
+  ships the microphone entitlement, declares why it needs the mic, and asks
+  macOS for access on first use. Two supporting fixes to the audio path: the
+  audio engine is resumed after it starts (it could come up paused), and the
+  mic is recorded at its own sample rate and converted to 16 kHz in-app
+  instead of forcing a 16 kHz engine. This release also writes voice-capture
+  diagnostics to the developer console — **temporary**, to confirm the fix,
+  and removed in a later release.
 
 - **Spell check no longer flags a word whose styling changes mid-word.** When
   part of a word was underlined, highlighted, or otherwise styled differently

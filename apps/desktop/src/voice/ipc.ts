@@ -8,7 +8,7 @@
  * kill the main process (a vosk grammar-swap abort and lgraph decode
  * bursts both did exactly that when the service ran in-process).
  */
-import { app, ipcMain } from 'electron';
+import { app, ipcMain, systemPreferences } from 'electron';
 import { fork, type ChildProcess } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -188,6 +188,20 @@ export function registerVoiceIpc(): void {
       const sender = event.sender;
       if (worker && ownerWebContentsId !== sender.id) {
         return { ok: false, error: 'voice-in-use' };
+      }
+      // macOS: the renderer's getUserMedia can "succeed" yet deliver a
+      // SILENT track until the OS-level microphone permission is granted —
+      // the audio graph runs but every sample is zero. Ask for (and, on
+      // first use, prompt for) access before capture starts. Requires
+      // NSMicrophoneUsageDescription in the Info.plist (see package.json
+      // build.mac.extendInfo); a no-op once granted, and a no-op off macOS.
+      if (process.platform === 'darwin') {
+        try {
+          const granted = await systemPreferences.askForMediaAccess('microphone');
+          if (!granted) return { ok: false, error: 'voice-mic-denied' };
+        } catch {
+          return { ok: false, error: 'voice-mic-denied' };
+        }
       }
       if (worker) stopSession(); // same window restarting — rebuild cleanly
       const assets = opts.modelDir

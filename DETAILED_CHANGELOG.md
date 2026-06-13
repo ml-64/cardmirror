@@ -7,10 +7,24 @@ in each release, see `CHANGELOG.md`.
 
 ## 0.1.0-alpha.14 — 2026-06-13
 
-- **macOS voice no-audio: capture fixes + temporary diagnostics**
-  (`editor/voice/capture.ts`). The mic could be selected and the stream
-  connected, but no audio reached the recognizer (dead level meter, no
-  transcription). Two fixes: (1) the `AudioContext` is created right after
+- **macOS voice no-audio: microphone permission/entitlement + capture fixes
+  + temporary diagnostics** (`apps/desktop/package.json`,
+  `apps/desktop/build/entitlements.mac.plist`, `apps/desktop/src/voice/ipc.ts`,
+  `editor/voice/controller.ts`, `editor/voice/capture.ts`). The mic could be
+  selected and the stream connected, but every sample was zero (running
+  context, `inRate=48000`, processor firing ~12 buffers/s, `peak≈0.0000`). The
+  **root cause**: the packaged app is hardened-runtime + ad-hoc-signed, but
+  electron-builder's default entitlements omit `com.apple.security.device.audio-input`
+  and there was no `NSMicrophoneUsageDescription` — so macOS handed back a
+  silent track while getUserMedia "succeeded". Fixes: a custom
+  `entitlements.mac.plist` granting `audio-input` (wired via `mac.entitlements`
+  + `entitlementsInherit`, with `hardenedRuntime: true` explicit), an
+  `NSMicrophoneUsageDescription` in `mac.extendInfo`, and a
+  `systemPreferences.askForMediaAccess('microphone')` call in the `host:voice-start`
+  handler (darwin-only) that prompts on first use and returns `voice-mic-denied`
+  (surfaced as a "enable it in System Settings" toast) if refused. Two
+  supporting audio-path fixes from earlier in this cycle: (1) the `AudioContext`
+  is created right after
   `await getUserMedia` — outside the user-gesture tick — so Chromium could
   start it *suspended*, leaving the ScriptProcessor's `onaudioprocess` to
   never fire; now `await ctx.resume()` after creation. (2) It no longer forces

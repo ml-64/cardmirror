@@ -7,6 +7,26 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **macOS voice no-audio: capture fixes + temporary diagnostics**
+  (`editor/voice/capture.ts`). The mic could be selected and the stream
+  connected, but no audio reached the recognizer (dead level meter, no
+  transcription). Two fixes: (1) the `AudioContext` is created right after
+  `await getUserMedia` — outside the user-gesture tick — so Chromium could
+  start it *suspended*, leaving the ScriptProcessor's `onaudioprocess` to
+  never fire; now `await ctx.resume()` after creation. (2) It no longer forces
+  `new AudioContext({ sampleRate: 16000 })`, which makes a `MediaStreamSource`
+  emit silence on macOS Core Audio when the input device runs at 44.1/48 kHz
+  (Linux/PulseAudio happened to resample it). It now uses the context's native
+  rate and downsamples each capture buffer to 16 kHz in-app (`downsampleTo16k`,
+  a box-average for cheap anti-aliasing; the worker still expects 16 kHz mono
+  s16le). Also added clearly-marked **TEMP** diagnostics: a one-time
+  `ctx.state` / input-rate log and a once-per-second buffers/peak/state log in
+  `onaudioprocess`, to confirm the context is running and the mic is delivering
+  non-silent samples — paired with the existing worker-side `voice: clock
+  check` log they localize any remaining failure (no frames → suspended; peak
+  ≈ 0 → silent source; peak > 0 but no clock check → IPC/worker). The
+  diagnostics are temporary and tagged for removal.
+
 - **`bold_off` mark — un-bolding inside bold-by-default blocks**
   (`schema/marks.ts`, `ribbon-commands.ts`, `import/importer.ts`,
   `export/exporter.ts`). Tags/headings render bold via CSS, and the `bold`

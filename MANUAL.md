@@ -272,7 +272,7 @@ below say which fallback applies where it matters.
 | **Emphasis** | F10 | Applies the Emphasis style (a box, by default). Apply-only; use Clear or Underline to swap it off. |
 | **Highlight** | F11 | Toggles the active highlight color. Press again to remove. |
 | **Clear** | F12 | Strips direct formatting back to plain text (leaves highlighting — toggle that off separately). |
-| **Bold / Italic** | Mod-B / Mod-I | Standard direct formatting. With nothing selected, toggles it for the text you're about to type; while italic typing is on, the cursor tilts to match. |
+| **Bold / Italic** | Mod-B / Mod-I | Standard direct formatting. With nothing selected, toggles it for the text you're about to type; while italic typing is on, the cursor tilts to match. Tags and headings are bold by default, so **Bold inside a tag un-bolds** the selected words (press it again to restore) — and .docx files with un-bolded words in tags now show that correctly. |
 
 Super/subscript and strikethrough live in the **Format** menu (super and
 subscript also have shortcuts: **Mod-Shift-=** and **Mod-=**).

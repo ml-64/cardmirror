@@ -591,6 +591,10 @@ class DocxExporter {
 
     if (marks.some((m) => m.type.name === 'bold')) {
       props.push('<w:b/>');
+    } else if (marks.some((m) => m.type.name === 'bold_off')) {
+      // Explicit "bold off" — overrides the bold a bold-by-default style
+      // (e.g. Heading4/tag) would otherwise inherit.
+      props.push('<w:b w:val="0"/>');
     }
     if (marks.some((m) => m.type.name === 'italic')) {
       props.push('<w:i/>');

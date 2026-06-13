@@ -26,6 +26,11 @@ see `DETAILED_CHANGELOG.md`.
   untouched). A transitional tool — it'll be retired once libraries have
   migrated.
 
+- **Un-bold words in tags.** Tags (and other headings) are bold by default,
+  and you can now turn bold *off* for individual words — select them in a tag
+  and press Mod-B (or click Bold). Imported .docx files that have un-bolded
+  words in tags now display that correctly, instead of showing everything bold.
+
 - **Lock Highlighting (Card menu → Highlighting).** Converts highlighting to a
   light-gray background in one pass, freeing the highlight layer so you can
   re-highlight. With no selection it locks the whole card the cursor is in;

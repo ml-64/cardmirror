@@ -7,6 +7,26 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **`bold_off` mark — un-bolding inside bold-by-default blocks**
+  (`schema/marks.ts`, `ribbon-commands.ts`, `import/importer.ts`,
+  `export/exporter.ts`). Tags/headings render bold via CSS, and the `bold`
+  mark only ADDS bold — so there was no way to represent (or display) a word
+  explicitly un-bolded inside a tag: docx `<w:b w:val="0"/>` was dropped on
+  import (the run then rendered bold from the tag's style) and never emitted
+  on export. New `bold_off` mark, mutually exclusive with `bold` (`excludes`),
+  renders an inline `font-weight: normal` that beats the `.pmd-tag` rule and
+  round-trips to `<w:b w:val="0"/>`. Mod-B / the Bold button is now
+  context-aware (`toggleBold`): in a bold-by-default structural block
+  (tag / analytic / pocket / hat / block) it toggles `bold_off`; in body it
+  toggles `bold` as before. `bold_off` is in the direct-formatting strip set,
+  so Clear to Normal and promotion restore the block's default bold — but NOT
+  the named-style apply-strip, so applying cite/underline/emphasis to a
+  deliberately un-bolded word doesn't silently re-bold it. Import maps
+  `<w:b w:val="0"/>` → `bold_off` (was: dropped); export emits it. Like
+  `font_size`, it parses only its own `data-bold-off` span (not arbitrary
+  `font-weight: normal`), so it isn't sprayed onto pastes carrying an
+  explicit-normal weight.
+
 - **Lock Highlighting** (`create-reference.ts` `lockHighlighting`, wired in
   `ribbon-commands.ts` + `ribbon-groups.ts` + the Card menu's Highlighting
   submenu). In-place sibling of Create Reference: a `Command` that drops each

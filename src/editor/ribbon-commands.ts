@@ -119,6 +119,10 @@ const DIRECT_FORMATTING_MARK_NAMES = [
   'font_color',
   'font_family',
   'bold',
+  // The structural-bold override (a word unbolded inside a tag/heading).
+  // Clearing direct formatting or promoting text restores the block's
+  // default bold, so it belongs here alongside `bold`.
+  'bold_off',
   'italic',
   'strikethrough',
   'highlight',
@@ -1380,6 +1384,31 @@ function shadowAwareToggleMark(markType: MarkType): Command {
     if (op.fromShadow) tr.setMeta(META_OPERATING_ON_SHADOW, true);
     dispatch(tr);
     return true;
+  };
+}
+
+/** Textblocks that render bold by DEFAULT (via CSS), where "bold" isn't a
+ *  mark to add but the baseline — so toggling bold there means toggling the
+ *  `bold_off` override instead. (undertag is body-weight, so it's not here.) */
+const BOLD_DEFAULT_TEXTBLOCKS = new Set([
+  'tag', 'analytic', 'pocket', 'hat', 'block',
+]);
+
+/**
+ * Mod-B — bold. Context-aware: in body text it toggles the `bold` mark as
+ * usual; inside a bold-by-default structural block (tag / analytic / pocket
+ * / hat / block) it toggles the `bold_off` override instead, so a word in a
+ * tag can be un-bolded (and re-bolded). The two marks exclude each other, so
+ * either toggle clears the opposite. Decision follows the selection's anchor
+ * block, matching `toggleUnderlineTyping`'s structural test.
+ */
+export function toggleBold(): Command {
+  return (state, dispatch, view) => {
+    const structuralBold = BOLD_DEFAULT_TEXTBLOCKS.has(
+      state.selection.$from.parent.type.name,
+    );
+    const markType = structuralBold ? schema.marks['bold_off']! : schema.marks['bold']!;
+    return shadowAwareToggleMark(markType)(state, dispatch, view);
   };
 }
 
@@ -4650,7 +4679,7 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
     case 'setTag': return setTag();
     case 'setAnalytic': return setAnalytic();
     case 'setUndertag': return setUndertag();
-    case 'toggleBold': return shadowAwareToggleMark(schema.marks['bold']!);
+    case 'toggleBold': return toggleBold();
     case 'toggleItalic': return shadowAwareToggleMark(schema.marks['italic']!);
     case 'toggleStrikethrough': return shadowAwareToggleMark(schema.marks['strikethrough']!);
     case 'toggleSuperscript': return shadowAwareToggleMark(schema.marks['superscript']!);

@@ -192,6 +192,32 @@ describe('exporter — marks → rPr', () => {
     expect(xml).toContain('<w:b/>');
   });
 
+  it('emits <w:b w:val="0"/> for bold_off', () => {
+    const xml = emitInline([schema.marks['bold_off']!.create()]);
+    expect(xml).toContain('<w:b w:val="0"/>');
+    expect(xml).not.toContain('<w:b/>');
+  });
+
+  it('round-trips an un-bolded word inside a tag', async () => {
+    const doc = schema.nodes['doc']!.createChecked(null, [
+      schema.nodes['card']!.createChecked(null, [
+        schema.nodes['tag']!.create({ id: newHeadingId() }, [
+          schema.text('Bold '),
+          schema.text('plain', [schema.marks['bold_off']!.create()]),
+        ]),
+      ]),
+    ]);
+    const bytes = await toDocx(doc);
+    const back = await fromDocx(bytes);
+    // Find the tag's runs and confirm the "plain" run kept its bold_off.
+    let plainMarks: string[] | null = null;
+    back.descendants((n) => {
+      if (n.isText && n.text === 'plain') plainMarks = n.marks.map((m) => m.type.name);
+    });
+    expect(plainMarks).not.toBeNull();
+    expect(plainMarks!).toContain('bold_off');
+  });
+
   it('emits <w:strike/> for strikethrough', () => {
     const xml = emitInline([schema.marks['strikethrough']!.create()]);
     expect(xml).toContain('<w:strike/>');

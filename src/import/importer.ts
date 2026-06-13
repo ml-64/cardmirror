@@ -754,7 +754,13 @@ function parseRPr(rPr: XmlNode): ParsedRPr {
         break;
       }
       case 'w:b': {
-        if (a['w:val'] !== '0' && a['w:val'] !== 'false') {
+        if (a['w:val'] === '0' || a['w:val'] === 'false') {
+          // Explicit "bold off" — preserve it as a `bold_off` mark so it
+          // both round-trips AND renders (a word un-bolded inside a tag,
+          // which is bold by default). Previously this was dropped, so the
+          // run rendered bold from the tag's style.
+          marks.push(schema.marks['bold_off']!.create());
+        } else {
           marks.push(schema.marks['bold']!.create());
         }
         break;

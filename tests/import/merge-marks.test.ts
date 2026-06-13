@@ -64,7 +64,7 @@ describe('run-formatting parsing', () => {
     expect(para.child(2).marks).toHaveLength(0);
   });
 
-  it('explicit-disable properties (b val=0) result in absence of the mark', () => {
+  it('explicit-disable bold (b val=0) becomes a bold_off mark, not bold', () => {
     const xml = bodyXml(`
       <w:p>
         <w:r><w:rPr><w:b w:val="0"/></w:rPr><w:t>not bold</w:t></w:r>
@@ -73,6 +73,7 @@ describe('run-formatting parsing', () => {
     const doc = importDoc(xml);
     const text = doc.firstChild!.firstChild!;
     expect(text.marks.some((m) => m.type.name === 'bold')).toBe(false);
+    expect(text.marks.some((m) => m.type.name === 'bold_off')).toBe(true);
   });
 
   it('rStyle is recognized as a named-style mark', () => {

@@ -161,10 +161,17 @@ them.
 
 Named-style marks: `cite_mark`, `underline_mark`, `emphasis_mark`,
 `undertag_mark`, `analytic_mark`. Direct-formatting marks: `bold`,
-`italic`, `strikethrough`, `superscript`, `subscript`, `underline_direct`,
-`highlight(color)`, `shading(color)`, `font_color`, `font_size`,
-`font_family`, `link(href)`. Plus `comment_range(threadId)` and
-`pilcrow_marker`.
+`bold_off`, `italic`, `strikethrough`, `superscript`, `subscript`,
+`underline_direct`, `highlight(color)`, `shading(color)`, `font_color`,
+`font_size`, `font_family`, `link(href)`. Plus `comment_range(threadId)`
+and `pilcrow_marker`.
+
+`bold_off` is the inverse of the structural-default bold: tags/headings
+render bold via CSS, so un-bolding a word needs an explicit override (an
+inline `font-weight: normal`, mutually exclusive with `bold`, round-tripping
+to `<w:b w:val="0"/>`). Mod-B is context-aware — `bold_off` in a
+bold-by-default block, `bold` in body — mirroring how `underline_direct` vs
+`underline_mark` is chosen by context.
 
 Two subtleties carry real weight for round-trip:
 

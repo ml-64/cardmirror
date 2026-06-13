@@ -203,12 +203,36 @@ export const marks: { [name: string]: MarkSpec } = {
 
   bold: {
     inclusive: true,
+    // Mutually exclusive with bold_off — a run is either bold or
+    // explicitly-not-bold, never both.
+    excludes: 'bold bold_off',
     parseDOM: [
       { tag: 'b' },
       { tag: 'strong' },
       { style: 'font-weight', getAttrs: (v) => /^(bold|[5-9]\d{2})/.test(String(v)) && null },
     ],
     toDOM: () => ['strong', 0],
+  },
+
+  /**
+   * Explicit "not bold" — overrides the bold a structural block (tag /
+   * analytic / pocket / hat / block) renders by DEFAULT via CSS, so a word
+   * inside a tag can be un-bolded. Renders an inline `font-weight: normal`,
+   * which beats the `.pmd-tag { font-weight: bold }` rule, tagged with
+   * `data-bold-off` for a clean editor round-trip. Round-trips to OOXML
+   * `<w:b w:val="0"/>`. In body text (not bold by default) it's a harmless
+   * no-op, but it still faithfully preserves an explicit Word "bold off".
+   *
+   * Like `font_size`, it parses only its own `data-bold-off` span — NOT an
+   * arbitrary `font-weight: normal` — so it isn't sprayed onto every paste
+   * that carries an explicit-normal weight. The docx importer adds it
+   * directly from `<w:b w:val="0"/>`.
+   */
+  bold_off: {
+    inclusive: true,
+    excludes: 'bold bold_off',
+    parseDOM: [{ tag: 'span[data-bold-off]' }],
+    toDOM: () => ['span', { 'data-bold-off': 'true', style: 'font-weight: normal' }, 0],
   },
 
   italic: {

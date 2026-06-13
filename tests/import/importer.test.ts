@@ -322,9 +322,17 @@ describe('importer — marks from rPr', () => {
     expect(marks.some((m) => m.type.name === 'bold')).toBe(true);
   });
 
-  it('does not extract bold when explicitly disabled (<w:b w:val="0"/>)', () => {
+  it('maps explicit bold-off (<w:b w:val="0"/>) to a bold_off mark', () => {
     const marks = importInline('<w:b w:val="0"/>');
     expect(marks.some((m) => m.type.name === 'bold')).toBe(false);
+    // Preserved as bold_off so it round-trips AND renders (un-bolded word
+    // inside a bold-by-default tag), rather than being silently dropped.
+    expect(marks.some((m) => m.type.name === 'bold_off')).toBe(true);
+  });
+
+  it('maps bold-off via w:val="false" to a bold_off mark', () => {
+    const marks = importInline('<w:b w:val="false"/>');
+    expect(marks.some((m) => m.type.name === 'bold_off')).toBe(true);
   });
 
   it('extracts italic from <w:i/>', () => {

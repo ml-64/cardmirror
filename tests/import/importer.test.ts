@@ -70,6 +70,96 @@ describe('importer — paragraph kinds', () => {
   });
 });
 
+describe('importer — analytic style fallback', () => {
+  // Build a minimal word/styles.xml declaring the given styles.
+  // Each entry: { id, name?, type? } (type defaults to 'paragraph').
+  function stylesXml(
+    defs: Array<{ id: string; name?: string; type?: string }>,
+  ): string {
+    const styleEls = defs
+      .map((d) => {
+        const type = d.type ?? 'paragraph';
+        const nameEl = d.name ? `<w:name w:val="${d.name}"/>` : '';
+        return `<w:style w:type="${type}" w:styleId="${d.id}">${nameEl}</w:style>`;
+      })
+      .join('');
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">${styleEls}</w:styles>`;
+  }
+
+  function importWithStyles(
+    inner: string,
+    defs: Array<{ id: string; name?: string; type?: string }>,
+  ) {
+    return importDoc(bodyXml(inner), null, null, stylesXml(defs));
+  }
+
+  it('maps a style named "Analytic Real" to analytic (rule 1, by name)', () => {
+    const doc = importWithStyles(
+      `<w:p><w:pPr><w:pStyle w:val="AnalyticReal"/></w:pPr><w:r><w:t>An analytic</w:t></w:r></w:p>`,
+      [{ id: 'AnalyticReal', name: 'Analytic Real' }],
+    );
+    expect(doc.firstChild!.type.name).toBe('analytic_unit');
+    expect(doc.firstChild!.firstChild!.type.name).toBe('analytic');
+  });
+
+  it('maps "Analytic Real" by styleId even when styles.xml is absent (rule 1, by id)', () => {
+    // No styles passed → synthesized StyleInfo, styleId-only match.
+    const doc = importDoc(
+      bodyXml(
+        `<w:p><w:pPr><w:pStyle w:val="AnalyticReal"/></w:pPr><w:r><w:t>An analytic</w:t></w:r></w:p>`,
+      ),
+    );
+    expect(doc.firstChild!.type.name).toBe('analytic_unit');
+  });
+
+  it('maps a paragraph style whose name contains "analytic" to analytic (rule 2)', () => {
+    const doc = importWithStyles(
+      `<w:p><w:pPr><w:pStyle w:val="CustomAnaly"/></w:pPr><w:r><w:t>Tagline</w:t></w:r></w:p>`,
+      [{ id: 'CustomAnaly', name: 'Card Analytic Heading' }],
+    );
+    expect(doc.firstChild!.type.name).toBe('analytic_unit');
+  });
+
+  it('maps a paragraph style whose styleId contains "analytic" to analytic (rule 2)', () => {
+    const doc = importWithStyles(
+      `<w:p><w:pPr><w:pStyle w:val="MyAnalyticHdg"/></w:pPr><w:r><w:t>Tagline</w:t></w:r></w:p>`,
+      [{ id: 'MyAnalyticHdg', name: 'Custom Heading' }],
+    );
+    expect(doc.firstChild!.type.name).toBe('analytic_unit');
+  });
+
+  it('does NOT map a character-type "analytic" style via rule 2', () => {
+    // Rule 2 is paragraph-only; a character style named with "analytic"
+    // referenced as a pStyle stays a plain paragraph.
+    const doc = importWithStyles(
+      `<w:p><w:pPr><w:pStyle w:val="AnalyticChar2"/></w:pPr><w:r><w:t>x</w:t></w:r></w:p>`,
+      [{ id: 'AnalyticChar2', name: 'Analytic Char Alt', type: 'character' }],
+    );
+    expect(doc.firstChild!.type.name).toBe('paragraph');
+  });
+
+  it('leaves an unrelated paragraph style as a plain paragraph', () => {
+    const doc = importWithStyles(
+      `<w:p><w:pPr><w:pStyle w:val="BodyText"/></w:pPr><w:r><w:t>x</w:t></w:r></w:p>`,
+      [{ id: 'BodyText', name: 'Body Text' }],
+    );
+    expect(doc.firstChild!.type.name).toBe('paragraph');
+  });
+
+  it('canonical styleIds still win over the fallback', () => {
+    // Undertag has "analytic" nowhere; verify a canonical id is untouched
+    // and that the exact-lookup path takes precedence in general.
+    const doc = importWithStyles(
+      `<w:p><w:pPr><w:pStyle w:val="Heading4"/></w:pPr><w:r><w:t>Tag</w:t></w:r></w:p>`,
+      [{ id: 'Heading4', name: 'heading 4' }],
+    );
+    // A lone tag gets wrapped in a card by the grouping pass.
+    expect(doc.firstChild!.type.name).toBe('card');
+    expect(doc.firstChild!.firstChild!.type.name).toBe('tag');
+  });
+});
+
 describe('importer — card grouping', () => {
   it('classifies Normals after a Tag by cite_mark presence: cite-styled → cite_paragraph, plain → card_body', () => {
     const xml = bodyXml(`

@@ -50,7 +50,7 @@ function formatFromFilename(name: string): DocFormat | null {
   if (lower.endsWith('.docx')) return 'docx';
   return null;
 }
-import { NavigationPanel } from './nav-panel.js';
+import { NavigationPanel, installNavResizeHandle } from './nav-panel.js';
 import { EditorDragSurface } from './drag-editor-surface.js';
 import { dragController, rewriteHeadingIds } from './drag-controller.js';
 import { countReadAloudWords, formatReadTime, formatNumber } from './word-count.js';
@@ -1035,6 +1035,12 @@ class MultiPaneShell {
     this.navRailEl = document.createElement('aside');
     this.navRailEl.className = 'pmd-multi-nav';
     document.body.appendChild(this.navRailEl);
+    // The per-section NavigationPanels each build their own resize handle,
+    // but those are hidden in multi-doc (the sections share the rail evenly
+    // and have no independent width). Give the rail one handle that resizes
+    // the whole rail via the shared `--nav-width` — same variable the
+    // single-doc panel uses, so the setting carries across layouts.
+    installNavResizeHandle(this.navRailEl);
 
     // Pane row (the three editor panes).
     this.rowEl = document.createElement('div');

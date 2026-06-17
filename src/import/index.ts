@@ -45,6 +45,7 @@ export async function fromDocx(bytes: Uint8Array | ArrayBuffer): Promise<PMNode>
   const documentXml = await docx.readText('word/document.xml');
   if (!documentXml) throw new Error('docx is missing word/document.xml');
   const relsXml = await docx.readText('word/_rels/document.xml.rels');
+  const stylesXml = await docx.readText('word/styles.xml');
 
   const mediaParts: MediaPartsMap = new Map();
   for (const path of docx.paths()) {
@@ -58,7 +59,7 @@ export async function fromDocx(bytes: Uint8Array | ArrayBuffer): Promise<PMNode>
     mediaParts.set(path, part);
   }
 
-  return importDoc(documentXml, relsXml, mediaParts);
+  return importDoc(documentXml, relsXml, mediaParts, stylesXml);
 }
 
 /** Like `fromDocx` but also returns the parsed comment threads.
@@ -71,6 +72,7 @@ export async function fromDocxFull(
   const documentXml = await docx.readText('word/document.xml');
   if (!documentXml) throw new Error('docx is missing word/document.xml');
   const relsXml = await docx.readText('word/_rels/document.xml.rels');
+  const stylesXml = await docx.readText('word/styles.xml');
 
   const mediaParts: MediaPartsMap = new Map();
   for (const path of docx.paths()) {
@@ -84,7 +86,7 @@ export async function fromDocxFull(
     mediaParts.set(path, part);
   }
 
-  const doc = importDoc(documentXml, relsXml, mediaParts);
+  const doc = importDoc(documentXml, relsXml, mediaParts, stylesXml);
   const commentsXml = await docx.readText('word/comments.xml');
   const commentsExtendedXml = await docx.readText('word/commentsExtended.xml');
   const threads = importComments(commentsXml, commentsExtendedXml);

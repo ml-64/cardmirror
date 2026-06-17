@@ -35,7 +35,6 @@
 
 import { Fragment, type Mark, type MarkType, type Node as PMNode, type ResolvedPos } from 'prosemirror-model';
 import { Selection, TextSelection, type Command, type EditorState, type Transaction } from 'prosemirror-state';
-import { AddMarkStep, RemoveMarkStep } from 'prosemirror-transform';
 import type { EditorView } from 'prosemirror-view';
 import { toggleMark } from 'prosemirror-commands';
 import { toggleReadingMarkerCommand } from './reading-marker.js';
@@ -1269,6 +1268,10 @@ export function highlightAcronym(activeColor: () => string): Command {
  */
 const GAP_REGEX = /[A-Za-z0-9'"‘’“”][.,;:?()\-! ]+(?=[A-Za-z0-9'"‘’“”])/g;
 const GAP_CHAR_RE = /[.,;:?()\-! ]/;
+/** A gap "bookend" / word character — the class `GAP_REGEX` uses on both
+ *  sides of a gap. A changed range with NONE of these is pure gap content
+ *  (whitespace and/or punctuation) the user selected deliberately. */
+const WORD_CHAR_RE = /[A-Za-z0-9'"‘’“”]/;
 
 interface GapHit {
   gapFrom: number;
@@ -1360,9 +1363,13 @@ function expandToAdjacentBookends(
 
 /** Normalize ONE gap across ALL formatting families to the value its bookends
  *  imply — bridge a mark both carry, strip one the bookends don't agree on.
- *  This is the full `fixFormattingGaps` per-gap rule, shared so the manual
- *  command and the per-apply wrapper behave identically. `effectivePt` omitted
- *  → `font_size` is left alone (caller has no size resolver). */
+ *  Used by the per-apply wrapper (`withGapFix`), which calls it only on the
+ *  EDGE gaps of a changed range. Here underline and emphasis are one family:
+ *  both bookends carrying either (incl. emphasis+emphasis) → the gap fills
+ *  with UNDERLINE, so an emphasized selection's edges join an emphasized
+ *  neighbor with underline. (The manual `fixFormattingGaps` command keeps its
+ *  own per-gap rule, which bridges emphasis+emphasis with emphasis.)
+ *  `effectivePt` omitted → `font_size` is left alone (no size resolver). */
 function applyFullGapTarget(
   tr: Transaction,
   hit: GapHit,
@@ -1384,24 +1391,22 @@ function applyFullGapTarget(
   const marksToAdd: Mark[] = [];
   const marksToRemove: MarkType[] = [];
 
-  // Named-style target (mutually exclusive): same on both → that mark; mixed
-  // underline/emphasis → underline (Verbatim's "underline wins"); else → none.
+  // Named-style target (mutually exclusive). Underline and emphasis form one
+  // "underline family": whenever BOTH bookends carry one of them — underline
+  // both sides, emphasis both sides, OR mixed — the gap fills with UNDERLINE.
+  // Emphasis never fills a gap (two emphasized words are joined by underline,
+  // the continuous read-aloud marker). Cite stays distinct.
   const fmU = has(fm, um) || has(fm, ud);
   const lmU = has(lm, um) || has(lm, ud);
   const fmE = has(fm, emphasisType);
   const lmE = has(lm, emphasisType);
-  let named: 'underline' | 'emphasis' | 'cite' | null = null;
-  if (fmU && lmU) named = 'underline';
-  else if (fmE && lmE) named = 'emphasis';
+  let named: 'underline' | 'cite' | null = null;
+  if ((fmU || fmE) && (lmU || lmE)) named = 'underline';
   else if (has(fm, citeType) && has(lm, citeType)) named = 'cite';
-  else if ((fmU && lmE) || (fmE && lmU)) named = 'underline';
   if (named === 'underline') {
     const structural = STRUCTURAL_TEXTBLOCKS_FOR_UNDERLINE.has(parent.type.name);
     marksToAdd.push((structural ? ud : um).create());
     marksToRemove.push(structural ? um : ud, emphasisType, citeType);
-  } else if (named === 'emphasis') {
-    marksToAdd.push(emphasisType.create());
-    marksToRemove.push(ud);
   } else if (named === 'cite') {
     marksToAdd.push(citeType.create());
     marksToRemove.push(ud);
@@ -1455,26 +1460,45 @@ function withGapFix(
 ): Command {
   return (state, dispatch, view) => {
     if (!dispatch) return command(state, undefined, view);
+    // The authoritative edges are the edges of the user's OPERATING ranges
+    // (their selection / shadow ranges / word-at-cursor), computed the same
+    // way the wrapped commands do — NOT the mark steps. A mixed-format
+    // selection produces mark steps whose edges land on INTERNAL seams (e.g.
+    // `addMark` skips an already-styled part, and an excluded-mark removal
+    // becomes its own step), so step edges would wrongly trigger the merge at
+    // those seams. The operating range spans the whole selection, so its only
+    // edges are the true outer ones. (Mark steps don't move positions, so
+    // ranges from the pre-command state stay valid in the resulting doc.)
+    let opRanges = getOperatingRangesForFormatting(state).ranges;
+    if (opRanges.length === 0) {
+      const word = wordRangeAtCursor(state);
+      if (word) opRanges = [word];
+    }
     let captured: Transaction | null = null;
     const result = command(state, (tr) => { captured = tr; }, view);
     const tr = captured as Transaction | null;
     if (!tr) return result;
-    const ranges: { from: number; to: number }[] = [];
-    for (const step of tr.steps) {
-      if (step instanceof AddMarkStep || step instanceof RemoveMarkStep) {
-        ranges.push({ from: step.from, to: step.to });
-      }
-    }
-    for (const r of ranges) {
-      // When the user formatted ONLY whitespace, that's a deliberate choice —
-      // honor it; don't let the gap-fix strip it even if a flanking word is
-      // styled. The cleanup is for spaces left dangling as a side effect of
-      // formatting a WORD, not for whitespace the user selected directly.
-      if (/^\s*$/.test(tr.doc.textBetween(r.from, r.to))) continue;
+    for (const r of opRanges) {
+      // When the user formatted ONLY gap content — whitespace, punctuation,
+      // or a punctuation/whitespace mix, i.e. no actual word character —
+      // that's a deliberate choice; honor it. Don't let the gap-fix strip or
+      // bridge it even if a flanking word is styled. The cleanup is for gaps
+      // left dangling as a side effect of formatting a WORD, not for
+      // whitespace/punctuation the user selected directly.
+      if (!WORD_CHAR_RE.test(tr.doc.textBetween(r.from, r.to))) continue;
       const span = expandToAdjacentBookends(tr.doc, r.from, r.to);
-      forEachGap(tr.doc, span.from, span.to, (hit) =>
-        applyFullGapTarget(tr, hit, effectivePt),
-      );
+      forEachGap(tr.doc, span.from, span.to, (hit) => {
+        // Only the gaps at the EDGES of the selection get the merge treatment
+        // — where it meets an adjacent word. A gap INTERNAL to the selection
+        // (both bookends inside it) is part of what the user just styled;
+        // leave it as the command set it. So emphasizing a span keeps its
+        // internal spaces emphasized rather than converting seams to
+        // underline. Internal ⇔ both bookends in r: left bookend at
+        // gapFrom-1, right bookend char at gapTo.
+        const internal = hit.gapFrom - 1 >= r.from && hit.gapTo < r.to;
+        if (internal) return;
+        applyFullGapTarget(tr, hit, effectivePt);
+      });
     }
     dispatch(tr);
     return result;
@@ -3441,7 +3465,11 @@ export function fixFormattingGaps(
 
         // Named-style target: same on both → that mark; mixed u/e →
         // underline; otherwise → none (and strip any stale named-
-        // style mark from the gap).
+        // style mark from the gap). The manual command is a stateless
+        // normalizer with no selection-edge concept, so it bridges
+        // emphasis-on-both with emphasis (keeps contiguous emphasized
+        // phrases intact); the per-apply path is the one that fills an
+        // emphasized SELECTION's edge gaps with underline.
         let namedStyle: 'underline' | 'emphasis' | 'cite' | null = null;
         if (fmU && lmU) namedStyle = 'underline';
         else if (fmE && lmE) namedStyle = 'emphasis';

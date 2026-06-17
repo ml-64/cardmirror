@@ -3061,7 +3061,8 @@ body.pmd-multi-doc .pmd-dropzone-root {
 }
 
 .pmd-nav-resize-handle:hover,
-.pmd-nav-panel.pmd-nav-resizing .pmd-nav-resize-handle {
+.pmd-nav-panel.pmd-nav-resizing .pmd-nav-resize-handle,
+.pmd-multi-nav.pmd-nav-resizing .pmd-nav-resize-handle {
   background: var(--pmd-c-accent-soft);
 }
 

@@ -333,6 +333,59 @@ export const PSTYLE_TO_NODE: Record<string, string> = {
   Undertag: 'undertag',
 };
 
+/** Parsed metadata for one `<w:style>` from `word/styles.xml`. */
+export interface StyleInfo {
+  /** styleId — the `w:styleId` attr, i.e. the token a paragraph's
+   *  `<w:pStyle w:val>` references. */
+  id: string;
+  /** Human-readable name from `<w:name w:val>`, or null if absent. */
+  name: string | null;
+  /** `w:type` attr: 'paragraph' | 'character' | 'table' | 'numbering'. */
+  type: string | null;
+}
+
+/** styleId → parsed style metadata, built from `word/styles.xml`. */
+export type StyleMap = Map<string, StyleInfo>;
+
+/** Lowercase + strip all whitespace, so a display name ("Analytic Real")
+ *  and its space-stripped styleId ("AnalyticReal") compare equal. */
+function tightenStyleToken(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, '');
+}
+
+/**
+ * Fallback paragraph classification for styles whose styleId isn't one of
+ * our canonical ids in {@link PSTYLE_TO_NODE}. Recognizes analytics that
+ * were authored under non-standard styles (other templates, hand-built
+ * styles), matching on either the display name or the styleId:
+ *
+ *   1. A style named/id'd "Analytic Real" → `analytic` (explicit).
+ *   2. A **paragraph-type** style whose name or id contains "analytic"
+ *      → `analytic`.
+ *
+ * Returns the schema node-type name, or null if no rule applies. Callers
+ * run this only after the exact {@link PSTYLE_TO_NODE} lookup misses, so
+ * "not one of our other existing styles" holds by construction.
+ */
+export function fallbackNodeType(info: StyleInfo | undefined): string | null {
+  if (!info) return null;
+  const name = info.name ? tightenStyleToken(info.name) : '';
+  const id = tightenStyleToken(info.id);
+
+  // Rule 1: explicit "Analytic Real", by name or styleId. Unconditional.
+  if (name === 'analyticreal' || id === 'analyticreal') return 'analytic';
+
+  // Rule 2: a paragraph-type style whose name or id contains "analytic".
+  if (
+    info.type === 'paragraph' &&
+    (name.includes('analytic') || id.includes('analytic'))
+  ) {
+    return 'analytic';
+  }
+
+  return null;
+}
+
 /** Reverse: docx rStyle styleId → schema mark name.
  *
  *  Modern Verbatim styleIds (`StyleUnderline`, `Style13ptBold`,

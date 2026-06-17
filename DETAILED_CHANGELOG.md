@@ -5,6 +5,83 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## Unreleased
+
+- **Emphasized selections fill only their EDGE gaps with underline**
+  (`editor/ribbon-commands.ts`). When a formatting apply runs, `withGapFix`
+  normalizes the gaps around the edit, but only at the OUTER edges of the user's
+  selection — internal seams are left as the command set them. The edges are now
+  derived from the OPERATING ranges (`getOperatingRangesForFormatting` with the
+  `wordRangeAtCursor` fallback — the same ranges the wrapped commands use),
+  computed from the pre-command state, NOT from the transaction's mark steps.
+  Mark steps were the wrong source: on a mixed-format selection `addMark` skips
+  an already-styled sub-range and an excluded-mark removal becomes its own step,
+  so step edges land on internal seams (e.g. F10 across emphasized→underlined→
+  plain text produced an `addMark` step starting at the emphasized/underlined
+  seam, and the merge wrongly underlined that seam). The operating range spans
+  the whole selection, so its only edges are the true outer ones; a gap whose
+  bookends are both inside it (`gapFrom-1 >= r.from && gapTo < r.to`) is skipped.
+  (Mark steps don't move positions, so pre-command ranges stay valid in the
+  resulting doc.) Edge gaps get `applyFullGapTarget`, whose named-style rule
+  treats underline and emphasis as one family: both bookends carrying either
+  (including emphasis+emphasis) → the gap fills with UNDERLINE, so two
+  separately-emphasized words join by underline — seamless because
+  `.pmd-emphasis` already renders `text-decoration: underline` (the extra
+  bold/italic/box/size stays on the words). The manual Fix Formatting Gaps
+  command keeps its own per-gap rule unchanged (emphasis+emphasis → emphasis):
+  it's a stateless normalizer with no selection-edge concept, so bridging
+  like-with-like preserves contiguous emphasized phrases. Cite is unchanged.
+
+- **Per-apply gap normalization honors explicit punctuation selections**
+  (`editor/ribbon-commands.ts`). `withGapFix` skips its cleanup for a changed
+  range the user selected deliberately. That skip was whitespace-only
+  (`/^\s*$/`); it now fires for any changed range with no bookend word
+  character — whitespace, punctuation, or a mix. A new `WORD_CHAR_RE`
+  (the same `[A-Za-z0-9'"‘’“”]` bookend class `GAP_REGEX` uses) drives the
+  test (`if (!WORD_CHAR_RE.test(textBetween)) continue`), so a selection that
+  is entirely gap content (e.g. `...`, `, `, ` -- `) keeps the style applied to
+  it instead of being stripped/bridged, even when a flanking word is styled.
+  Formatting a real word still bridges punctuation gaps to a styled neighbor as
+  before (the changed range has a word char, so the cleanup runs).
+
+- **Name/id-based analytic recognition on import**
+  (`ooxml/styles.ts`, `import/importer.ts`, `import/index.ts`). The importer
+  used to resolve a paragraph's node type by an exact match of its `w:pStyle`
+  styleId against `PSTYLE_TO_NODE` (`Heading1`…`Heading4`, `Analytic`,
+  `Undertag`) — it never read `word/styles.xml`, so it had no access to a
+  style's human-readable name or its type. Analytics authored under a
+  different template's style therefore imported as plain body paragraphs.
+  Import now reads and parses `styles.xml` into a `styleId → {name, type}`
+  map (`parseStyles`, threaded through `importDoc`'s new optional `stylesXml`
+  arg and `ImportContext.styles`), and `resolveNodeType` adds a fallback
+  (`fallbackNodeType` in `styles.ts`) when the exact lookup misses: (1) a
+  style whose name or styleId is "Analytic Real" → `analytic`; (2) a
+  **paragraph-type** style whose name or styleId contains "analytic" →
+  `analytic`. Matching is case-insensitive and whitespace-insensitive (so the
+  display name "Analytic Real" and the space-stripped styleId "AnalyticReal"
+  both match). The paragraph-type guard keeps linked character styles out of
+  rule 2; ordering after the exact lookup means canonical styles are never
+  reclassified. The styleId-based checks still fire when `styles.xml` is
+  absent (a minimal `StyleInfo` is synthesized from the pStyle token).
+
+- **Outline pane resizable in multi-pane mode**
+  (`editor/nav-panel.ts`, `editor/multi-pane-shell.ts`, `editor/style.css`).
+  The single-doc nav panel has always carried a right-edge drag handle that
+  writes the `--nav-width` CSS variable and persists the `navWidth` setting. In
+  multi-doc mode the per-section `NavigationPanel`s each still built that handle,
+  but they're hidden by CSS (`.pmd-multi-nav-body .pmd-nav-resize-handle`) —
+  the sections share the rail evenly via flex and have no independent width to
+  drag, so multi-pane had no working handle at all. The handle logic is now an
+  exported `installNavResizeHandle(host)` (factored out of
+  `NavigationPanel.installResizeHandle`, which delegates to it), and the
+  `MultiPaneShell` constructor calls it on the rail element (`.pmd-multi-nav`,
+  also sized by `--nav-width`). Because both layouts read and write the same
+  variable and the same `navWidth` setting, the width carries across a
+  single-↔multi layout switch. The rail handle is a direct child of
+  `.pmd-multi-nav` (not `.pmd-multi-nav-body`), so the existing hide rule
+  doesn't catch it; the hover/drag highlight selector gains a
+  `.pmd-multi-nav.pmd-nav-resizing` variant.
+
 ## 0.1.0-alpha.15 — 2026-06-17
 
 - **Per-apply gap normalization for the formatting family**

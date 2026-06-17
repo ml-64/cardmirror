@@ -2128,6 +2128,7 @@ describe('applyEmphasis (F10)', () => {
     );
     const next = apply(state, applyEmphasis());
     expect(next).not.toBeNull();
+    // A contiguous selection is emphasized whole — internal spaces included.
     expect(emphMarkOnText(next!.doc, 'hello world')).toBe(true);
   });
 

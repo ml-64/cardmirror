@@ -185,6 +185,40 @@ describe('withGapFix — full normalization, local scope', () => {
     const next = apply(state, applyHighlight(() => 'yellow'));
     expect(mask(next.doc, 'highlight')).toBe('_______    '); // alpha + 2 spaces
   });
+
+  it('explicitly highlighting punctuation is honored even when one neighbor is styled', () => {
+    // Same as the whitespace case, but the selection is pure punctuation.
+    // No word character is touched → the user's choice stands.
+    const doc = docOf(['alpha', [HL()]], ['...'], ['beta']);
+    let state = EditorState.create({ doc });
+    state = state.apply(
+      state.tr.setSelection(TextSelection.create(state.doc, 6, 9)), // the "..."
+    );
+    const next = apply(state, applyHighlight(() => 'yellow'));
+    expect(mask(next.doc, 'highlight')).toBe('________    '); // alpha + "..."
+  });
+
+  it('explicitly highlighting a punctuation+space mix is honored', () => {
+    // " -- " is punctuation and whitespace, no word char. Ends in a space
+    // so trailing-trim drops it: only " --" carries the highlight, and the
+    // gap-fix leaves that explicit choice alone.
+    const doc = docOf(['alpha', [HL()]], [' -- '], ['beta']);
+    let state = EditorState.create({ doc });
+    state = state.apply(
+      state.tr.setSelection(TextSelection.create(state.doc, 6, 10)), // " -- "
+    );
+    const next = apply(state, applyHighlight(() => 'yellow'));
+    expect(mask(next.doc, 'highlight')).toBe('________     '); // alpha + " --"
+  });
+
+  it('still bridges a punctuation gap when a WORD is formatted (control)', () => {
+    // The honoring is only for explicit non-word selections. Underlining a
+    // real word next to an underlined neighbor must still bridge the comma
+    // gap between them.
+    const doc = docOf(['alpha,', [U()]], [' beta']);
+    const next = run(doc, 'beta', applyUnderline(() => false));
+    expect(mask(next.doc, 'underline_mark')).toBe('___________'); // "alpha, beta"
+  });
 });
 
 // ---- cite / emphasis ----
@@ -197,11 +231,43 @@ describe('withGapFix — cite/emphasis bridge', () => {
     expect(mask(next.doc, 'cite_mark')).toBe('________________');
   });
 
-  it('emphasizing a word between two emphasized words bridges', () => {
+  it('emphasizing a word between two separately-emphasized words fills the EDGE gaps with underline', () => {
     const E = () => schema.marks['emphasis_mark']!.create();
     const doc = docOf(['alpha ', [E()]], ['beta'], [' gamma', [E()]]);
     const next = run(doc, 'beta', applyEmphasis());
-    expect(mask(next.doc, 'emphasis_mark')).toBe('________________');
+    // "beta" is a single-word edit; both its gaps are EDGE gaps meeting an
+    // emphasized neighbor, so they bridge with underline.
+    expect(mask(next.doc, 'emphasis_mark')).toBe('_____ ____ _____');
+    expect(mask(next.doc, 'underline_mark')).toBe('     _    _     ');
+  });
+
+  it('emphasizing a contiguous multi-word selection keeps its INTERNAL gaps emphasized', () => {
+    // No emphasized neighbors. Selecting "alpha beta" and emphasizing keeps the
+    // internal space emphasized (it's part of the selection), not underlined.
+    const doc = docOf(['alpha beta gamma']);
+    const next = run(doc, 'alpha beta', applyEmphasis());
+    expect(mask(next.doc, 'emphasis_mark')).toBe('__________      '); // "alpha beta"
+    expect(mask(next.doc, 'underline_mark')).toBe('                ');
+  });
+
+  it('emphasizing a mixed-format span emphasizes it whole — no underline left at internal seams', () => {
+    // "aa" emphasized, "bb" underlined, "cc" plain; select all and F10. The
+    // seams between the former regions are INTERNAL to the selection, so they
+    // must end up emphasized like everything else, not retain underline.
+    const E = () => schema.marks['emphasis_mark']!.create();
+    const doc = docOf(['aa ', [E()]], ['bb ', [U()]], ['cc']);
+    const next = run(doc, 'aa bb cc', applyEmphasis());
+    expect(mask(next.doc, 'emphasis_mark')).toBe('________'); // all of "aa bb cc"
+    expect(mask(next.doc, 'underline_mark')).toBe('        '); // none
+  });
+
+  it('mixed emphasis/underline bookends still bridge with underline', () => {
+    const E = () => schema.marks['emphasis_mark']!.create();
+    const doc = docOf(['alpha ', [E()]], ['beta'], [' gamma', [U()]]);
+    const next = run(doc, 'beta', applyUnderline(() => false));
+    // "beta" + both gaps become underline; the emphasized "alpha" word keeps
+    // its emphasis but the gap after it is underlined.
+    expect(mask(next.doc, 'underline_mark')).toBe('     ___________'); // " beta gamma"
   });
 });
 

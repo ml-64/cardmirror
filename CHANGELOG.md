@@ -5,6 +5,41 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## Unreleased
+
+### Changed
+
+- **Edge gaps between separately-emphasized words now fill with underline.**
+  When you emphasize text, the whitespace and punctuation inside your selection
+  stay emphasized along with the words — selecting a phrase and emphasizing it
+  behaves as you'd expect. Only at the edges, where your emphasized selection
+  butts up against an already-emphasized neighbor word, the connecting gap is
+  joined with plain underline instead of emphasis. Emphasis already shows as an
+  underline, so the join stays visually seamless while the extra emphasis
+  styling stays on the words themselves.
+
+- **Smarter recognition of analytics on import.** Files made from other
+  templates often label their analytics with a style that isn't the one
+  CardMirror writes, so those lines used to come in as plain body text. Import
+  now also recognizes them: a style named (or whose id is) "Analytic Real"
+  comes in as an analytic, and any paragraph style whose name or id contains
+  the word "analytic" is treated as an analytic too.
+
+### Fixed
+
+- **Formatting punctuation directly is now honored.** When you select only
+  whitespace and apply a style, the gap cleanup leaves it alone — it assumes
+  you meant it. That now also holds for punctuation and for punctuation-plus-
+  space selections: if what you selected has no actual word in it, the style
+  you apply to it stays put instead of being cleaned away.
+
+- **The outline pane is now resizable in multi-pane mode.** Dragging the
+  outline's right edge to set its width already worked with a single document
+  open; with two or three documents open side by side the drag handle was
+  missing. The shared rail on the left now has its own drag handle, and the
+  width it sets is the same one single-pane mode uses, so it carries over
+  between the two layouts.
+
 ## 0.1.0-alpha.15 — 2026-06-17
 
 ### Added

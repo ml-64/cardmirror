@@ -36,6 +36,8 @@ import {
 import {
   PSTYLE_TO_NODE,
   RSTYLE_TO_MARK,
+  fallbackNodeType,
+  type StyleMap,
 } from '../ooxml/styles.js';
 
 interface ParaInfo {
@@ -101,6 +103,10 @@ interface ImportContext {
   commentRangeStack: string[];
   /** Media parts from the source zip; null if not provided (drawings drop). */
   mediaParts: MediaPartsMap | null;
+  /** styleId → style metadata from word/styles.xml. Empty when styles.xml
+   *  wasn't provided. Used to classify paragraphs whose pStyle isn't a
+   *  canonical styleId (e.g. analytics authored under other templates). */
+  styles: StyleMap;
 }
 
 /** Public entry: parse document.xml + rels into a schema doc. */
@@ -108,6 +114,7 @@ export function importDoc(
   documentXml: string,
   relsXml: string | null = null,
   mediaParts: MediaPartsMap | null = null,
+  stylesXml: string | null = null,
 ): PMNode {
   const rels = relsXml ? parseRels(relsXml) : {};
   const ctx: ImportContext = {
@@ -116,6 +123,7 @@ export function importDoc(
     fieldStack: [],
     commentRangeStack: [],
     mediaParts,
+    styles: stylesXml ? parseStyles(stylesXml) : new Map(),
   };
 
   const root = parseXml(documentXml);
@@ -170,6 +178,27 @@ function parseRels(relsXml: string): RelMap {
     const id = a['Id'];
     const target = a['Target'];
     if (id && target) map[id] = target;
+  }
+  return map;
+}
+
+/** Parse word/styles.xml into a styleId → {name, type} map. Only the
+ *  fields the importer needs for style classification are kept; the rest
+ *  of each `<w:style>` (rPr/pPr/basedOn/…) is ignored. */
+function parseStyles(stylesXml: string): StyleMap {
+  const map: StyleMap = new Map();
+  const root = parseXml(stylesXml);
+  const stylesEl = findChild(root, 'w:styles');
+  if (!stylesEl) return map;
+  for (const st of childrenOf(stylesEl, 'w:styles')) {
+    if (!('w:style' in st)) continue;
+    const a = attrsOf(st);
+    const id = a['w:styleId'];
+    if (!id) continue;
+    const type = a['w:type'] ?? null;
+    const nameEl = findChild(childrenOf(st, 'w:style'), 'w:name');
+    const name = nameEl ? (attrsOf(nameEl)['w:val'] ?? null) : null;
+    map.set(id, { id, name, type });
   }
   return map;
 }
@@ -238,7 +267,7 @@ function parseParagraph(pNode: XmlNode, ctx: ImportContext): ParaInfo {
     collectInlines(c, ctx, inlines);
   }
 
-  const nodeType = resolveNodeType(pStyle, inlines);
+  const nodeType = resolveNodeType(pStyle, ctx.styles);
 
   return { nodeType, inlines, headingId, pStyle, indent, spacing };
 }
@@ -866,9 +895,17 @@ function parseRPr(rPr: XmlNode): ParsedRPr {
   return { marks };
 }
 
-function resolveNodeType(pStyle: string | null, _inlines: PMNode[]): string {
+function resolveNodeType(pStyle: string | null, styles: StyleMap): string {
   if (pStyle && pStyle in PSTYLE_TO_NODE) {
     return PSTYLE_TO_NODE[pStyle]!;
+  }
+  // Unknown styleId — try the name/id-based fallback rules (e.g. analytics
+  // authored under a non-canonical style). Synthesize a minimal StyleInfo
+  // when styles.xml is absent so the styleId-based rules still fire.
+  if (pStyle) {
+    const info = styles.get(pStyle) ?? { id: pStyle, name: null, type: null };
+    const fallback = fallbackNodeType(info);
+    if (fallback) return fallback;
   }
   // No pStyle (or unknown) → treat as plain Normal paragraph.
   // The card-grouping pass below will reclassify Normals after a Tag

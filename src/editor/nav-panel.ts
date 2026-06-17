@@ -61,6 +61,60 @@ function applyNavWidthCss(px: number): void {
   document.documentElement.style.setProperty('--nav-width', `${clamped}px`);
 }
 
+/**
+ * Attach a draggable resize handle to the right edge of `host`. Width is
+ * stored in the `--nav-width` CSS custom property — shared by the single-doc
+ * nav panel and the multi-pane rail, so both layouts resize in lockstep — and
+ * persisted as the `navWidth` setting. While dragging, `host` carries
+ * `pmd-nav-resizing` and `<body>` carries `pmd-nav-resize-active`. The host
+ * must be a positioned element so the absolutely-positioned handle aligns to
+ * its right edge. Returns the handle element.
+ */
+export function installNavResizeHandle(host: HTMLElement): HTMLElement {
+  const handle = document.createElement('div');
+  handle.className = 'pmd-nav-resize-handle';
+  handle.setAttribute('aria-label', 'Resize outline panel');
+  handle.setAttribute('role', 'separator');
+  host.appendChild(handle);
+
+  let dragging = false;
+  let startX = 0;
+  let startWidth = 0;
+
+  const onMove = (e: MouseEvent) => {
+    if (!dragging) return;
+    const delta = e.clientX - startX;
+    applyNavWidthCss(startWidth + delta);
+  };
+
+  const onUp = () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.classList.remove('pmd-nav-resize-active');
+    host.classList.remove('pmd-nav-resizing');
+    const w = getComputedStyle(host).width;
+    const pixels = parseInt(w, 10);
+    if (Number.isFinite(pixels)) {
+      settings.set('navWidth', pixels);
+    }
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+  };
+
+  handle.addEventListener('mousedown', (e) => {
+    dragging = true;
+    startX = e.clientX;
+    startWidth = host.getBoundingClientRect().width;
+    document.body.classList.add('pmd-nav-resize-active');
+    host.classList.add('pmd-nav-resizing');
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    e.preventDefault();
+  });
+
+  return handle;
+}
+
 export class NavigationPanel {
   private root: HTMLElement;
   private view: EditorView | null = null;
@@ -271,49 +325,12 @@ export class NavigationPanel {
   /**
    * Add a draggable resize handle on the right edge. Width is stored in
    * the `--nav-width` CSS custom property so both the panel and #app's
-   * left margin update in lockstep. Persisted in localStorage.
+   * left margin update in lockstep. Persisted in localStorage. In
+   * multi-doc mode this per-section handle is hidden (the rail carries
+   * its own); see {@link installNavResizeHandle}, used by both layouts.
    */
   private installResizeHandle(): void {
-    const handle = document.createElement('div');
-    handle.className = 'pmd-nav-resize-handle';
-    handle.setAttribute('aria-label', 'Resize outline panel');
-    handle.setAttribute('role', 'separator');
-    this.root.appendChild(handle);
-
-    let dragging = false;
-    let startX = 0;
-    let startWidth = 0;
-
-    const onMove = (e: MouseEvent) => {
-      if (!dragging) return;
-      const delta = e.clientX - startX;
-      applyNavWidthCss(startWidth + delta);
-    };
-
-    const onUp = () => {
-      if (!dragging) return;
-      dragging = false;
-      document.body.classList.remove('pmd-nav-resize-active');
-      this.root.classList.remove('pmd-nav-resizing');
-      const w = getComputedStyle(this.root).width;
-      const pixels = parseInt(w, 10);
-      if (Number.isFinite(pixels)) {
-        settings.set('navWidth', pixels);
-      }
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-
-    handle.addEventListener('mousedown', (e) => {
-      dragging = true;
-      startX = e.clientX;
-      startWidth = this.root.getBoundingClientRect().width;
-      document.body.classList.add('pmd-nav-resize-active');
-      this.root.classList.add('pmd-nav-resizing');
-      window.addEventListener('mousemove', onMove);
-      window.addEventListener('mouseup', onUp);
-      e.preventDefault();
-    });
+    installNavResizeHandle(this.root);
   }
 
   attach(view: EditorView): void {

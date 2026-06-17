@@ -44,6 +44,7 @@ import { quickCardsStore, distinctTags, normalizeTag } from './quick-cards-store
 import { dropzoneStore } from './dropzone-store.js';
 import { searchQuickCards } from './quick-cards-match.js';
 import { parseNative } from '../native/index.js';
+import { fromDocx } from '../import/index.js';
 import {
   extractFile,
   searchFiles,
@@ -117,16 +118,29 @@ function pruneWarm(pins: Set<string>): void {
 
 /** Resolve on the next idle slot (setTimeout fallback). The renderer
  *  defers idle callbacks until the user pauses, so waiting on one before
- *  the synchronous `.docx` parse keeps it off active keystrokes. */
+ *  each file parse keeps the work off active keystrokes. */
 function idleYield(timeout = 500): Promise<void> {
   return new Promise((resolve) => scheduleIdle(() => resolve(), timeout));
 }
 
 /** Parse the pinned/recent files that aren't warm yet (or are stale by
- *  mtime), one at a time, yielding to idle before each `parseNative` so
- *  the parse never blocks a keystroke. Prunes rotated-out pins first.
+ *  mtime), one at a time, yielding to idle before each parse so it never
+ *  blocks a keystroke. Prunes rotated-out pins first.
  *  Cheap on repeat passes — already-fresh files are skipped. `keepGoing`
  *  lets a caller bail early (e.g. the palette closed). */
+/** Parse a listed file's bytes into a schema doc — `.docx` through the
+ *  importer, `.cmir` through the native reader. The in-file object search
+ *  (the Tab dive + the background warm pass) is otherwise format-agnostic:
+ *  everything downstream (`extractFile`, the outline, slice-on-insert) works
+ *  off the parsed doc, which is the same schema for both formats. */
+async function parseFileDoc(
+  bytes: Uint8Array,
+  format: 'cmir' | 'docx',
+): Promise<PMNode> {
+  if (format === 'docx') return fromDocx(bytes);
+  return parseNative(bytes).doc;
+}
+
 async function runWarmPass(
   electron: NonNullable<ReturnType<typeof getElectronHost>>,
   fileList: FileEntry[],
@@ -149,7 +163,7 @@ async function runWarmPass(
         if (!file) continue;
         await idleYield();
         if (!keepGoing()) break;
-        const doc = parseNative(file.bytes).doc;
+        const doc = await parseFileDoc(file.bytes, file.format);
         const { objects, outline } = extractFile(doc, enabledSet());
         warmCache.set(path, { mtimeMs: entry.mtimeMs, enabledSig: enabledSig(), doc, objects, outline });
       } catch {
@@ -162,7 +176,7 @@ async function runWarmPass(
 }
 
 /** Pre-warm pinned/recent files during idle, before the palette is ever
- *  opened, so the first search's `.docx` parse is already cached and
+ *  opened, so the first search's file parse is already cached and
  *  never lands on a keystroke. No-op off Electron or without a
  *  file-search root; best-effort (the palette warms on open as a
  *  fallback). Called once at boot. */
@@ -701,15 +715,11 @@ class QuickCardSearchUI {
         e.preventDefault();
         // In-file mode: Tab is a no-op (already searching within a file).
         if (this.inFile) break;
-        // A selected file (file prefix OR everything search) → dive in.
+        // A selected file (file prefix OR everything search) → dive in to
+        // search its objects. Works for both .cmir and .docx (the dive
+        // parses either format into the same schema).
         if (this.results[this.selected]?.source === 'file') {
-          // Tab dives into a .cmir file to search its objects. .docx files
-          // can't be searched in place yet, so Tab is a no-op for them
-          // (Enter still opens them).
-          const sel = this.results[this.selected];
-          if (sel && fileFormat(sel.filePath ?? sel.name) === 'cmir') {
-            void this.enterInFile();
-          }
+          void this.enterInFile();
           break;
         }
         // Otherwise: the quick-card tag filter.
@@ -1000,7 +1010,7 @@ class QuickCardSearchUI {
     try {
       const file = await electron.readFileAtPath(path);
       if (!file) throw new Error('read failed');
-      doc = parseNative(file.bytes).doc;
+      doc = await parseFileDoc(file.bytes, file.format);
       ({ objects, outline } = extractFile(doc, enabledSet()));
     } catch {
       if (token !== this.asyncToken || !this.root) return;

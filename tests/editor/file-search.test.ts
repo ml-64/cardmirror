@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { schema, newHeadingId } from '../../src/schema/index.js';
+import { importDoc } from '../../src/import/index.js';
 import {
   baseName,
   dirName,
@@ -172,5 +173,33 @@ describe('extractFile — outline', () => {
   it('never includes cites (not headings)', () => {
     const { outline } = extractFile(sampleDoc(), enabled('cite'));
     expect(outline.some((o) => o.kind === 'cite')).toBe(false);
+  });
+});
+
+// In-file object search has full .docx parity because the dive parses .docx
+// (via `fromDocx`, which calls `importDoc`) into the SAME schema as .cmir, and
+// `extractFile` works off that doc. This guards that a docx-imported doc is
+// searchable just like the hand-built ones above.
+describe('extractFile — parity with .docx-imported docs', () => {
+  function bodyXml(inner: string): string {
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${inner}</w:body></w:document>`;
+  }
+
+  it('surfaces block / tag / cite objects from a doc imported from docx XML', () => {
+    const doc = importDoc(
+      bodyXml(`
+        <w:p><w:pPr><w:pStyle w:val="Heading3"/></w:pPr><w:r><w:t>Warming Bad</w:t></w:r></w:p>
+        <w:p><w:pPr><w:pStyle w:val="Heading4"/></w:pPr><w:r><w:t>Smith says X</w:t></w:r></w:p>
+        <w:p><w:r><w:rPr><w:rStyle w:val="Style13ptBold"/></w:rPr><w:t>Smith 23</w:t></w:r></w:p>
+      `),
+    );
+    const { objects } = extractFile(doc, enabled('block', 'tag', 'cite'));
+    const byKind = (k: FileObjectKind) => objects.filter((o) => o.kind === k).map((o) => o.label);
+    expect(byKind('block')).toEqual(['Warming Bad']);
+    expect(byKind('tag')).toEqual(['Smith says X']);
+    expect(byKind('cite')).toEqual(['Smith 23']);
+    // And the tag is findable by its card's cite, same as .cmir.
+    expect(searchFileObjects(objects, '23').map((o) => o.kind)).toContain('tag');
   });
 });

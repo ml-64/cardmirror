@@ -12,9 +12,9 @@ see `DETAILED_CHANGELOG.md`.
 - **The command bar's file search now finds `.docx` files too.** Searching
   files (the `f ` prefix, or the everything-search) lists both `.cmir` and
   `.docx` documents. Each result's badge shows its format — `CMIR` or `DOCX` —
-  and the file name is shown without its extension. Press Enter to open a
-  `.docx` just like a `.cmir`; Tab still dives into a `.cmir` to search inside
-  it (it's a no-op on `.docx` for now).
+  and the file name is shown without its extension. `.docx` and `.cmir` behave
+  identically: press Enter to open either, or Tab to dive into either and
+  search its contents (blocks, tags, cites) and insert from it.
 
 ### Changed
 

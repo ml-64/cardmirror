@@ -18,10 +18,14 @@ in each release, see `CHANGELOG.md`.
   the search now matches on the bare name, not the extension). Enter opens
   either format — `openFileByPath` → `routeOpenedFile` already routes `.docx`
   through `fromDocxFull`, and `host:read-file-at-path` already returns docx
-  bytes — so no open-path change was needed. Tab still dives into a `.cmir`
-  to search its objects but is a no-op on `.docx` (guarded by `fileFormat` in
-  the Tab handler), since in-place object search isn't wired for docx yet.
-  (Internal IPC/type names keep the `cmir` prefix for now.)
+  bytes — so no open-path change was needed. Tab dives into either format to
+  search its objects: the in-file dive (`enterInFile`) and the background warm
+  pass (`runWarmPass`) parse via a new `parseFileDoc(bytes, format)` helper
+  (`.docx` → `fromDocx`, `.cmir` → `parseNative`) instead of `parseNative`
+  directly. Everything downstream — `extractFile`, the outline, the warm cache,
+  slice-on-insert — already worked off the parsed schema doc, which `fromDocx`
+  and `parseNative` produce identically, so no other change was needed for full
+  `.docx`/`.cmir` parity. (Internal IPC/type names keep the `cmir` prefix.)
 
 - **Emphasized selections fill only their EDGE gaps with underline**
   (`editor/ribbon-commands.ts`). When a formatting apply runs, `withGapFix`

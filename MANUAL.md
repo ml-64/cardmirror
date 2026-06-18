@@ -823,11 +823,6 @@ The button shows a small **red dot** when one or more cards are due for
 review today — a nudge to start a session. If you'd rather not be nudged,
 turn it off under Settings → General → **Flashcards-due dot**.
 
-### AI-assisted cards
-
-With [AI features](#11-ai-features) on, CardMirror can draft cards for you
-from selected evidence — a starting point you edit, not a finished card.
-
 ---
 
 ## 11. AI features

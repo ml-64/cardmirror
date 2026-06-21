@@ -1,0 +1,399 @@
+/**
+ * Receive pill — the inbox of cards other machines have sent you.
+ *
+ * Behaves like the dropzone shelf (drag a row out into the doc, or click
+ * to insert at the cursor / Alt-click to append) but each row also shows
+ * WHO sent it and WHEN, and the pill flashes green when a card lands. The
+ * count badge shows total received plus how many are still unread; opening
+ * the pill marks everything read (and stops a "keep flashing" loop).
+ *
+ * Backed by `inbox-store` (main-process-owned, cross-window). Receiving is
+ * driven by the main poller; this is purely display + drag-out.
+ */
+
+import { Slice } from 'prosemirror-model';
+import type { EditorView } from 'prosemirror-view';
+import {
+  dragController,
+  rewriteHeadingIds,
+  type DragItem,
+} from '../drag-controller.js';
+import { schema } from '../../schema/index.js';
+import { setIcon } from '../icons';
+import { typeBadge, dropzoneDragLevel } from '../dropzone-ui.js';
+import { settings } from '../settings.js';
+import { inboxStore, type InboxItem } from './inbox-store.js';
+
+interface ReceivePillMountOptions {
+  parent: HTMLElement;
+  getFocusedView: () => EditorView | null;
+}
+
+const PULSE_MS = 700;
+const REPEAT_MS = 10000;
+
+export class ReceivePillController {
+  private root!: HTMLDivElement;
+  private bar!: HTMLDivElement;
+  private listEl!: HTMLUListElement;
+  private badge!: HTMLSpanElement;
+  private getFocusedView: () => EditorView | null = () => null;
+  private items: InboxItem[] = [];
+  private open = false;
+  private seenIds = new Set<string>();
+  private flashTimer: number | null = null;
+  private pulseTimer: number | null = null;
+  private unsubscribeStore: (() => void) | null = null;
+  private unsubscribeSettings: (() => void) | null = null;
+  private unsubscribeController: (() => void) | null = null;
+  private dragOutSource: {
+    startX: number;
+    startY: number;
+    item: InboxItem;
+    started: boolean;
+    altKey: boolean;
+  } | null = null;
+
+  mount(opts: ReceivePillMountOptions): void {
+    this.getFocusedView = opts.getFocusedView;
+
+    this.root = document.createElement('div');
+    this.root.className = 'pmd-pill pmd-receive-pill';
+    this.root.dataset['open'] = 'false';
+    this.root.setAttribute('role', 'group');
+    this.root.setAttribute('aria-label', 'Received cards');
+
+    this.listEl = document.createElement('ul');
+    this.listEl.className = 'pmd-receive-list';
+    this.root.appendChild(this.listEl);
+
+    this.bar = document.createElement('div');
+    this.bar.className = 'pmd-pill-bar pmd-receive-bar';
+    this.bar.setAttribute('role', 'button');
+    this.bar.setAttribute('tabindex', '0');
+    this.bar.title = 'Cards other people sent you';
+    const icon = document.createElement('span');
+    icon.className = 'pmd-pill-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    // Inbox / down-into-tray glyph.
+    icon.innerHTML =
+      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"/><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/></svg>';
+    this.bar.appendChild(icon);
+    const labelEl = document.createElement('span');
+    labelEl.className = 'pmd-pill-label';
+    labelEl.textContent = 'Receive';
+    this.bar.appendChild(labelEl);
+
+    // One combined badge: "total | N new" (blue) when there are unread
+    // cards, fading to just "total" (gray) once everything's been seen.
+    this.badge = document.createElement('span');
+    this.badge.className = 'pmd-receive-badge';
+    this.badge.hidden = true;
+    this.bar.appendChild(this.badge);
+
+    const toggle = (e: Event): void => {
+      e.stopPropagation();
+      this.setOpen(!this.open);
+    };
+    this.bar.addEventListener('click', toggle);
+    this.bar.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggle(e);
+      }
+    });
+
+    this.root.appendChild(this.bar);
+    opts.parent.appendChild(this.root);
+
+    void inboxStore.init().then(() => {
+      this.items = inboxStore.list();
+      this.seenIds = new Set(this.items.map((it) => it.id));
+      this.render();
+      // Resume "keep flashing" for cards still unread from a previous
+      // session — they haven't been seen yet, so the reminder continues.
+      if (
+        settings.get('pairingReceiveFlash') === 'repeat' &&
+        inboxStore.unreadCount() > 0 &&
+        !this.open
+      ) {
+        this.handleArrival();
+      }
+    });
+    this.unsubscribeStore = inboxStore.subscribe((items) => {
+      this.onStoreChange(items);
+    });
+    this.unsubscribeSettings = settings.subscribe(() => {
+      this.applyVisibility();
+      if (settings.get('pairingReceiveFlash') === 'off') this.stopRepeat();
+    });
+    this.unsubscribeController = dragController.subscribe((event) => {
+      if (event === 'end') this.endDragOut();
+    });
+
+    this.applyVisibility();
+    document.addEventListener('pointerdown', this.onDocumentPointerDown);
+  }
+
+  unmount(): void {
+    document.removeEventListener('pointerdown', this.onDocumentPointerDown);
+    this.unsubscribeStore?.();
+    this.unsubscribeSettings?.();
+    this.unsubscribeController?.();
+    this.stopRepeat();
+    this.root.remove();
+  }
+
+  private applyVisibility(): void {
+    this.root.hidden = !settings.get('pairingEnabled');
+  }
+
+  private onStoreChange(items: InboxItem[]): void {
+    const arrivals = items.filter((it) => !this.seenIds.has(it.id) && !it.read);
+    for (const it of items) this.seenIds.add(it.id);
+    this.items = items;
+    this.render();
+    if (arrivals.length > 0 && !this.open) this.handleArrival();
+  }
+
+  // ---- Flash --------------------------------------------------------
+
+  private handleArrival(): void {
+    const mode = settings.get('pairingReceiveFlash');
+    if (mode === 'off') return;
+    this.pulse();
+    if (mode === 'repeat') this.startRepeat();
+  }
+
+  /** One green pulse — the command-bar / repair-paragraph technique:
+   *  drop the class, force reflow to restart, re-add, clear after the
+   *  animation. A timeout (not `animationend`) so reduced-motion, which
+   *  disables the keyframe, still clears the class. */
+  private pulse(): void {
+    this.root.classList.remove('pmd-pill-flash');
+    void this.root.offsetWidth; // reflow
+    this.root.classList.add('pmd-pill-flash');
+    if (this.pulseTimer !== null) window.clearTimeout(this.pulseTimer);
+    this.pulseTimer = window.setTimeout(() => {
+      this.root.classList.remove('pmd-pill-flash');
+      this.pulseTimer = null;
+    }, PULSE_MS);
+  }
+
+  private startRepeat(): void {
+    this.stopRepeat();
+    this.flashTimer = window.setInterval(() => {
+      if (!settings.get('pairingEnabled') || inboxStore.unreadCount() === 0 || this.open) {
+        this.stopRepeat();
+        return;
+      }
+      this.pulse();
+    }, REPEAT_MS);
+  }
+
+  private stopRepeat(): void {
+    if (this.flashTimer !== null) {
+      window.clearInterval(this.flashTimer);
+      this.flashTimer = null;
+    }
+  }
+
+  // ---- Rendering ----------------------------------------------------
+
+  private setOpen(open: boolean): void {
+    if (this.open === open) return;
+    this.open = open;
+    this.root.dataset['open'] = open ? 'true' : 'false';
+    if (open) {
+      this.stopRepeat();
+      this.root.classList.remove('pmd-pill-flash');
+      void inboxStore.markAllRead();
+    }
+    this.render();
+  }
+
+  private render(): void {
+    const total = this.items.length;
+    const unread = inboxStore.unreadCount();
+    this.badge.hidden = total === 0;
+    this.badge.textContent = unread > 0 ? `${total} | ${unread} new` : String(total);
+    this.badge.classList.toggle('pmd-receive-badge-unread', unread > 0);
+    this.root.classList.toggle('pmd-pill-empty', total === 0);
+
+    this.listEl.innerHTML = '';
+    if (total === 0) {
+      const empty = document.createElement('li');
+      empty.className = 'pmd-receive-empty';
+      empty.textContent = 'No cards received yet. Share your code so a partner can send you one.';
+      this.listEl.appendChild(empty);
+      return;
+    }
+    for (const item of [...this.items].reverse()) {
+      this.listEl.appendChild(this.renderRow(item));
+    }
+  }
+
+  private renderRow(item: InboxItem): HTMLLIElement {
+    const row = document.createElement('li');
+    row.className = 'pmd-receive-row';
+    if (!item.read) row.classList.add('pmd-receive-row-unread');
+
+    const badge = document.createElement('span');
+    const { kind, label: typeLabel } = typeBadge(item.type);
+    badge.className = `pmd-dropzone-row-type pmd-dropzone-row-type-${kind}`;
+    badge.textContent = typeLabel;
+    row.appendChild(badge);
+
+    const main = document.createElement('span');
+    main.className = 'pmd-receive-row-main';
+    const label = document.createElement('span');
+    label.className = 'pmd-receive-row-label';
+    label.textContent = item.label;
+    label.title = item.label;
+    main.appendChild(label);
+    const meta = document.createElement('span');
+    meta.className = 'pmd-receive-row-meta';
+    meta.textContent = `${resolveSender(item)} · ${relTime(item.receivedAt)}`;
+    meta.title = meta.textContent;
+    main.appendChild(meta);
+    row.appendChild(main);
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'pmd-dropzone-row-delete';
+    del.title = 'Remove';
+    del.setAttribute('aria-label', 'Remove');
+    setIcon(del, 'close');
+    del.addEventListener('click', (e) => {
+      e.stopPropagation();
+      void inboxStore.remove(item.id);
+    });
+    row.appendChild(del);
+
+    row.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      if ((e.target as HTMLElement).closest('.pmd-dropzone-row-delete')) return;
+      this.dragOutSource = {
+        startX: e.clientX,
+        startY: e.clientY,
+        item,
+        started: false,
+        altKey: e.altKey,
+      };
+      window.addEventListener('pointermove', this.onDragOutPointerMove);
+      window.addEventListener('pointerup', this.onDragOutPointerUp);
+      e.preventDefault();
+    });
+
+    return row;
+  }
+
+  // ---- Drag-out / insert (mirrors the dropzone) ---------------------
+
+  private onDragOutPointerMove = (e: PointerEvent): void => {
+    const src = this.dragOutSource;
+    if (!src) return;
+    if (!src.started) {
+      const dx = e.clientX - src.startX;
+      const dy = e.clientY - src.startY;
+      if (dx * dx + dy * dy < 16) return;
+      src.started = this.beginDragOut(src.item);
+      if (!src.started) {
+        this.endDragOut();
+        return;
+      }
+    }
+    dragController.setPointer(e.clientX, e.clientY);
+    dragController.dispatchHit(e.clientX, e.clientY);
+  };
+
+  private onDragOutPointerUp = (e: PointerEvent): void => {
+    const src = this.dragOutSource;
+    if (!src) return;
+    if (src.started) {
+      dragController.commit({ copy: true });
+    } else {
+      this.insertItem(src.item, src.altKey || e.altKey);
+    }
+    this.endDragOut();
+  };
+
+  private beginDragOut(item: InboxItem): boolean {
+    const view = this.getFocusedView();
+    if (!view) return false;
+    let slice: Slice;
+    try {
+      slice = Slice.fromJSON(schema, item.sliceJson as Parameters<typeof Slice.fromJSON>[1]);
+    } catch {
+      return false;
+    }
+    const type = item.type || 'dropzone';
+    const dragItem: DragItem = {
+      from: 0,
+      to: 0,
+      id: null,
+      type,
+      level: dropzoneDragLevel(type),
+      label: item.label,
+      prebuilt: slice,
+    };
+    dragController.begin({ view, items: [dragItem], virtual: true });
+    return true;
+  }
+
+  private insertItem(item: InboxItem, atEnd: boolean): void {
+    const view = this.getFocusedView();
+    if (!view) return;
+    let slice: Slice;
+    try {
+      slice = Slice.fromJSON(schema, item.sliceJson as Parameters<typeof Slice.fromJSON>[1]);
+    } catch {
+      return;
+    }
+    const rewritten = rewriteHeadingIds(slice);
+    const insertPos = atEnd ? view.state.doc.content.size : view.state.selection.head;
+    const tr = view.state.tr.insert(insertPos, rewritten.content);
+    view.dispatch(tr.scrollIntoView());
+    view.focus();
+  }
+
+  private endDragOut(): void {
+    if (!this.dragOutSource) return;
+    window.removeEventListener('pointermove', this.onDragOutPointerMove);
+    window.removeEventListener('pointerup', this.onDragOutPointerUp);
+    this.dragOutSource = null;
+  }
+
+  private onDocumentPointerDown = (e: PointerEvent): void => {
+    if (!this.open) return;
+    const t = e.target as Node | null;
+    if (!t) return;
+    if (this.root.contains(t)) return;
+    this.setOpen(false);
+  };
+}
+
+/** Prefer your local nickname for the sender, then their self-declared
+ *  name, then a short form of their code. */
+function resolveSender(item: InboxItem): string {
+  if (item.senderCode) {
+    const partner = settings
+      .get('pairingPartners')
+      .find((p) => p.code && p.code === item.senderCode);
+    if (partner?.name) return item.via ? `${partner.name} · ${item.via}` : partner.name;
+  }
+  if (item.senderName) return item.via ? `${item.senderName} · ${item.via}` : item.senderName;
+  if (item.senderCode) return `…${item.senderCode.slice(-4)}`;
+  return 'Unknown sender';
+}
+
+function relTime(ts: number): string {
+  const sec = Math.max(0, Math.round((Date.now() - ts) / 1000));
+  if (sec < 45) return 'just now';
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.round(hr / 24);
+  return `${day}d ago`;
+}

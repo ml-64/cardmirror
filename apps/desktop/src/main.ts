@@ -29,6 +29,7 @@ import {
 import { autoUpdater } from 'electron-updater';
 import { registerVoiceIpc } from './voice/ipc';
 import { registerFlowIpc } from './flow-bridge.js';
+import { registerPairingIpc } from './pairing-ipc.js';
 import { promises as fs, realpathSync } from 'node:fs';
 import * as path from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
@@ -1711,6 +1712,10 @@ registerVoiceIpc();
 
 // Verbatim Flow bridge (Windows COM → Excel). No-ops off Windows.
 registerFlowIpc();
+
+// Cross-machine card sharing — receive poller + send + inbox. Idle until
+// the renderer sends `host:pairing-configure` with sharing enabled.
+registerPairingIpc();
 
 ipcMain.handle('host:speech-set', async (event, uid: string | null) => {
   const senderWin = BrowserWindow.fromWebContents(event.sender);

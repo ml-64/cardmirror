@@ -65,6 +65,30 @@ export interface ReaderConfig {
   wpm: number;
 }
 
+/** A paired machine you can send cards to. `code` is that machine's
+ *  shareable pairing code (its relay address); `name` is your local
+ *  nickname for it, used to disambiguate in the send picker and to label
+ *  received cards. */
+export interface PairingPartner {
+  code: string;
+  name: string;
+}
+
+/** A named set of partners (e.g. a coach's "Smith/Jones" partnership).
+ *  Sending to a group fans the card out to every member. `memberCodes`
+ *  references `PairingPartner.code` values. */
+export interface PairingGroup {
+  id: string;
+  label: string;
+  memberCodes: string[];
+}
+
+/** Receive-pill flash behavior when a card arrives. `once` = one green
+ *  pulse; `off` = none; `repeat` = pulse then re-pulse every 10s until
+ *  you open the receive pill and see the new card(s). */
+export type PairingReceiveFlash = 'once' | 'off' | 'repeat';
+const PAIRING_RECEIVE_FLASHES: PairingReceiveFlash[] = ['once', 'off', 'repeat'];
+
 /**
  * Per-style font sizes (in points). Mirrors Verbatim's Styles tab so
  * users can adjust how each named style renders without touching the
@@ -895,6 +919,27 @@ export interface Settings {
   cardCutterMorphologyShaving: boolean;
   /** Card-cutter: when the model may pose a clarifying question. */
   cardCutterClarifyingQuestions: 'when-ambiguous' | 'always' | 'never';
+  /** Pairing: master switch for cross-machine card sharing (the send /
+   *  receive pills + the background poller). Off by default. Desktop only
+   *  for v1. */
+  pairingEnabled: boolean;
+  /** Pairing: how often (seconds) this machine polls the relay for
+   *  incoming cards. Clamped to [5, 3600]; default 30. */
+  pairingPollSeconds: number;
+  /** Pairing: this machine's own shareable code — its relay address.
+   *  Generated once (lazily on first enable) and shown in settings with
+   *  Copy / Regenerate. Share it with a partner so they can send to you. */
+  pairingOwnCode: string;
+  /** Pairing: optional human name this machine stamps on outgoing cards,
+   *  so a partner who hasn't nicknamed you yet still sees a readable
+   *  sender. Empty falls back to the short code on the receiver. */
+  pairingDisplayName: string;
+  /** Pairing: machines you can send to (their code + your nickname). */
+  pairingPartners: PairingPartner[];
+  /** Pairing: named groups of partners for one-drop fan-out sends. */
+  pairingGroups: PairingGroup[];
+  /** Pairing: how the receive pill flashes when a card arrives. */
+  pairingReceiveFlash: PairingReceiveFlash;
 }
 
 /** Open-delimiter options for "Condense with warning" markers. The
@@ -1089,6 +1134,13 @@ const DEFAULTS: Settings = {
   cardCutterAcronymSplitting: 'off',
   cardCutterMorphologyShaving: false,
   cardCutterClarifyingQuestions: 'when-ambiguous',
+  pairingEnabled: false,
+  pairingPollSeconds: 30,
+  pairingOwnCode: '',
+  pairingDisplayName: '',
+  pairingPartners: [],
+  pairingGroups: [],
+  pairingReceiveFlash: 'once',
 };
 
 /** Public read-only view of the built-in defaults — handy for any UI
@@ -1106,7 +1158,8 @@ export type SettingsCategory =
   | 'accessibility'
   | 'editing'
   | 'shortcuts'
-  | 'comments-ai';
+  | 'comments-ai'
+  | 'pairing';
 
 /**
  * Human-readable metadata for each setting, used by the settings UI.
@@ -1172,7 +1225,11 @@ export interface SettingMeta {
     | 'cardCutterAcronymSplitting'
     | 'cardCutterClarifyingQuestions'
     | 'cardCutterEnginePath'
-    | 'cardCutterDisable';
+    | 'cardCutterDisable'
+    | 'pairingOwnCode'
+    | 'pairingPartners'
+    | 'pairingGroups'
+    | 'pairingReceiveFlash';
   /** Which tab this setting lives under in the settings dialog. */
   category: SettingsCategory;
   /** When set, this row is greyed out and its controls disabled
@@ -1973,6 +2030,76 @@ export const SETTING_METADATA: SettingMeta[] = [
     searchHidden: true,
     revealWhen: 'cardCutterEnabled',
   },
+  {
+    key: 'pairingEnabled',
+    label: 'Enable card sharing',
+    description:
+      'Turn on cross-machine card sharing. Adds a Send and a Receive pill next to the dropzone: drag a card onto Send to push it to a paired machine, and cards others send you land in Receive. Your machine polls for incoming cards while this is on. Desktop only.',
+    kind: 'toggle',
+    category: 'pairing',
+    electronOnly: true,
+    aliases: ['parrot', 'share', 'send card', 'partner', 'pairing'],
+  },
+  {
+    key: 'pairingOwnCode',
+    label: 'Your pairing code',
+    description:
+      "This machine's code. Share it with a partner so they can send you cards. Anyone with this code (and the app) can send to you; regenerate it to cut off old shares.",
+    kind: 'pairingOwnCode',
+    category: 'pairing',
+    electronOnly: true,
+    dependsOn: 'pairingEnabled',
+  },
+  {
+    key: 'pairingDisplayName',
+    label: 'Your display name',
+    description:
+      "Optional name stamped on cards you send, so a partner who hasn't nicknamed you yet still sees who it's from. Leave empty to send just your code.",
+    kind: 'text',
+    category: 'pairing',
+    electronOnly: true,
+    dependsOn: 'pairingEnabled',
+  },
+  {
+    key: 'pairingPartners',
+    label: 'Paired machines',
+    description:
+      'Machines you can send to. Add a partner by pasting the code they shared with you and giving them a nickname (shown in the send picker and on cards they send you).',
+    kind: 'pairingPartners',
+    category: 'pairing',
+    electronOnly: true,
+    dependsOn: 'pairingEnabled',
+  },
+  {
+    key: 'pairingGroups',
+    label: 'Groups',
+    description:
+      'Named sets of partners for one-drop sends — e.g. a "Smith/Jones" partnership. Dropping a card on a group sends it to every member.',
+    kind: 'pairingGroups',
+    category: 'pairing',
+    electronOnly: true,
+    dependsOn: 'pairingEnabled',
+  },
+  {
+    key: 'pairingPollSeconds',
+    label: 'Check for new cards every (seconds)',
+    description:
+      'How often this machine polls for incoming cards. Lower is snappier but chattier; default 30. Clamped to 5–3600.',
+    kind: 'number',
+    category: 'pairing',
+    electronOnly: true,
+    dependsOn: 'pairingEnabled',
+  },
+  {
+    key: 'pairingReceiveFlash',
+    label: 'Flash the Receive pill on a new card',
+    description:
+      'Flash the Receive pill green when a card arrives. "Flash once" pulses a single time; "Keep flashing" re-pulses every 10 seconds until you open the Receive pill and see the new card(s); "Off" never flashes.',
+    kind: 'pairingReceiveFlash',
+    category: 'pairing',
+    electronOnly: true,
+    dependsOn: 'pairingEnabled',
+  },
 ];
 
 /** Origin info handed to settings subscribers. `remote` is true when
@@ -2408,6 +2535,18 @@ function sanitize(s: Settings): Settings {
       s.cardCutterClarifyingQuestions === 'always' || s.cardCutterClarifyingQuestions === 'never'
         ? s.cardCutterClarifyingQuestions
         : 'when-ambiguous',
+    pairingEnabled: s.pairingEnabled === true,
+    pairingPollSeconds: Number.isFinite(Number(s.pairingPollSeconds))
+      ? clamp(Math.round(Number(s.pairingPollSeconds)), 5, 3600)
+      : 30,
+    pairingOwnCode: typeof s.pairingOwnCode === 'string' ? s.pairingOwnCode.trim() : '',
+    pairingDisplayName:
+      typeof s.pairingDisplayName === 'string' ? s.pairingDisplayName.trim().slice(0, 80) : '',
+    pairingPartners: sanitizePairingPartners(s.pairingPartners),
+    pairingGroups: sanitizePairingGroups(s.pairingGroups, s.pairingPartners),
+    pairingReceiveFlash: PAIRING_RECEIVE_FLASHES.includes(s.pairingReceiveFlash)
+      ? s.pairingReceiveFlash
+      : 'once',
   };
 }
 
@@ -2908,6 +3047,56 @@ function sanitizeReaders(raw: unknown): ReaderConfig[] {
 function clamp(n: number, lo: number, hi: number): number {
   if (!Number.isFinite(n)) return lo;
   return Math.max(lo, Math.min(hi, n));
+}
+
+/** Coerce a stored partner list: drop non-objects and fully-empty rows
+ *  (no code AND no name), dedupe by code. A row with a name but no code
+ *  yet is kept so the editor can hold a partner mid-add (you typed the
+ *  nickname before pasting the code); downstream send/group logic ignores
+ *  partners whose code is still empty. */
+function sanitizePairingPartners(raw: unknown): PairingPartner[] {
+  if (!Array.isArray(raw)) return [];
+  const out: PairingPartner[] = [];
+  const seen = new Set<string>();
+  for (const p of raw) {
+    if (!p || typeof p !== 'object') continue;
+    const code = String((p as PairingPartner).code ?? '').trim();
+    const name = String((p as PairingPartner).name ?? '').trim().slice(0, 80);
+    if (!code && !name) continue;
+    if (code && seen.has(code)) continue;
+    if (code) seen.add(code);
+    out.push({ code, name });
+  }
+  return out;
+}
+
+/** Coerce a stored group list: require a label, dedupe ids, and drop any
+ *  member code that is not (any longer) a known partner. */
+function sanitizePairingGroups(rawGroups: unknown, rawPartners: unknown): PairingGroup[] {
+  if (!Array.isArray(rawGroups)) return [];
+  const validCodes = new Set(
+    sanitizePairingPartners(rawPartners)
+      .map((p) => p.code)
+      .filter(Boolean),
+  );
+  const out: PairingGroup[] = [];
+  const seenIds = new Set<string>();
+  for (const g of rawGroups) {
+    if (!g || typeof g !== 'object') continue;
+    const label = String((g as PairingGroup).label ?? '').trim().slice(0, 80);
+    if (!label) continue;
+    let id = String((g as PairingGroup).id ?? '').trim();
+    if (!id || seenIds.has(id)) id = `grp-${Math.random().toString(36).slice(2, 10)}`;
+    const rawMembers = (g as PairingGroup).memberCodes;
+    const memberCodes = Array.isArray(rawMembers)
+      ? Array.from(
+          new Set(rawMembers.map((c) => String(c).trim()).filter((c) => validCodes.has(c))),
+        )
+      : [];
+    seenIds.add(id);
+    out.push({ id, label, memberCodes });
+  }
+  return out;
 }
 
 /** Singleton store. */

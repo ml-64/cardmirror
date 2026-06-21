@@ -1,0 +1,89 @@
+/**
+ * Pairing wiring — boot glue for cross-machine card sharing.
+ *
+ *   - Mounts the Send + Receive pills into the pill tray.
+ *   - Mints this machine's own code the first time sharing is enabled.
+ *   - Pushes the current pairing config to the main process (which runs
+ *     the poller + holds the token) on boot and on every settings change.
+ *   - Surfaces a toast when a partner is on a different app version.
+ *
+ * Desktop v1: everything routes through the Electron host. On the web
+ * edition (no `getElectronHost()`) this is inert — the pills render but
+ * there is no poller/sender yet (deferred).
+ */
+
+import type { EditorView } from 'prosemirror-view';
+import { getElectronHost } from '../host/index.js';
+import { settings } from '../settings.js';
+import { appVersion } from '../install-info.js';
+import { showToast } from '../toast.js';
+import { inboxStore } from './inbox-store.js';
+import { SendPillController } from './send-pill-ui.js';
+import { ReceivePillController } from './receive-pill-ui.js';
+
+/** Build + mount the Send and Receive pills into the tray (after the
+ *  dropzone, so they sit to its right). */
+export function mountPairingPills(
+  tray: HTMLElement,
+  getFocusedView: () => EditorView | null,
+): void {
+  new SendPillController().mount({ parent: tray });
+  new ReceivePillController().mount({ parent: tray, getFocusedView });
+}
+
+/** Push the current settings to the main-process poller/sender. The main
+ *  process owns this machine's keypair and returns its public code, which we
+ *  mirror into settings for display + sharing. */
+function applyConfig(): void {
+  const electron = getElectronHost();
+  if (!electron?.pairingConfigure) return;
+
+  void electron
+    .pairingConfigure({
+      enabled: settings.get('pairingEnabled'),
+      displayName: settings.get('pairingDisplayName'),
+      schemaVersion: appVersion,
+      pollSeconds: settings.get('pairingPollSeconds'),
+    })
+    .then(({ ownCode }) => {
+      // Setting it re-fires the subscriber, but the value is now unchanged so
+      // configure is a no-op next time — no loop.
+      if (ownCode && settings.get('pairingOwnCode') !== ownCode) {
+        settings.set('pairingOwnCode', ownCode);
+      }
+    });
+}
+
+/** Mint a fresh keypair in main and mirror the new code into settings.
+ *  Invalidates the old code for partners (they must re-add the new one). */
+export async function regenerateOwnCode(): Promise<void> {
+  const electron = getElectronHost();
+  if (!electron?.pairingRegenerateKey) return;
+  const { ownCode } = await electron.pairingRegenerateKey();
+  if (ownCode) settings.set('pairingOwnCode', ownCode);
+}
+
+let lastMismatchToast = 0;
+
+/** Wire config sync + incoming-event handling. Idempotent-ish; call once
+ *  at boot. */
+export function initPairingWiring(): void {
+  void inboxStore.init();
+
+  const electron = getElectronHost();
+  if (electron?.onPairingVersionMismatch) {
+    electron.onPairingVersionMismatch((info) => {
+      // Throttle so a backlog of mismatched cards doesn't spam toasts.
+      const now = Date.now();
+      if (now - lastMismatchToast < 8000) return;
+      lastMismatchToast = now;
+      showToast(
+        `A partner is on a different CardMirror version (${info.partnerVersion}) — ` +
+          `update both to share cards.`,
+      );
+    });
+  }
+
+  applyConfig();
+  settings.subscribe(() => applyConfig());
+}

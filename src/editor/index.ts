@@ -45,6 +45,7 @@ import { showToast } from './toast.js';
 import { openSelectSpeechDocModal } from './select-speech-doc-ui.js';
 import { dropzoneStore, deriveDropzoneLabel } from './dropzone-store.js';
 import { DropzoneController } from './dropzone-ui.js';
+import { mountPairingPills, initPairingWiring } from './pairing/pairing-wiring.js';
 import { installExternalInsertHost } from './external-insert-host.js';
 import {
   decodeModeSwitchMarker,
@@ -5891,10 +5892,21 @@ const dropzoneController = new DropzoneController();
 // surface there at all (a drag is indistinguishable from a scroll on
 // touch) — structural moves are Move-mode buttons + nav-pane drags.
 if (!BOOT_MOBILE) {
+  // All three bottom-left pills share one fixed tray (a flex row) so the
+  // send / receive pills sit to the RIGHT of the dropzone and each pill's
+  // expansion overlays upward without reflowing its neighbors. The tray is
+  // the element `positionDropzone` anchors.
+  const pillTray = document.createElement('div');
+  pillTray.className = 'pmd-pill-tray';
+  document.body.appendChild(pillTray);
   dropzoneController.mount({
-    parent: document.body,
+    parent: pillTray,
     getFocusedView: () => getActiveView(),
   });
+  // Cross-machine card sharing: Send + Receive pills + config wiring.
+  // No-ops gracefully off Electron (web edition).
+  mountPairingPills(pillTray, () => getActiveView());
+  initPairingWiring();
 }
 
 // Fast Debate Paste integration — subscribe to `external:insert-text`
@@ -5931,7 +5943,9 @@ window.addEventListener('resize', positionDropzone);
  *  status bar, and layout). Inline left/bottom; CSS provides a sane
  *  fallback before the first run. */
 function positionDropzone(): void {
-  const root = document.querySelector<HTMLElement>('.pmd-dropzone-root');
+  // Anchors the whole pill tray (dropzone + send + receive). Kept the name
+  // for its existing call sites (rAF / resize / ResizeObserver hooks).
+  const root = document.querySelector<HTMLElement>('.pmd-pill-tray');
   if (!root) return;
   const target = document.body.classList.contains('pmd-multi-doc')
     ? document.querySelector<HTMLElement>('.pmd-pane:not([hidden]) .pmd-pane-body')

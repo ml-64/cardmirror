@@ -29,8 +29,12 @@ import {
   type HeadingMode,
   type CondenseWarningDelimiter,
   type ShrinkProtection,
+  type PairingPartner,
+  type PairingGroup,
   condenseWarningCloseFor,
 } from './settings.js';
+import { generateGroupId, normalizePairingCode } from './pairing/pairing-ids.js';
+import { regenerateOwnCode } from './pairing/pairing-wiring.js';
 import { isFontAvailable } from './font-detect.js';
 import { WORD_HIGHLIGHT_COLORS } from './color-palette.js';
 import { buildKeybindingsEditor } from './keybindings-editor.js';
@@ -167,6 +171,7 @@ export const CATEGORY_TABS: { id: SettingsCategory; label: string }[] = [
   { id: 'editing', label: 'Editing' },
   { id: 'shortcuts', label: 'Keyboard' },
   { id: 'comments-ai', label: 'Comments & AI' },
+  { id: 'pairing', label: 'Card Sharing' },
   // Accessibility intentionally lives at the far right — its
   // override-anything panel is a "last-resort" customization
   // surface, separated from the everyday tabs.
@@ -925,6 +930,22 @@ class SettingsModal {
         void import('./ai/edit-prompt-modal.js').then((m) => m.openCitePromptEditor());
       });
       label.appendChild(btn);
+    } else if (meta.kind === 'pairingOwnCode') {
+      row.appendChild(text);
+      row.appendChild(buildPairingOwnCodeEditor());
+      return row;
+    } else if (meta.kind === 'pairingPartners') {
+      row.appendChild(text);
+      row.appendChild(buildPairingPartnersEditor());
+      return row;
+    } else if (meta.kind === 'pairingGroups') {
+      row.appendChild(text);
+      row.appendChild(buildPairingGroupsEditor());
+      return row;
+    } else if (meta.kind === 'pairingReceiveFlash') {
+      row.appendChild(text);
+      row.appendChild(buildPairingReceiveFlashEditor());
+      return row;
     } else if (meta.kind === 'clod') {
       // Standard boolean toggle with an easter-egg twist:
       // Mod (Ctrl/Cmd) + Alt + Shift + click opens the Clod
@@ -1770,6 +1791,298 @@ function buildReadersEditor(): HTMLElement {
   // Best-effort cleanup if the editor is detached (modal closes & rebuilds).
   onDetached(wrap, () => unsubscribe());
 
+  return wrap;
+}
+
+/** Your own pairing code: shown read-only with Copy + Regenerate. Empty
+ *  until card sharing is enabled (the wiring layer mints it on enable). */
+function buildPairingOwnCodeEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-pairing-owncode';
+
+  const codeEl = document.createElement('code');
+  codeEl.className = 'pmd-pairing-owncode-value';
+
+  const copyBtn = document.createElement('button');
+  copyBtn.type = 'button';
+  copyBtn.className = 'pmd-settings-btn';
+  copyBtn.textContent = 'Copy';
+  copyBtn.addEventListener('click', () => {
+    const code = settings.get('pairingOwnCode');
+    if (!code) return;
+    void navigator.clipboard?.writeText(code).then(
+      () => showToast('Pairing code copied'),
+      () => showToast('Could not copy code'),
+    );
+  });
+
+  const regenBtn = document.createElement('button');
+  regenBtn.type = 'button';
+  regenBtn.className = 'pmd-settings-btn';
+  regenBtn.title =
+    'Make a new code. Partners using your old code can no longer reach you until you re-share.';
+  regenBtn.addEventListener('click', () => {
+    const had = !!settings.get('pairingOwnCode');
+    if (
+      had &&
+      !window.confirm(
+        'Regenerate your pairing code? Anyone you already shared the old code with will need the new one.',
+      )
+    ) {
+      return;
+    }
+    // The keypair lives in the main process; ask it to mint a fresh one.
+    void regenerateOwnCode().then(() => showToast('New pairing code generated'));
+  });
+
+  wrap.append(codeEl, copyBtn, regenBtn);
+
+  function refresh(): void {
+    const code = settings.get('pairingOwnCode');
+    if (code) {
+      codeEl.textContent = code;
+      codeEl.classList.remove('pmd-pairing-owncode-empty');
+      copyBtn.disabled = false;
+      regenBtn.textContent = 'Regenerate';
+    } else {
+      codeEl.textContent = '(created when you enable card sharing)';
+      codeEl.classList.add('pmd-pairing-owncode-empty');
+      copyBtn.disabled = true;
+      regenBtn.textContent = 'Generate now';
+    }
+  }
+  refresh();
+  const unsub = settings.subscribe(refresh);
+  onDetached(wrap, () => unsub());
+  return wrap;
+}
+
+/** Paired machines: nickname + code rows, modeled on the readers editor.
+ *  A new partner starts with a placeholder name so it survives the
+ *  set→sanitize round-trip while you paste its code. */
+function buildPairingPartnersEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-pairing-editor';
+
+  const list = document.createElement('div');
+  list.className = 'pmd-pairing-list';
+  wrap.appendChild(list);
+
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'pmd-readers-add';
+  addBtn.textContent = '+ Add partner';
+  wrap.appendChild(addBtn);
+
+  const commit = (partners: PairingPartner[]): void => {
+    settings.set('pairingPartners', partners);
+  };
+
+  function render(): void {
+    list.innerHTML = '';
+    const partners = settings.get('pairingPartners');
+    if (partners.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'pmd-pairing-empty';
+      empty.textContent = 'No partners yet. Add one with the code they shared with you.';
+      list.appendChild(empty);
+    }
+    partners.forEach((partner, idx) => {
+      const row = document.createElement('div');
+      row.className = 'pmd-pairing-row';
+
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.className = 'pmd-pairing-name';
+      nameInput.value = partner.name;
+      nameInput.placeholder = 'Nickname';
+      nameInput.addEventListener('change', () => {
+        commit(
+          settings
+            .get('pairingPartners')
+            .map((p, i) => (i === idx ? { ...p, name: nameInput.value.trim() } : p)),
+        );
+      });
+      row.appendChild(nameInput);
+
+      const codeInput = document.createElement('input');
+      codeInput.type = 'text';
+      codeInput.className = 'pmd-pairing-code';
+      codeInput.value = partner.code;
+      codeInput.placeholder = 'card-XXXX-XXXX-XXXX-XXXX';
+      codeInput.spellcheck = false;
+      codeInput.autocomplete = 'off';
+      codeInput.addEventListener('change', () => {
+        const code = normalizePairingCode(codeInput.value);
+        codeInput.value = code;
+        commit(
+          settings.get('pairingPartners').map((p, i) => (i === idx ? { ...p, code } : p)),
+        );
+      });
+      row.appendChild(codeInput);
+
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'pmd-pairing-delete';
+      setIcon(delBtn, 'close');
+      delBtn.title = 'Remove partner';
+      delBtn.addEventListener('click', () => {
+        commit(settings.get('pairingPartners').filter((_, i) => i !== idx));
+      });
+      row.appendChild(delBtn);
+
+      list.appendChild(row);
+    });
+  }
+
+  addBtn.addEventListener('click', () => {
+    const cur = settings.get('pairingPartners');
+    commit([...cur, { code: '', name: `Partner ${cur.length + 1}` }]);
+  });
+
+  render();
+  const unsub = settings.subscribe(() => render());
+  onDetached(wrap, () => unsub());
+  return wrap;
+}
+
+/** Groups: a label + a checkbox per partner. Sending to a group fans
+ *  the card out to every checked member. */
+function buildPairingGroupsEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-pairing-editor';
+
+  const list = document.createElement('div');
+  list.className = 'pmd-pairing-group-list';
+  wrap.appendChild(list);
+
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'pmd-readers-add';
+  addBtn.textContent = '+ Add group';
+  wrap.appendChild(addBtn);
+
+  const commit = (groups: PairingGroup[]): void => {
+    settings.set('pairingGroups', groups);
+  };
+
+  function render(): void {
+    list.innerHTML = '';
+    const groups = settings.get('pairingGroups');
+    const partners = settings.get('pairingPartners').filter((p) => p.code);
+    if (groups.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'pmd-pairing-empty';
+      empty.textContent = 'No groups yet. A group sends one card to several partners at once.';
+      list.appendChild(empty);
+    }
+    groups.forEach((group, idx) => {
+      const card = document.createElement('div');
+      card.className = 'pmd-pairing-group';
+
+      const header = document.createElement('div');
+      header.className = 'pmd-pairing-group-header';
+
+      const labelInput = document.createElement('input');
+      labelInput.type = 'text';
+      labelInput.className = 'pmd-pairing-name';
+      labelInput.value = group.label;
+      labelInput.placeholder = 'Group name';
+      labelInput.addEventListener('change', () => {
+        commit(
+          settings
+            .get('pairingGroups')
+            .map((g, i) => (i === idx ? { ...g, label: labelInput.value.trim() } : g)),
+        );
+      });
+      header.appendChild(labelInput);
+
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'pmd-pairing-delete';
+      setIcon(delBtn, 'close');
+      delBtn.title = 'Remove group';
+      delBtn.addEventListener('click', () => {
+        commit(settings.get('pairingGroups').filter((_, i) => i !== idx));
+      });
+      header.appendChild(delBtn);
+      card.appendChild(header);
+
+      const members = document.createElement('div');
+      members.className = 'pmd-pairing-group-members';
+      if (partners.length === 0) {
+        const hint = document.createElement('span');
+        hint.className = 'pmd-pairing-empty';
+        hint.textContent = 'Add partners first, then check who belongs to this group.';
+        members.appendChild(hint);
+      } else {
+        partners.forEach((p) => {
+          const memberLabel = document.createElement('label');
+          memberLabel.className = 'pmd-pairing-member';
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.checked = group.memberCodes.includes(p.code);
+          cb.addEventListener('change', () => {
+            commit(
+              settings.get('pairingGroups').map((g, i) => {
+                if (i !== idx) return g;
+                const set = new Set(g.memberCodes);
+                if (cb.checked) set.add(p.code);
+                else set.delete(p.code);
+                return { ...g, memberCodes: [...set] };
+              }),
+            );
+          });
+          const nameSpan = document.createElement('span');
+          nameSpan.textContent = p.name || p.code;
+          memberLabel.append(cb, nameSpan);
+          members.appendChild(memberLabel);
+        });
+      }
+      card.appendChild(members);
+      list.appendChild(card);
+    });
+  }
+
+  addBtn.addEventListener('click', () => {
+    const cur = settings.get('pairingGroups');
+    commit([...cur, { id: generateGroupId(), label: `Group ${cur.length + 1}`, memberCodes: [] }]);
+  });
+
+  render();
+  const unsub = settings.subscribe(() => render());
+  onDetached(wrap, () => unsub());
+  return wrap;
+}
+
+/** Three-button segmented control for the receive-pill flash behavior,
+ *  visually parallel to the reduce-motion / theme editors. */
+function buildPairingReceiveFlashEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-theme-editor';
+  const options: { value: Settings['pairingReceiveFlash']; label: string }[] = [
+    { value: 'once', label: 'Flash once' },
+    { value: 'repeat', label: 'Keep flashing' },
+    { value: 'off', label: 'Off' },
+  ];
+  for (const o of options) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pmd-theme-editor-btn';
+    btn.textContent = o.label;
+    btn.dataset['value'] = o.value;
+    btn.addEventListener('click', () => settings.set('pairingReceiveFlash', o.value));
+    wrap.appendChild(btn);
+  }
+  function refresh(): void {
+    const cur = settings.get('pairingReceiveFlash');
+    for (const btn of wrap.querySelectorAll<HTMLButtonElement>('.pmd-theme-editor-btn')) {
+      btn.setAttribute('aria-pressed', btn.dataset['value'] === cur ? 'true' : 'false');
+    }
+  }
+  refresh();
+  const unsub = settings.subscribe(refresh);
+  onDetached(wrap, () => unsub());
   return wrap;
 }
 

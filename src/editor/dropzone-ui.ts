@@ -413,7 +413,7 @@ function newId(): string {
   return `dz-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function typeBadge(type: string): { kind: string; label: string } {
+export function typeBadge(type: string): { kind: string; label: string } {
   switch (type) {
     case 'pocket': return { kind: 'pocket', label: 'POCKET' };
     case 'hat': return { kind: 'hat', label: 'HAT' };
@@ -442,7 +442,7 @@ function inferTypeFromSlice(slice: Slice): string {
  *  map via `TYPE_TO_LEVEL`; `card` / `analytic_unit` drag at tag level
  *  (4, like the native container drag); generic content (loose
  *  paragraph / unknown) can go anywhere, so it gets the deepest level. */
-function dropzoneDragLevel(type: string): number {
+export function dropzoneDragLevel(type: string): number {
   if (type === 'card' || type === 'analytic_unit') return 4;
   return TYPE_TO_LEVEL[type] ?? 4;
 }

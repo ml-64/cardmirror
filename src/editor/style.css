@@ -2735,6 +2735,28 @@ html.pmd-dropzone-pill-hidden .pmd-dropzone-root {
   display: none !important;
 }
 
+/* ---- Pill tray ----------------------------------------------------
+   The fixed, positioned row that holds the dropzone pill plus the
+   cross-machine Send / Receive pills, left → right, anchored to the
+   editor's bottom-left by `positionDropzone` (index.ts). Bottoms align
+   so each pill's expansion rises from a common baseline. The tray itself
+   is click-through (pointer-events:none); each pill re-enables them, so
+   the gaps between pills don't eat clicks on the editor below. */
+.pmd-pill-tray {
+  position: fixed;
+  bottom: calc(var(--status-bar-height) + 0.5rem);
+  left: calc(var(--nav-width) + 0.5rem);
+  z-index: 220;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 6px;
+  pointer-events: none;
+}
+.pmd-pill-tray > * {
+  pointer-events: auto;
+}
+
 /* When the dropzone pill is showing it floats over the editor's
    bottom-left, covering whatever doc content is there — fine until you
    scroll to the very end, where there's no further scroll to free that
@@ -2769,14 +2791,15 @@ html:not(.pmd-dropzone-pill-hidden) body:not(.pmd-multi-doc) #editor .ProseMirro
      doesn't strand the pill in the status bar's vertical band. The
      fallback uses the same `--status-bar-height` var the status bar
      itself reads from, so they can't drift. */
-  position: fixed;
-  bottom: calc(var(--status-bar-height) + 0.5rem);
-  left: calc(var(--nav-width) + 0.5rem);
+  /* Now a flex child of `.pmd-pill-tray` (that tray is the fixed,
+     positioned element — see index.ts `positionDropzone`). Was
+     `position: fixed` with inline left/bottom. */
+  position: relative;
   right: auto;
   /* Fallback width cap before `positionDropzone` runs; it then sets an
      exact inline max-width from the editor's rect so the expanded
      shelf keeps an equal margin on the right. */
-  max-width: calc(100vw - var(--nav-width) - 1rem);
+  max-width: 360px;
   max-height: 60vh;
   pointer-events: auto;
   /* Above the status bar (z=200). In the spec-correct world the pill
@@ -2786,8 +2809,9 @@ html:not(.pmd-dropzone-pill-hidden) body:not(.pmd-multi-doc) #editor .ProseMirro
      being clipped by it (suspected Chromium layer-promotion quirk).
      Keeping z-index above the bar's makes the failure mode visible
      and clickable while the new bottom-fallback prevents the
-     overlap in the first place. */
-  z-index: 220;
+     overlap in the first place. (z within the tray now; the tray owns the
+     stacking context.) */
+  z-index: 1;
   display: flex;
   flex-direction: column;
   /* Left-anchored pill; the bar sizes to content. */
@@ -2808,7 +2832,7 @@ html:not(.pmd-dropzone-pill-hidden) body:not(.pmd-multi-doc) #editor .ProseMirro
    until `positionDropzone` runs (it anchors to `.pmd-pane-body`, above
    both bars, and inlines an exact bottom that overrides this). Add the
    footer's height so the pre-positioning fallback already clears it. */
-body.pmd-multi-doc .pmd-dropzone-root {
+body.pmd-multi-doc .pmd-pill-tray {
   bottom: calc(var(--status-bar-height) + var(--pmd-pane-footer-height) + 0.5rem);
 }
 .pmd-dropzone-root[data-open="true"] {
@@ -10779,4 +10803,325 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
   justify-content: flex-end;
   padding: 0.6rem 0.85rem;
   border-top: 1px solid var(--pmd-c-border-soft);
+}
+
+/* ====================================================================
+   Cross-machine card sharing — Send + Receive pills (in the pill tray)
+   ==================================================================== */
+
+/* Shared small-pill chrome (Send + Receive bars). Mirrors the dropzone
+   bar's sizing/feel so the three read as one family. */
+.pmd-pill {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.pmd-pill[hidden] {
+  display: none;
+}
+.pmd-pill-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 30px;
+  padding: 0 0.55rem;
+  background: var(--pmd-c-surface, var(--pmd-c-bg));
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 6px;
+  box-shadow: 0 1px 3px var(--pmd-c-shadow-fade);
+  color: var(--pmd-c-text);
+  font-size: 0.8rem;
+  cursor: default;
+  user-select: none;
+  white-space: nowrap;
+}
+.pmd-pill-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-pill-label {
+  font-weight: 500;
+}
+.pmd-pill-count {
+  min-width: 1.1em;
+  padding: 0 0.3em;
+  border-radius: 999px;
+  background: var(--pmd-c-hover);
+  color: var(--pmd-c-text-muted);
+  font-size: 0.72rem;
+  text-align: center;
+}
+
+/* Blue arrival flash — the exact accent ring the command bar uses
+   (`pmd-qcs-pulse`). Applied to the pill bar for ~0.5s on a new card. */
+@keyframes pmd-pill-flash {
+  0% {
+    box-shadow: 0 0 0 3px var(--pmd-c-accent), 0 1px 3px var(--pmd-c-shadow-fade);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent, 0 1px 3px var(--pmd-c-shadow-fade);
+  }
+}
+.pmd-pill-flash .pmd-pill-bar {
+  animation: pmd-pill-flash 520ms ease-out;
+  border-color: var(--pmd-c-accent);
+}
+/* Respect reduced motion — suppress the animation (the unread badge still
+   communicates the new card), matching the repair-flash gate. */
+:root[data-motion="reduce"] .pmd-pill-flash .pmd-pill-bar {
+  animation: none;
+}
+
+/* ---- Send pill ---- */
+.pmd-send-bar-hot,
+.pmd-send-pill[data-open="true"] .pmd-send-bar {
+  border-color: var(--pmd-c-drop, var(--pmd-c-accent));
+  box-shadow: 0 0 0 2px var(--pmd-c-drop-outline, var(--pmd-c-accent-soft));
+}
+/* Partner / group list — an upward overlay popover so expanding it never
+   reflows the dropzone or receive pill beside it. */
+.pmd-send-panel {
+  display: none;
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  min-width: 200px;
+  max-width: 320px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 0.25rem;
+  background: var(--pmd-c-bg);
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 10px;
+  box-shadow: 0 6px 18px var(--pmd-c-shadow-fade);
+  z-index: 2;
+}
+.pmd-send-pill[data-open="true"] .pmd-send-panel {
+  display: block;
+}
+.pmd-send-section {
+  padding: 0.3rem 0.4rem 0.15rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-send-target {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.45rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.pmd-send-target-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pmd-send-target-count {
+  flex: 0 0 auto;
+  min-width: 1.1em;
+  padding: 0 0.35em;
+  border-radius: 999px;
+  background: var(--pmd-c-hover);
+  color: var(--pmd-c-text-muted);
+  font-size: 0.7rem;
+  text-align: center;
+}
+.pmd-send-target-group .pmd-send-target-name {
+  font-weight: 500;
+}
+/* The drop target the pointer is over during a drag. */
+.pmd-send-target-hot {
+  background: var(--pmd-c-drop-outline, var(--pmd-c-accent-soft));
+  outline: 2px solid var(--pmd-c-drop, var(--pmd-c-accent));
+  outline-offset: -2px;
+}
+.pmd-send-empty {
+  padding: 0.5rem 0.5rem;
+  color: var(--pmd-c-text-muted);
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+/* ---- Receive pill ---- */
+/* One combined count badge: "total | N new". Blue while there are unread
+   cards, fading to the muted gray once everything's been seen. */
+.pmd-receive-badge {
+  min-width: 1.1em;
+  padding: 0 0.45em;
+  border-radius: 999px;
+  background: var(--pmd-c-hover);
+  color: var(--pmd-c-text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  transition: background-color 320ms ease, color 320ms ease;
+}
+.pmd-receive-badge-unread {
+  background: var(--pmd-c-accent, #4c8bf5);
+  color: #fff;
+}
+/* Inbox list — upward overlay popover, same family as the send panel. */
+.pmd-receive-list {
+  display: none;
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem;
+  min-width: 260px;
+  max-width: 380px;
+  max-height: 340px;
+  overflow-y: auto;
+  background: var(--pmd-c-bg);
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 10px;
+  box-shadow: 0 6px 18px var(--pmd-c-shadow-fade);
+  z-index: 2;
+}
+.pmd-receive-pill[data-open="true"] .pmd-receive-list {
+  display: block;
+}
+.pmd-receive-empty {
+  padding: 0.6rem 0.5rem;
+  color: var(--pmd-c-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+.pmd-receive-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  padding: 0.4rem 0.45rem;
+  border-radius: 6px;
+  cursor: grab;
+}
+.pmd-receive-row:hover {
+  background: var(--pmd-c-hover);
+}
+.pmd-receive-row-unread {
+  background: var(--pmd-c-accent-soft, rgba(76, 139, 245, 0.12));
+}
+.pmd-receive-row-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.pmd-receive-row-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.82rem;
+}
+.pmd-receive-row-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.7rem;
+  color: var(--pmd-c-text-muted);
+}
+
+/* ====================================================================
+   Card sharing — settings editors (Pairing tab)
+   ==================================================================== */
+.pmd-pairing-owncode {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.pmd-pairing-owncode-value {
+  padding: 0.2rem 0.45rem;
+  border-radius: 6px;
+  background: var(--pmd-c-hover);
+  font-family: var(--pmd-font-mono, monospace);
+  font-size: 0.82rem;
+}
+.pmd-pairing-owncode-empty {
+  color: var(--pmd-c-text-muted);
+  font-family: inherit;
+  font-style: italic;
+}
+.pmd-pairing-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+.pmd-pairing-list,
+.pmd-pairing-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.pmd-pairing-empty {
+  color: var(--pmd-c-text-muted);
+  font-size: 0.8rem;
+}
+.pmd-pairing-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.pmd-pairing-name {
+  flex: 0 0 8rem;
+}
+.pmd-pairing-code {
+  flex: 1 1 auto;
+  font-family: var(--pmd-font-mono, monospace);
+}
+.pmd-pairing-delete {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pmd-c-text-muted);
+  cursor: pointer;
+}
+.pmd-pairing-delete:hover {
+  background: var(--pmd-c-hover);
+}
+.pmd-pairing-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.5rem;
+  border: 1px solid var(--pmd-c-border-soft, var(--pmd-c-border));
+  border-radius: 8px;
+}
+.pmd-pairing-group-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.pmd-pairing-group-header .pmd-pairing-name {
+  flex: 1 1 auto;
+}
+.pmd-pairing-group-members {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.75rem;
+  padding-left: 0.2rem;
+}
+.pmd-pairing-member {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.82rem;
 }

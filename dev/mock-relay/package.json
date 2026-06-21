@@ -1,0 +1,11 @@
+{
+  "name": "cardmirror-mock-relay",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Dev-only mock pairing relay for CardMirror cross-machine card sharing. Not part of any build or deploy.",
+  "type": "commonjs",
+  "bin": { "cardmirror-mock-relay": "server.js" },
+  "scripts": {
+    "start": "node server.js"
+  }
+}

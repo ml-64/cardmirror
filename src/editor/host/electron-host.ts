@@ -35,6 +35,42 @@ export interface QuickCardIpc {
   updatedAt: number;
 }
 
+/** Cross-machine card sharing IPC shapes. Declared locally (structurally
+ *  identical to the renderer's pairing types) so this module takes no
+ *  import dependency on the pairing stores — same convention as
+ *  `QuickCardIpc`. */
+export interface PairingConfigIpc {
+  /** Whether the receive poller should run. */
+  enabled: boolean;
+  /** Optional name stamped (inside the ciphertext) on outgoing cards. */
+  displayName: string;
+  /** App version, for the cross-version guard. */
+  schemaVersion: string;
+  /** Poll cadence in seconds. */
+  pollSeconds: number;
+}
+export interface PairingSendItemIpc {
+  label: string;
+  type: string;
+  sliceJson: unknown;
+}
+export interface PairingSendIpc {
+  recipientCodes: string[];
+  item: PairingSendItemIpc;
+  via?: string;
+}
+export interface PairingInboxItemIpc {
+  id: string;
+  label: string;
+  type: string;
+  sliceJson: unknown;
+  senderName: string;
+  senderCode: string;
+  via?: string;
+  receivedAt: number;
+  read: boolean;
+}
+
 /** Verbatim Flow bridge result shapes (mirrors verbatim-flow.ps1). */
 export interface FlowAvailable {
   available: boolean;
@@ -187,6 +223,22 @@ interface ElectronAPI {
   quickCardsRemove(id: string): Promise<void>;
   quickCardsClear(): Promise<void>;
   onQuickCardsChanged(handler: (cards: QuickCardIpc[]) => void): () => void;
+
+  /** Cross-machine card sharing. The main process holds the relay URL +
+   *  token, runs the receive poller, and owns the inbox; the renderer
+   *  configures it, sends, and reads the inbox through these. Optional so
+   *  an older preload (without the pairing build) degrades gracefully. */
+  pairingConfigure?(cfg: PairingConfigIpc): Promise<{ ownCode: string }>;
+  pairingRegenerateKey?(): Promise<{ ownCode: string }>;
+  pairingSend?(payload: PairingSendIpc): Promise<{ ok: number; fail: number }>;
+  pairingInboxList?(): Promise<PairingInboxItemIpc[]>;
+  pairingInboxRemove?(id: string): Promise<void>;
+  pairingInboxClear?(): Promise<void>;
+  pairingInboxMarkAllRead?(): Promise<void>;
+  onPairingInboxChanged?(handler: (items: PairingInboxItemIpc[]) => void): () => void;
+  onPairingVersionMismatch?(
+    handler: (info: { partnerVersion: string; localVersion: string }) => void,
+  ): () => void;
 
   /** Return every open doc across every window with its current
    *  filename, owning window, and speech-doc status. */
@@ -618,6 +670,46 @@ export class ElectronHost implements Host {
 
   onQuickCardsChanged(handler: (cards: QuickCardIpc[]) => void): () => void {
     return api().onQuickCardsChanged(handler);
+  }
+
+  async pairingConfigure(cfg: PairingConfigIpc): Promise<{ ownCode: string }> {
+    return (await api().pairingConfigure?.(cfg)) ?? { ownCode: '' };
+  }
+
+  async pairingRegenerateKey(): Promise<{ ownCode: string }> {
+    return (await api().pairingRegenerateKey?.()) ?? { ownCode: '' };
+  }
+
+  async pairingSend(payload: PairingSendIpc): Promise<{ ok: number; fail: number }> {
+    return (
+      (await api().pairingSend?.(payload)) ?? { ok: 0, fail: payload.recipientCodes.length }
+    );
+  }
+
+  async pairingInboxList(): Promise<PairingInboxItemIpc[]> {
+    return (await api().pairingInboxList?.()) ?? [];
+  }
+
+  async pairingInboxRemove(id: string): Promise<void> {
+    await api().pairingInboxRemove?.(id);
+  }
+
+  async pairingInboxClear(): Promise<void> {
+    await api().pairingInboxClear?.();
+  }
+
+  async pairingInboxMarkAllRead(): Promise<void> {
+    await api().pairingInboxMarkAllRead?.();
+  }
+
+  onPairingInboxChanged(handler: (items: PairingInboxItemIpc[]) => void): () => void {
+    return api().onPairingInboxChanged?.(handler) ?? (() => {});
+  }
+
+  onPairingVersionMismatch(
+    handler: (info: { partnerVersion: string; localVersion: string }) => void,
+  ): () => void {
+    return api().onPairingVersionMismatch?.(handler) ?? (() => {});
   }
 
   async listDocs(): Promise<

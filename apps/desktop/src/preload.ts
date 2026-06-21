@@ -41,6 +41,29 @@ interface QuickCardIpc {
   updatedAt: number;
 }
 
+interface PairingConfigIpc {
+  enabled: boolean;
+  displayName: string;
+  schemaVersion: string;
+  pollSeconds: number;
+}
+interface PairingSendIpc {
+  recipientCodes: string[];
+  item: { label: string; type: string; sliceJson: unknown };
+  via?: string;
+}
+interface PairingInboxItemIpc {
+  id: string;
+  label: string;
+  type: string;
+  sliceJson: unknown;
+  senderName: string;
+  senderCode: string;
+  via?: string;
+  receivedAt: number;
+  read: boolean;
+}
+
 contextBridge.exposeInMainWorld('electronAPI', {
   /** Read the system clipboard's plain-text content. Used by the
    *  F2 (Paste Plain) command on Electron — bypasses the Chromium
@@ -458,6 +481,38 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const listener = (_evt: unknown, cards: QuickCardIpc[]): void => handler(cards);
     ipcRenderer.on('quick-cards:changed', listener);
     return () => ipcRenderer.removeListener('quick-cards:changed', listener);
+  },
+
+  /** Cross-machine card sharing. configure starts/stops the receive
+   *  poller; send POSTs one message per recipient (token stays in main);
+   *  the inbox accessors + `pairing:inbox-changed` keep the Receive pill
+   *  in sync across windows; `pairing:version-mismatch` surfaces a toast. */
+  pairingConfigure: (cfg: PairingConfigIpc) =>
+    ipcRenderer.invoke('host:pairing-configure', cfg) as Promise<{ ownCode: string }>,
+  pairingRegenerateKey: () =>
+    ipcRenderer.invoke('host:pairing-regenerate-key') as Promise<{ ownCode: string }>,
+  pairingSend: (payload: PairingSendIpc) =>
+    ipcRenderer.invoke('host:pairing-send', payload) as Promise<{ ok: number; fail: number }>,
+  pairingInboxList: () =>
+    ipcRenderer.invoke('host:pairing-inbox-list') as Promise<PairingInboxItemIpc[]>,
+  pairingInboxRemove: (id: string) =>
+    ipcRenderer.invoke('host:pairing-inbox-remove', id),
+  pairingInboxClear: () => ipcRenderer.invoke('host:pairing-inbox-clear'),
+  pairingInboxMarkAllRead: () => ipcRenderer.invoke('host:pairing-inbox-mark-read'),
+  onPairingInboxChanged(handler: (items: PairingInboxItemIpc[]) => void): () => void {
+    const listener = (_evt: unknown, items: PairingInboxItemIpc[]): void => handler(items);
+    ipcRenderer.on('pairing:inbox-changed', listener);
+    return () => ipcRenderer.removeListener('pairing:inbox-changed', listener);
+  },
+  onPairingVersionMismatch(
+    handler: (info: { partnerVersion: string; localVersion: string }) => void,
+  ): () => void {
+    const listener = (
+      _evt: unknown,
+      info: { partnerVersion: string; localVersion: string },
+    ): void => handler(info);
+    ipcRenderer.on('pairing:version-mismatch', listener);
+    return () => ipcRenderer.removeListener('pairing:version-mismatch', listener);
   },
 
   /** List every open doc across every window. Each entry carries

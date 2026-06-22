@@ -940,6 +940,10 @@ export interface Settings {
   pairingGroups: PairingGroup[];
   /** Pairing: how the receive pill flashes when a card arrives. */
   pairingReceiveFlash: PairingReceiveFlash;
+  /** Clean: style names the .docx style cleaner must never prune, remove, or
+   *  reassign away from (their basedOn/linked dependencies are kept too).
+   *  Managed from the Clean utility's protected-styles panel. */
+  cleanProtectedStyles: string[];
 }
 
 /** Open-delimiter options for "Condense with warning" markers. The
@@ -1141,6 +1145,7 @@ const DEFAULTS: Settings = {
   pairingPartners: [],
   pairingGroups: [],
   pairingReceiveFlash: 'once',
+  cleanProtectedStyles: [],
 };
 
 /** Public read-only view of the built-in defaults — handy for any UI
@@ -2547,6 +2552,16 @@ function sanitize(s: Settings): Settings {
     pairingReceiveFlash: PAIRING_RECEIVE_FLASHES.includes(s.pairingReceiveFlash)
       ? s.pairingReceiveFlash
       : 'once',
+    cleanProtectedStyles: Array.isArray(s.cleanProtectedStyles)
+      ? Array.from(
+          new Set(
+            s.cleanProtectedStyles
+              .filter((x): x is string => typeof x === 'string')
+              .map((x) => x.trim())
+              .filter((x) => x.length > 0),
+          ),
+        )
+      : [],
   };
 }
 

@@ -221,22 +221,21 @@ class HomeScreen {
         ),
       ),
     );
-    qcSection.appendChild(qcGrid);
-    inner.appendChild(qcSection);
-
-    // Learn — spaced-repetition review. Content is rebuilt from the
-    // local learn store (due counts per scope) and re-rendered on
-    // store changes + each show.
-    const learnSection = document.createElement('section');
-    learnSection.className = 'pmd-home-learn-section';
-    const learnTitle = document.createElement('h2');
-    learnTitle.className = 'pmd-home-section-title';
-    learnTitle.textContent = 'Learn';
-    learnSection.appendChild(learnTitle);
+    // Learn — spaced-repetition review, as the rightmost utility group
+    // (to the right of Quick Cards). Content is rebuilt from the local
+    // learn store (due counts per scope) and re-rendered on store
+    // changes + each show.
+    // Learn — a two-column-spanning group to the right of Quick Cards,
+    // so the utilities fill two complete rows: row 1 Clean / Convert /
+    // Compress, row 2 Quick Cards / Learn[Review all · Manage flashcards].
+    // One "Learn" heading sits over its two full-size cards.
     this.learnEl = document.createElement('div');
     this.learnEl.className = 'pmd-home-learn';
-    learnSection.appendChild(this.learnEl);
-    inner.appendChild(learnSection);
+    const learnGroup = labeledGroup('Learn', this.learnEl);
+    learnGroup.classList.add('pmd-home-labeled-learn');
+    qcGrid.appendChild(learnGroup);
+    qcSection.appendChild(qcGrid);
+    inner.appendChild(qcSection);
 
     parent.appendChild(this.root);
 
@@ -362,7 +361,7 @@ class HomeScreen {
       // reachable so the user can import flashcards from a file. Grey
       // out Review all only — keep Manage live.
       const actions = document.createElement('div');
-      actions.className = 'pmd-home-qc-actions';
+      actions.className = 'pmd-home-learn-actions';
       actions.appendChild(
         this.actionCard(
           'Review all',
@@ -384,7 +383,7 @@ class HomeScreen {
 
     const dueAll = learnStore.dueCount({ kind: 'all' }, today);
     const actions = document.createElement('div');
-    actions.className = 'pmd-home-qc-actions';
+    actions.className = 'pmd-home-learn-actions';
     actions.appendChild(
       this.actionCard(
         dueAll > 0 ? `Review all due (${dueAll})` : 'Review all',

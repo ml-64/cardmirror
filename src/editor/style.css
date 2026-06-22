@@ -2569,6 +2569,17 @@ html.pmd-home-active #speech-doc-banner {
 .pmd-home-qc-actions .pmd-home-action-sub {
   min-height: 4.05em;
 }
+/* Learn — a two-column-spanning group to the right of Quick Cards. Its
+   two cards (Review all / Manage flashcards) sit side by side, each the
+   same size as a single utility card, under one "Learn" heading. */
+.pmd-home-labeled-learn {
+  grid-column: span 2;
+}
+.pmd-home-learn-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
 /* Disabled action card (e.g. "Review all" before any flashcards
    exist) — looks like an action card but muted and non-interactive.
    Its live siblings (e.g. Manage) stay fully interactive. */
@@ -2579,7 +2590,8 @@ html.pmd-home-active #speech-doc-banner {
   background: var(--pmd-c-surface-soft);
   border-color: var(--pmd-c-border-soft);
 }
-/* Per-file / per-deck review rows under the "Review all" card. */
+/* Per-file / per-deck review rows under the Learn cards (full width of
+   the Learn group, below its two cards). */
 .pmd-home-learn-rows {
   display: flex;
   flex-direction: column;
@@ -7807,6 +7819,68 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   width: 0;
   background: var(--pmd-c-accent, var(--pmd-c-comment-thread));
   transition: width 120ms linear;
+}
+
+/* Clean — protected styles panel */
+.pmd-clean-prot-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.45rem;
+  font-size: 0.85rem;
+  color: var(--pmd-c-text-muted, #888);
+}
+.pmd-clean-prot-manage {
+  padding: 0.15rem 0.55rem;
+  font-size: 0.8rem;
+}
+.pmd-clean-prot-back {
+  margin-bottom: 0.5rem;
+}
+.pmd-clean-prot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.pmd-clean-prot-empty {
+  color: var(--pmd-c-text-muted, #888);
+  font-size: 0.85rem;
+  padding: 0.3rem 0;
+}
+.pmd-clean-prot-row,
+.pmd-clean-prot-addrow {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.pmd-clean-prot-addrow {
+  flex-wrap: wrap;
+}
+.pmd-clean-prot-input {
+  flex: 1 1 12rem;
+  min-width: 8rem;
+  font: inherit;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--pmd-c-border, #ccc);
+  border-radius: 6px;
+  background: var(--pmd-c-surface, #fff);
+  color: var(--pmd-c-text, inherit);
+}
+.pmd-clean-prot-remove {
+  flex: 0 0 auto;
+}
+.pmd-clean-prot-picklist {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--pmd-c-border-soft, #ddd);
+  border-radius: 6px;
+  padding: 0.4rem;
 }
 
 .pmd-reference-overlay {

@@ -342,6 +342,9 @@ export interface StyleInfo {
   name: string | null;
   /** `w:type` attr: 'paragraph' | 'character' | 'table' | 'numbering'. */
   type: string | null;
+  /** Outline level from the style's `<w:pPr>/<w:outlineLvl>`, or null. Used to
+   *  place legacy heading styles at the right level. */
+  outlineLevel?: number | null;
 }
 
 /** styleId → parsed style metadata, built from `word/styles.xml`. */

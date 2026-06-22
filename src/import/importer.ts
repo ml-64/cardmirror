@@ -37,8 +37,10 @@ import {
   PSTYLE_TO_NODE,
   RSTYLE_TO_MARK,
   fallbackNodeType,
+  type StyleInfo,
   type StyleMap,
 } from '../ooxml/styles.js';
+import { buildLegacyHeadingMap, isUnambiguousLegacy, legacyRole } from '../ooxml/legacy-styles.js';
 
 interface ParaInfo {
   /** Schema node type to use for this paragraph (resolved from pStyle). */
@@ -107,6 +109,19 @@ interface ImportContext {
    *  wasn't provided. Used to classify paragraphs whose pStyle isn't a
    *  canonical styleId (e.g. analytics authored under other templates). */
   styles: StyleMap;
+  /** Legacy-style plan for this document, or null when it doesn't use the
+   *  classic pre-Verbatim paragraph styles. Decides how legacy paragraph
+   *  styles map to schema nodes (see planLegacy / resolveNodeType). */
+  legacy: LegacyPlan | null;
+}
+
+/** How a legacy (pre-Verbatim) document's paragraph styles map to schema nodes.
+ *  Mirrors the cleaner's legacy-remap so an imported legacy doc and a cleaned
+ *  one land on the same structure. */
+interface LegacyPlan {
+  /** Schema node type for a legacy heading-role style at the given effective
+   *  outline level (pocket / hat / block / tag). */
+  headingNode: (outline: number) => string;
 }
 
 /** Public entry: parse document.xml + rels into a schema doc. */
@@ -124,6 +139,7 @@ export function importDoc(
     commentRangeStack: [],
     mediaParts,
     styles: stylesXml ? parseStyles(stylesXml) : new Map(),
+    legacy: null,
   };
 
   const root = parseXml(documentXml);
@@ -134,6 +150,7 @@ export function importDoc(
   if (!body) throw new Error('Missing <w:body>');
 
   const bodyChildren = childrenOf(body, 'w:body');
+  ctx.legacy = planLegacy(bodyChildren, ctx.styles);
   const paragraphs: ParaInfo[] = [];
   const collectBlocks = (children: ReturnType<typeof childrenOf>): void => {
     for (const node of children) {
@@ -196,9 +213,20 @@ function parseStyles(stylesXml: string): StyleMap {
     const id = a['w:styleId'];
     if (!id) continue;
     const type = a['w:type'] ?? null;
-    const nameEl = findChild(childrenOf(st, 'w:style'), 'w:name');
+    const stChildren = childrenOf(st, 'w:style');
+    const nameEl = findChild(stChildren, 'w:name');
     const name = nameEl ? (attrsOf(nameEl)['w:val'] ?? null) : null;
-    map.set(id, { id, name, type });
+    // Outline level (legacy heading styles carry it here, not on the paragraph).
+    let outlineLevel: number | null = null;
+    const pPrEl = findChild(stChildren, 'w:pPr');
+    if (pPrEl) {
+      const olEl = findChild(childrenOf(pPrEl, 'w:pPr'), 'w:outlineLvl');
+      if (olEl) {
+        const n = parseInt(attrsOf(olEl)['w:val'] ?? '', 10);
+        if (Number.isFinite(n)) outlineLevel = n;
+      }
+    }
+    map.set(id, { id, name, type, outlineLevel });
   }
   return map;
 }
@@ -267,7 +295,7 @@ function parseParagraph(pNode: XmlNode, ctx: ImportContext): ParaInfo {
     collectInlines(c, ctx, inlines);
   }
 
-  const nodeType = resolveNodeType(pStyle, ctx.styles);
+  const nodeType = resolveNodeType(pStyle, ctx, pPr);
 
   return { nodeType, inlines, headingId, pStyle, indent, spacing };
 }
@@ -528,7 +556,7 @@ function collectInlines(node: XmlNode, ctx: ImportContext, out: PMNode[]): void 
 function parseRun(rNode: XmlNode, ctx: ImportContext, out: PMNode[]): void {
   const rChildren = childrenOf(rNode, 'w:r');
   const rPrEl = findChild(rChildren, 'w:rPr');
-  const baseMarks = rPrEl ? [...parseRPr(rPrEl).marks] : [];
+  const baseMarks = rPrEl ? [...parseRPr(rPrEl, ctx.styles).marks] : [];
 
   // Compute the live marks at the moment of emitting a text node.
   // Field state can change mid-run when `<w:fldChar>` appears between
@@ -753,7 +781,7 @@ interface ParsedRPr {
  * <w:r>. When it's a child of <w:pPr>, it describes the paragraph mark
  * (¶) only — see parseParagraph, which deliberately ignores pPr/rPr.
  */
-function parseRPr(rPr: XmlNode): ParsedRPr {
+function parseRPr(rPr: XmlNode, styles?: StyleMap): ParsedRPr {
   const marks: Mark[] = [];
   const props = childrenOf(rPr, 'w:rPr');
   // Direct <w:u/> is deferred — we decide between underline_mark and
@@ -775,9 +803,16 @@ function parseRPr(rPr: XmlNode): ParsedRPr {
     switch (tag) {
       case 'w:rStyle': {
         const styleId = a['w:val'];
-        if (styleId && styleId in RSTYLE_TO_MARK) {
-          const markName = RSTYLE_TO_MARK[styleId]!;
-          marks.push(schema.marks[markName]!.create());
+        if (styleId) {
+          let markName: string | undefined = RSTYLE_TO_MARK[styleId];
+          if (!markName) {
+            // Legacy character style (Author-Date, Debate Underline, …) not in
+            // the canonical map — classify via the shared legacy vocabulary.
+            const role = legacyRole({ id: styleId, name: styles?.get(styleId)?.name ?? null });
+            if (role === 'char-cite') markName = 'cite_mark';
+            else if (role === 'char-underline') markName = 'underline_mark';
+          }
+          if (markName) marks.push(schema.marks[markName]!.create());
         }
         // Unknown / empty rStyles are dropped (stylepox cleanup).
         break;
@@ -895,7 +930,90 @@ function parseRPr(rPr: XmlNode): ParsedRPr {
   return { marks };
 }
 
-function resolveNodeType(pStyle: string | null, styles: StyleMap): string {
+/** Verbatim heading level number (1–5, as returned by buildLegacyHeadingMap)
+ *  → schema node type. */
+const HEADING_LEVEL_NODE: Record<number, string> = {
+  1: 'pocket',
+  2: 'hat',
+  3: 'block',
+  4: 'tag',
+  5: 'block',
+};
+
+/** Whether the document already defines the modern Verbatim required styles —
+ *  i.e. a "mixed" doc, whose legacy headings are read by outline level rather
+ *  than having their depth inferred. */
+function hasVerbatimStyles(styles: StyleMap): boolean {
+  const ids = new Set<string>();
+  const names = new Set<string>();
+  for (const s of styles.values()) {
+    ids.add(s.id);
+    if (s.name) names.add(s.name);
+  }
+  const groups = [
+    ['Style13ptBold', 'Style 13 pt Bold'],
+    ['StyleUnderline', 'Style Underline'],
+    ['Emphasis'],
+  ];
+  return groups.every((vs) => vs.some((v) => ids.has(v) || names.has(v)));
+}
+
+/** Effective outline level of a paragraph: a direct `<w:outlineLvl>` override,
+ *  else the style's own level (-1 when neither is present). */
+function paragraphOutline(pPr: XmlNode | null, info: StyleInfo | undefined): number {
+  if (pPr) {
+    const olEl = findChild(childrenOf(pPr, 'w:pPr'), 'w:outlineLvl');
+    if (olEl) {
+      const n = parseInt(attrsOf(olEl)['w:val'] ?? '', 10);
+      if (Number.isFinite(n)) return n;
+    }
+  }
+  return info?.outlineLevel ?? -1;
+}
+
+/** Decide how this document's legacy paragraph styles map to schema nodes.
+ *  Returns null unless the body actually USES an unambiguously-legacy paragraph
+ *  style (so files that merely share Word's heading names are unaffected).
+ *  Mirrors the cleaner's legacy-remap: tags anchor at Heading 4, and the
+ *  organizational headings get a level by outline (mixed) or by inferred depth
+ *  (pure pre-Verbatim). */
+function planLegacy(bodyChildren: XmlNode[], styles: StyleMap): LegacyPlan | null {
+  let tripped = false;
+  const headingLevels = new Set<number>();
+  for (const node of bodyChildren) {
+    if (!('w:p' in node)) continue;
+    const pPr = findChild(childrenOf(node, 'w:p'), 'w:pPr');
+    const pStyleEl = pPr ? findChild(childrenOf(pPr, 'w:pPr'), 'w:pStyle') : null;
+    const pStyle = pStyleEl ? (attrsOf(pStyleEl)['w:val'] ?? null) : null;
+    if (!pStyle) continue;
+    const info = styles.get(pStyle);
+    const lookup = { name: info?.name ?? null, id: pStyle };
+    const role = legacyRole(lookup);
+    if (!role) continue;
+    if (isUnambiguousLegacy(lookup)) tripped = true;
+    if (role === 'heading') headingLevels.add(paragraphOutline(pPr, info));
+  }
+  if (!tripped) return null;
+  const levelFor = buildLegacyHeadingMap(headingLevels, hasVerbatimStyles(styles));
+  return {
+    headingNode: (outline) => HEADING_LEVEL_NODE[levelFor(outline)] ?? 'block',
+  };
+}
+
+function resolveNodeType(pStyle: string | null, ctx: ImportContext, pPr: XmlNode | null): string {
+  const info = pStyle ? ctx.styles.get(pStyle) : undefined;
+
+  // Legacy document: classify legacy paragraph styles first, so a legacy
+  // heading — even Word's own "Heading 1" — follows the document's inferred
+  // hierarchy rather than its literal Word level. Cites/cards fall through to
+  // 'paragraph' and the card-grouping pass reclassifies them.
+  if (ctx.legacy && pStyle) {
+    const role = legacyRole({ name: info?.name ?? null, id: pStyle });
+    if (role === 'tag') return 'tag';
+    if (role === 'heading') return ctx.legacy.headingNode(paragraphOutline(pPr, info));
+    if (role === 'cite' || role === 'body') return 'paragraph';
+  }
+
   if (pStyle && pStyle in PSTYLE_TO_NODE) {
     return PSTYLE_TO_NODE[pStyle]!;
   }
@@ -903,8 +1021,7 @@ function resolveNodeType(pStyle: string | null, styles: StyleMap): string {
   // authored under a non-canonical style). Synthesize a minimal StyleInfo
   // when styles.xml is absent so the styleId-based rules still fire.
   if (pStyle) {
-    const info = styles.get(pStyle) ?? { id: pStyle, name: null, type: null };
-    const fallback = fallbackNodeType(info);
+    const fallback = fallbackNodeType(info ?? { id: pStyle, name: null, type: null });
     if (fallback) return fallback;
   }
   // No pStyle (or unknown) → treat as plain Normal paragraph.

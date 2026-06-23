@@ -23,6 +23,7 @@ import type { EditorState, Transaction } from 'prosemirror-state';
 import { Fragment, type Node as PMNode, Slice } from 'prosemirror-model';
 import { newHeadingId } from '../schema/ids.js';
 import { preciseScrollIntoView } from './precise-scroll.js';
+import { READ_MODE_DRAG_META } from './reading-marker.js';
 
 export interface DragItem {
   /** Doc position range covering the dragged unit (heading + its
@@ -219,7 +220,7 @@ class DragControllerImpl {
       // Land the caret on the top of the dropped section, then jump the
       // viewport to it exactly like clicking that heading in the nav pane.
       selectTopOfInsert(tr, insertPos);
-      tgtView.dispatch(tr);
+      tgtView.dispatch(tr.setMeta(READ_MODE_DRAG_META, true));
       // Move focus to the destination so subsequent edits land here.
       tgtView.focus();
       scrollToDroppedTop(tgtView);
@@ -237,7 +238,7 @@ class DragControllerImpl {
       this.cancel();
       return false;
     }
-    srcView.dispatch(tr);
+    srcView.dispatch(tr.setMeta(READ_MODE_DRAG_META, true));
     // Focus so PM syncs the DOM caret to the transaction's selection (the
     // front of the dropped heading); without this the visible cursor is
     // left wherever it was before the drag. Then jump the viewport.

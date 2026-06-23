@@ -19,6 +19,8 @@ import {
   type DragItem,
 } from '../drag-controller.js';
 import { schema } from '../../schema/index.js';
+import { readModePlugin } from '../read-mode-plugin.js';
+import { READ_MODE_DRAG_META } from '../reading-marker.js';
 import { setIcon } from '../icons';
 import { typeBadge, dropzoneDragLevel } from '../dropzone-ui.js';
 import { settings } from '../settings.js';
@@ -351,8 +353,14 @@ export class ReceivePillController {
       return;
     }
     const rewritten = rewriteHeadingIds(slice);
-    const insertPos = atEnd ? view.state.doc.content.size : view.state.selection.head;
-    const tr = view.state.tr.insert(insertPos, rewritten.content);
+    // In read mode there's no editing caret to target, so a click appends to
+    // the bottom of the doc rather than the cursor.
+    const inReadMode = readModePlugin.getState(view.state)?.on === true;
+    const insertPos =
+      atEnd || inReadMode ? view.state.doc.content.size : view.state.selection.head;
+    const tr = view.state.tr
+      .insert(insertPos, rewritten.content)
+      .setMeta(READ_MODE_DRAG_META, true);
     view.dispatch(tr.scrollIntoView());
     view.focus();
   }

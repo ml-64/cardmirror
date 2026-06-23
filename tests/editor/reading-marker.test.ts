@@ -9,6 +9,7 @@ import {
   buildToggleReadingMarkerTransaction,
   READING_MARKER_COLOR,
   READING_MARKER_META,
+  READ_MODE_DRAG_META,
 } from '../../src/editor/reading-marker.js';
 import { history } from 'prosemirror-history';
 import {
@@ -116,6 +117,13 @@ describe('read mode edit lock (filterTransaction)', () => {
   it('allows a transaction flagged as the reading marker', () => {
     const s = readModeState('hello world', 5);
     const tr = s.tr.insertText('Z', s.selection.head).setMeta(READING_MARKER_META, true);
+    const after = s.applyTransaction(tr).state;
+    expect(after.doc.textContent).toContain('Z');
+  });
+
+  it('allows a drag/shelf edit (drag-move, dropzone, receive pill)', () => {
+    const s = readModeState('hello world', 5);
+    const tr = s.tr.insertText('Z', s.selection.head).setMeta(READ_MODE_DRAG_META, true);
     const after = s.applyTransaction(tr).state;
     expect(after.doc.textContent).toContain('Z');
   });

@@ -42,6 +42,7 @@ import {
   isReadingMarkerColor,
   READING_MARKER_META,
   READ_MODE_UNDO_META,
+  READ_MODE_DRAG_META,
 } from './reading-marker.js';
 
 /** Meta key used to flip read mode on or off for a specific view.
@@ -93,8 +94,11 @@ export const readModePlugin: Plugin<ReadModeState> = new Plugin<ReadModeState>({
       if (!tr.docChanged) return prev;
       if (!prev.on) return prev;
 
-      // A marker edit (not an undo/redo) dirties read mode → redo is allowed.
-      const dirtied = prev.dirtied || tr.getMeta(READING_MARKER_META) === true;
+      // A marker or drag edit (not an undo/redo) dirties read mode → redo is allowed.
+      const dirtied =
+        prev.dirtied ||
+        tr.getMeta(READING_MARKER_META) === true ||
+        tr.getMeta(READ_MODE_DRAG_META) === true;
 
       const range = changedRange(tr);
       if (!range) {
@@ -134,13 +138,18 @@ export const readModePlugin: Plugin<ReadModeState> = new Plugin<ReadModeState>({
     },
   },
   // Read mode's lock: while on, reject any document change except the
-  // reading-marker edit and the (already-bounded) marker undo/redo.
-  // Selection moves and meta-only transactions (no doc change) pass, so the
-  // cursor stays usable for placing a marker.
+  // reading-marker edit, the (already-bounded) marker undo/redo, and
+  // drag-move / dropzone / receive-pill insertions (position-validated by the
+  // drag controller, so safe while reading). Selection moves and meta-only
+  // transactions (no doc change) pass, so the cursor stays usable.
   filterTransaction(tr, state) {
     if (!readModePlugin.getState(state)?.on) return true;
     if (!tr.docChanged) return true;
-    return tr.getMeta(READING_MARKER_META) === true || tr.getMeta(READ_MODE_UNDO_META) === true;
+    return (
+      tr.getMeta(READING_MARKER_META) === true ||
+      tr.getMeta(READ_MODE_UNDO_META) === true ||
+      tr.getMeta(READ_MODE_DRAG_META) === true
+    );
   },
 });
 

@@ -1077,8 +1077,9 @@ export class NavigationPanel {
       }
       // 5px threshold — below this, count as a click, not a drag.
       if (dx * dx + dy * dy < 25) return;
-      // Read mode disables drag (but lets clicks still navigate).
-      if (settings.get('readMode')) return;
+      // Drag-reorder is allowed even in read mode: the drop is position-
+      // validated and the resulting transaction is read-mode-permitted (see
+      // READ_MODE_DRAG_META). A click below the threshold still just navigates.
       this.startDrag();
     }
 

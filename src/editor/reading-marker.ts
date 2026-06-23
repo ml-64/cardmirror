@@ -33,6 +33,11 @@ export const READING_MARKER_META = 'readingMarker';
  *  passes `filterTransaction`. */
 export const READ_MODE_UNDO_META = 'readModeUndo';
 
+/** Meta flag on drag-move / dropzone / receive-pill insertions. These are
+ *  position-validated by the drag controller, so read mode lets them through
+ *  too — moving and shelf-inserting cards is safe even while reading. */
+export const READ_MODE_DRAG_META = 'readModeDragEdit';
+
 /** True when a `font_color` value is the reading-marker red. */
 export function isReadingMarkerColor(color: string | undefined | null): boolean {
   return (color ?? '').toUpperCase() === READING_MARKER_COLOR;

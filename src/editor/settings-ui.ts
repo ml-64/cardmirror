@@ -42,6 +42,7 @@ import { TRANSLATION_LANGUAGES } from './translate.js';
 import { getHost, getElectronHost, isWindowsHost } from './host/index.js';
 import { pushOverlay, popOverlay, isTopOverlay } from './overlay-stack.js';
 import { getInstallInfo } from './install-info.js';
+import { launchBenchmarkOverlay } from './benchmark-ui.js';
 import { resetTimer } from './timer-state.js';
 import { showToast } from './toast.js';
 import { setIcon } from './icons';
@@ -172,6 +173,7 @@ export const CATEGORY_TABS: { id: SettingsCategory; label: string }[] = [
   { id: 'shortcuts', label: 'Keyboard' },
   { id: 'comments-ai', label: 'Comments & AI' },
   { id: 'pairing', label: 'Card Sharing' },
+  { id: 'benchmark', label: 'Benchmark' },
   // Accessibility intentionally lives at the far right — its
   // override-anything panel is a "last-resort" customization
   // surface, separated from the everyday tabs.
@@ -429,11 +431,16 @@ class SettingsModal {
         }
         panel.appendChild(row);
       }
-      if (entries.length === 0) {
+      if (entries.length === 0 && id !== 'benchmark') {
         const empty = document.createElement('p');
         empty.className = 'pmd-settings-empty';
         empty.textContent = 'No settings in this section yet.';
         panel.appendChild(empty);
+      }
+      // The Benchmark tab isn't settings — it's an action surface (run the
+      // in-app perf suite). Built here for the same reason install-info is.
+      if (id === 'benchmark') {
+        panel.appendChild(buildBenchmarkSection(() => this.close()));
       }
       // "About this install" diagnostic block at the bottom of
       // General — read-only labels users can copy-paste into bug
@@ -1336,6 +1343,40 @@ function buildInstallInfoSection(): HTMLElement {
 
     wrap.appendChild(actions);
   }
+
+  return wrap;
+}
+
+/** Settings → Benchmark: a game-style in-app perf suite. The button closes the
+ *  dialog first (the editor must be visible — occluded content gets its paints
+ *  culled, which would falsify the frame times) and launches the overlay. */
+function buildBenchmarkSection(closeDialog: () => void): HTMLElement {
+  const wrap = document.createElement('section');
+  wrap.className = 'pmd-bench-settings';
+
+  const heading = document.createElement('div');
+  heading.className = 'pmd-install-info-heading';
+  heading.textContent = 'Performance benchmark';
+  wrap.appendChild(heading);
+
+  const blurb = document.createElement('p');
+  blurb.className = 'pmd-settings-help';
+  blurb.textContent =
+    'Runs a battery of real in-editor operations on the currently open document ' +
+    '— scrolling, jumping between headings, and a full relayout — and reports ' +
+    'frame rate, frame-time percentiles, and latencies. Open your test document ' +
+    'first (a large one tells the most). The editor is driven on screen while it ' +
+    'runs, so leave it visible.';
+  wrap.appendChild(blurb);
+
+  const run = document.createElement('button');
+  run.className = 'pmd-settings-btn pmd-bench-run';
+  run.textContent = 'Run benchmark';
+  run.addEventListener('click', () => {
+    closeDialog();
+    void launchBenchmarkOverlay();
+  });
+  wrap.appendChild(run);
 
   return wrap;
 }

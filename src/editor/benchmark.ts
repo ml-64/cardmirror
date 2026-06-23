@@ -252,6 +252,23 @@ function nodePos(
 const findById = (doc: ProseNode, id: string): { node: ProseNode; pos: number } | null =>
   nodePos(doc, (n) => n.attrs?.['id'] === id);
 
+/** The cite_paragraph inside the card owning `tagId`, found by SEARCH (not
+ *  position arithmetic) — the live editor's normalization plugins can insert a
+ *  card_body that shifts the cite off the computed offset, so we locate it by
+ *  structure instead. */
+function findMyCite(doc: ProseNode, tagId: string): { node: ProseNode; pos: number } | null {
+  const found = cardOfTag(doc, tagId);
+  if (!found) return null;
+  const { card, cardPos } = found;
+  let result: { node: ProseNode; pos: number } | null = null;
+  card.forEach((child, offset) => {
+    if (!result && child.type.name === 'cite_paragraph') {
+      result = { node: child, pos: cardPos + 1 + offset };
+    }
+  });
+  return result;
+}
+
 function cardOfTag(doc: ProseNode, tagId: string): { card: ProseNode; cardPos: number } | null {
   const tg = findById(doc, tagId);
   if (!tg) return null;
@@ -449,15 +466,11 @@ async function benchEdit(
   await measureStep(
     'Cite mark on author/date',
     () => {
-      const tg = findById(view.state.doc, tagId);
-      if (!tg) throw new Error('tag missing');
-      const at = tg.pos + tg.node.nodeSize;
-      const cite = view.state.doc.nodeAt(at);
-      if (!cite || cite.type.name !== 'cite_paragraph') throw new Error('cite missing');
-      // Interior range (skip the textblock's first/last position) — selecting the
-      // exact content boundaries trips withGapFix's edge merge.
-      const from = at + 2;
-      const to = at + cite.content.size;
+      const c = findMyCite(view.state.doc, tagId);
+      if (!c) throw new Error('cite missing');
+      // Interior range (skip the textblock's first/last position).
+      const from = c.pos + 2;
+      const to = c.pos + c.node.content.size;
       if (to <= from) throw new Error('cite too short');
       const tr = view.state.tr.addMark(from, to, sch.marks['cite_mark']!.create());
       tr.setSelection(TextSelection.create(tr.doc, from, to)).scrollIntoView();
@@ -470,13 +483,10 @@ async function benchEdit(
   await measureStep(
     'Paste a real card body',
     () => {
-      const tg = findById(view.state.doc, tagId);
-      if (!tg) throw new Error('tag missing');
-      const at = tg.pos + tg.node.nodeSize;
-      const cite = view.state.doc.nodeAt(at);
-      if (!cite || cite.type.name !== 'cite_paragraph') throw new Error('cite missing');
+      const c = findMyCite(view.state.doc, tagId);
+      if (!c) throw new Error('cite missing');
       // Insert as a new card_body block right AFTER the cite (below it, in the card).
-      const after = at + cite.nodeSize;
+      const after = c.pos + c.node.nodeSize;
       const cb = sch.nodes['card_body']!.create(null, sch.text(SAMPLE_TEXT));
       const tr = view.state.tr.insert(after, cb);
       tr.setSelection(TextSelection.create(tr.doc, after + 1)).scrollIntoView();

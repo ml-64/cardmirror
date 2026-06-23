@@ -608,9 +608,17 @@ ipcMain.handle(
         return; // unreadable dir — skip
       }
       for (const ent of entries) {
-        const full = path.join(cur, ent.name);
-        if (ent.isDirectory()) await walk(full);
-        else if (ent.isFile() && ent.name.toLowerCase().endsWith(suffix)) {
+        const name = ent.name;
+        // Skip OS/Office junk that shares the extension but isn't a real
+        // document: Word lock/owner files (~$…), macOS AppleDouble sidecars
+        // (._…), and the __MACOSX metadata folder mac zips leave behind. These
+        // aren't valid zips and would otherwise each surface as a scary error.
+        if (name.startsWith('~$') || name.startsWith('._')) continue;
+        const full = path.join(cur, name);
+        if (ent.isDirectory()) {
+          if (name === '__MACOSX') continue;
+          await walk(full);
+        } else if (ent.isFile() && name.toLowerCase().endsWith(suffix)) {
           out.push({ path: full, relPath: path.relative(dir, full) });
         }
       }

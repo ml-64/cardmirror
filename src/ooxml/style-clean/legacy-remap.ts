@@ -92,8 +92,13 @@ export function remapLegacyStyles(doc: OoxmlDoc, opts: RemapOptions): boolean {
   doc.injectMissingStyles(CANONICAL_STYLES_XML);
 
   // 4. Heading outline level → canonical style id.
+  // Cap at Heading4: the canonical injectable set tops out at Heading4. The
+  // shared map can yield 5 (the importer has a Heading5→block rule), but the
+  // cleaner has no Heading5 style to assign, so a deeper heading normalizes to
+  // the deepest Verbatim level rather than throwing.
   const headingLevelFor = buildLegacyHeadingMap(headingLevels, opts.mixedMode);
-  const headingIdFor = (outline: number): string => `Heading${headingLevelFor(outline)}`;
+  const headingIdFor = (outline: number): string =>
+    `Heading${Math.min(headingLevelFor(outline), 4)}`;
 
   // 5. Apply.
   for (const paragraph of doc.paragraphs) {

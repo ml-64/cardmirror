@@ -263,34 +263,48 @@ async function attemptTextConversion(
   //    "analytics", etc. convert too (the original matched capital-A only).
   const isAnalyticName = (nm: string | null): boolean =>
     convertAnalytics && nm !== null && nm.toLowerCase().includes('analytic');
+  // Reassigning a paragraph to a canonical heading needs that style present. It
+  // usually is (injected when the required styles are missing, or already in the
+  // doc), but a doc that HAS the required styles can still lack a specific
+  // HeadingN — python-docx treats built-in headings as always-available; our
+  // shim doesn't. Inject the canonical set on demand (idempotent) so the lookup
+  // can't throw and the reassigned paragraph gets a real style definition.
+  const ensureHeadingStyle = (id: string) => {
+    try {
+      return doc.styles.get(id);
+    } catch {
+      doc.injectMissingStyles(CANONICAL_STYLES_XML);
+      return doc.styles.get(id);
+    }
+  };
   for (const paragraph of doc.paragraphs) {
     if (isProtected(paragraph.style.name)) continue; // protected paragraph style — don't reassign
     const outline = paragraph.effectiveOutlineLevel();
     if (outline === 0 && paragraph.runs.some((r) => r.bold === true && r.font.sizePt === 26)) {
-      paragraph.style = doc.styles.get('Heading1');
+      paragraph.style = ensureHeadingStyle('Heading1');
     } else if (outline === 1 && paragraph.runs.some((r) => r.bold === true && r.font.sizePt === 22)) {
-      paragraph.style = doc.styles.get('Heading2');
+      paragraph.style = ensureHeadingStyle('Heading2');
     } else if (
       outline === 2 &&
       paragraph.runs.some((r) => r.bold === true && r.underline === true && r.font.sizePt === 16)
     ) {
-      paragraph.style = doc.styles.get('Heading3');
+      paragraph.style = ensureHeadingStyle('Heading3');
     } else if (outline === 3) {
       if (isAnalyticName(paragraph.style.name)) {
         try {
           paragraph.style = doc.styles.get('Analytic');
         } catch {
-          paragraph.style = doc.styles.get('Heading4');
+          paragraph.style = ensureHeadingStyle('Heading4');
         }
       } else if (paragraph.effectivelyBold()) {
         // Effective bold (direct, or inherited from the style chain) → Tag.
-        paragraph.style = doc.styles.get('Heading4');
+        paragraph.style = ensureHeadingStyle('Heading4');
       }
     } else if (isAnalyticName(paragraph.style.name)) {
       try {
         paragraph.style = doc.styles.get('Analytic');
       } catch {
-        paragraph.style = doc.styles.get('Heading4');
+        paragraph.style = ensureHeadingStyle('Heading4');
       }
     }
   }

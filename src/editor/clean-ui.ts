@@ -560,6 +560,7 @@ class CleanModal {
         }
         let ok = 0;
         let failed = 0;
+        let invalid = 0;
         for (let i = 0; i < files.length; i++) {
           const f = files[i]!;
           this.setProgress(0, 1);
@@ -574,12 +575,25 @@ class CleanModal {
             await electron.writeFileAtPath(joinPath(destRoot, cleanedRel(f.relPath)), cleaned);
             ok++;
           } catch (err) {
-            failed++;
-            console.error('Clean failed for', f.path, err);
+            const msg = err instanceof Error ? err.message : String(err);
+            // A file that isn't a readable .docx zip (empty, truncated, or a
+            // non-document) is "skipped", not "failed" — separate it out so a
+            // few corrupt files (e.g. zero-byte cloud conflict copies) don't
+            // read as cleaning failures.
+            if (/central directory|corrupted zip|end of data|is this a zip/i.test(msg)) {
+              invalid++;
+              console.warn('Skipped (not a valid .docx):', f.path);
+            } else {
+              failed++;
+              console.error('Clean failed for', f.path, err);
+            }
           }
         }
         this.setProgress(1, 1);
-        this.setStatus(`Done — ${ok} cleaned${failed ? `, ${failed} failed (see console)` : ''}.`);
+        const parts = [`${ok} cleaned`];
+        if (invalid) parts.push(`${invalid} skipped (not a valid .docx)`);
+        if (failed) parts.push(`${failed} failed (see console)`);
+        this.setStatus(`Done — ${parts.join(', ')}.`);
       }
     } catch (err) {
       this.setStatus(`Failed: ${err instanceof Error ? err.message : String(err)}`);

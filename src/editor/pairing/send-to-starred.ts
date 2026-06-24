@@ -6,7 +6,7 @@
  */
 
 import type { EditorView } from 'prosemirror-view';
-import { settings } from '../settings.js';
+import { settings, type PairingPartner, type PairingGroup } from '../settings.js';
 import { resolveSendSlice } from '../speech-doc-send.js';
 import { deriveDropzoneLabel } from '../dropzone-store.js';
 import { showToast } from '../toast.js';
@@ -14,20 +14,24 @@ import { relayClient, type SendItem } from './relay-client.js';
 
 /** Resolve the starred ref → recipient codes + a display label (groups also
  *  carry a `via` label). Returns null when nothing is starred or the starred
- *  recipient/group no longer exists. */
-function resolveStarredTarget(): { codes: string[]; label: string; via?: string } | null {
-  const star = settings.get('pairingStarred');
+ *  recipient/group no longer exists. Pure (takes the pairing lists) so it can be
+ *  unit-tested. */
+export function resolveStarredTarget(
+  star: { kind: 'partner' | 'group'; ref: string } | null,
+  partners: readonly PairingPartner[],
+  groups: readonly PairingGroup[],
+): { codes: string[]; label: string; via?: string } | null {
   if (!star) return null;
-  const partners = settings.get('pairingPartners').filter((p) => p.code);
+  const known = partners.filter((p) => p.code);
   if (star.kind === 'partner') {
-    const p = partners.find((x) => x.code === star.ref);
+    const p = known.find((x) => x.code === star.ref);
     if (!p) return null;
     return { codes: [p.code], label: p.name || p.code };
   }
-  const g = settings.get('pairingGroups').find((x) => x.id === star.ref);
+  const g = groups.find((x) => x.id === star.ref);
   if (!g) return null;
   // Re-filter members against current partners (one may have been removed).
-  const codes = g.memberCodes.filter((c) => partners.some((p) => p.code === c));
+  const codes = g.memberCodes.filter((c) => known.some((p) => p.code === c));
   return { codes, label: g.label || 'Group', via: g.label };
 }
 
@@ -35,7 +39,11 @@ function resolveStarredTarget(): { codes: string[]; label: string; via?: string 
  *  Silently no-ops when nothing is starred; toasts when sharing is off or the
  *  starred group has no reachable members. */
 export async function sendViewToStarred(view: EditorView): Promise<void> {
-  const target = resolveStarredTarget();
+  const target = resolveStarredTarget(
+    settings.get('pairingStarred'),
+    settings.get('pairingPartners'),
+    settings.get('pairingGroups'),
+  );
   if (!target) return; // nothing starred (or the starred target was deleted) → no-op
   if (!settings.get('pairingEnabled')) {
     showToast('Card sharing is off');

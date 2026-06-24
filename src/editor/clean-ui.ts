@@ -56,7 +56,7 @@ function joinPath(dir: string, rel: string): string {
 
 /** Prefix the basename of a relative path with `cleaned_` (so output never
  *  overwrites a source file even if the destination is the source folder). */
-function cleanedRel(rel: string): string {
+export function cleanedRel(rel: string): string {
   const norm = rel.replace(/\\/g, '/');
   const slash = norm.lastIndexOf('/');
   const dir = slash >= 0 ? norm.slice(0, slash + 1) : '';
@@ -68,6 +68,24 @@ function cleanedRel(rel: string): string {
 function dirName(p: string): string {
   const m = p.replace(/[\\/]+$/, '').match(/^(.*)[\\/][^\\/]*$/);
   return m ? m[1]! : '';
+}
+
+/** Whether the given Clean options would write over the source files — i.e. NOT
+ *  prepending `cleaned_`, AND the destination resolves to the source's own
+ *  folder (the default null destination, or a chosen folder equal to the
+ *  source). Prepending always writes new files; a different destination writes
+ *  copies there. Pure (no view) so it can be unit-tested. */
+export function cleanOverwritesInPlace(opts: {
+  prepend: boolean;
+  inputKind: 'file' | 'folder';
+  inputPath: string;
+  outputDir: string | null;
+}): boolean {
+  if (opts.prepend) return false;
+  const norm = (p: string): string => p.replace(/[\\/]+$/, '');
+  const sourceRoot = opts.inputKind === 'file' ? dirName(opts.inputPath) : opts.inputPath;
+  const dest = opts.outputDir ?? sourceRoot;
+  return norm(dest) === norm(sourceRoot);
 }
 
 class CleanModal {
@@ -550,20 +568,16 @@ class CleanModal {
 
   // ── Overwrite gating ──────────────────────────────────────────────
 
-  private static normPath(p: string): string {
-    return p.replace(/[\\/]+$/, '');
-  }
-
-  /** True when the current options would write over the source files: not
-   *  prepending `cleaned_`, and the destination is the originals' own folder
-   *  (the default, or a chosen folder equal to the source). Prepending always
-   *  writes new files; a different destination writes copies there. */
+  /** True when the current options would write over the source files. Delegates
+   *  to the pure `cleanOverwritesInPlace`. */
   private wouldOverwriteInPlace(): boolean {
-    if (this.prepend || !this.inputSel) return false;
-    const sourceRoot =
-      this.inputSel.kind === 'file' ? dirName(this.inputSel.path) : this.inputSel.path;
-    const dest = this.outputDir ?? sourceRoot;
-    return CleanModal.normPath(dest) === CleanModal.normPath(sourceRoot);
+    if (!this.inputSel) return false;
+    return cleanOverwritesInPlace({
+      prepend: this.prepend,
+      inputKind: this.inputSel.kind,
+      inputPath: this.inputSel.path,
+      outputDir: this.outputDir,
+    });
   }
 
   /** Clean-button handler: gate an in-place overwrite behind a typed

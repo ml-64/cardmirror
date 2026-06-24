@@ -28,6 +28,14 @@ see `DETAILED_CHANGELOG.md`.
   you can place it again. Rebind them under Settings → Keyboard shortcuts, in the
   **Dropzone / Send and Receive Cards** group.
 
+- **Star a recipient and send to them in one keystroke.** In Settings → Card
+  Sharing you can now **star** one recipient or group. A new **Send to Starred**
+  command then sends the card under your cursor (or the current selection)
+  straight to that starred target — like Send to Dropzone, but to a person. It
+  ships without a default key; assign one under Settings → Keyboard shortcuts (in
+  the **Dropzone / Send and Receive Cards** group). Starring a target un-stars any
+  other, and the star clears itself if you remove that recipient or group.
+
 ### Fixed
 
 - **Clean handles a whole messy library without choking.** Cleaning a large

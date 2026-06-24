@@ -81,6 +81,7 @@ import {
   notifyCommentsForActiveTransaction,
   sendViewToDropzone,
 } from './index.js';
+import { sendViewToStarred } from './pairing/send-to-starred.js';
 import { coordinatorBlocks, flashLockedLeases } from './ai/edit-coordinator.js';
 import { icon, setIcon } from './icons';
 
@@ -2046,6 +2047,14 @@ class MultiPaneShell {
     void sendViewToDropzone(sourceRec.view);
   }
 
+  /** Send the focused pane's cursor card (or selection) to the starred
+   *  recipient/group. Mirrors `sendToDropzone`, routed to the relay. */
+  sendToStarred(): void {
+    const sourceRec = this.focusedSlot?.visible;
+    if (!sourceRec) return;
+    void sendViewToStarred(sourceRec.view);
+  }
+
   sendToSpeech(atEnd: boolean): void {
     const sourceRec = this.focusedSlot?.visible;
     if (!sourceRec) return;
@@ -2449,6 +2458,7 @@ export function mountMultiPaneShell(): void {
     sendToSpeechAtCursor: () => shell!.sendToSpeech(false),
     sendToSpeechAtEnd: () => shell!.sendToSpeech(true),
     sendToDropzone: () => shell!.sendToDropzone(),
+    sendToStarred: () => shell!.sendToStarred(),
     getFocusedFilename: () => shell!.getFocusedFilename(),
     setFocusedFilename: (name) => shell!.setFocusedFilename(name),
     getFocusedFile: () => shell!.getFocusedFile(),

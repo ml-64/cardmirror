@@ -11184,6 +11184,34 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
 .pmd-pairing-delete:hover {
   background: var(--pmd-c-hover);
 }
+.pmd-pairing-star {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pmd-c-text-muted);
+  cursor: pointer;
+}
+.pmd-pairing-star:hover:not(:disabled) {
+  background: var(--pmd-c-hover);
+  color: var(--pmd-c-text);
+}
+.pmd-pairing-star[aria-pressed='true'] {
+  color: var(--pmd-c-accent);
+  border-color: var(--pmd-c-accent);
+}
+.pmd-pairing-star[aria-pressed='true'] svg {
+  fill: currentColor;
+}
+.pmd-pairing-star:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 .pmd-pairing-group {
   display: flex;
   flex-direction: column;

@@ -53,6 +53,26 @@ in each release, see `CHANGELOG.md`.
   with the existing Send-to-Dropzone command under one section,
   "Dropzone / Send and Receive Cards".
 
+- **"Send to Starred" — a one-key send to a starred recipient/group**
+  (`editor/pairing/send-to-starred.ts` new; `editor/settings.ts`,
+  `editor/settings-ui.ts`, `editor/ribbon-commands.ts`, `editor/ribbon-groups.ts`,
+  `editor/index.ts`, `editor/multi-pane-shell.ts`, `editor/style.css`). A new
+  single-valued setting `pairingStarred` (`{ kind: 'partner' | 'group'; ref } |
+  null`) holds the one starred target. Star toggles on every recipient and group
+  row in Card Sharing set it; because it's a single value, starring one inherently
+  un-stars the rest, and both editors re-render off the shared `settings.subscribe`
+  so the star moves visibly — exactly-one is enforced by the data model, not the
+  UI. `sanitizePairingStarred` clears the ref when its recipient/group no longer
+  exists. The new rebindable ribbon command `sendToStarred` (ships unbound)
+  resolves the ref to recipient codes (partner → its code; group → its members,
+  re-filtered against current partners) and sends the cursor's card — sourced
+  exactly like Send to Dropzone via `resolveSendSlice` — through
+  `relayClient.send`, building the same `{ label, type, sliceJson }` payload as the
+  Send pill. It silently no-ops when nothing is starred, and toasts only on
+  sharing-off / empty-group / send result. Wired through the `multiDocSendToStarred`
+  hook for both single-doc and multi-pane, and grouped with the other send/receive
+  commands in the keybindings editor.
+
 - **Clean — robustness on a full-library bulk run** (`apps/desktop/src/main.ts`,
   `ooxml/style-clean/legacy-remap.ts`, `ooxml/style-clean/style-cleaner.ts`,
   `editor/clean-ui.ts`). Cleaning an entire file library surfaced three failure

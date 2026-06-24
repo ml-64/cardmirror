@@ -1959,6 +1959,39 @@ function buildPairingOwnCodeEditor(): HTMLElement {
 /** Paired machines: nickname + code rows, modeled on the readers editor.
  *  A new partner starts with a placeholder name so it survives the
  *  set→sanitize round-trip while you paste its code. */
+/** Is this recipient/group the single starred "Send to Starred" target? */
+function isStarredTarget(kind: 'partner' | 'group', ref: string): boolean {
+  const s = settings.get('pairingStarred');
+  return !!s && s.kind === kind && s.ref === ref;
+}
+
+/** Star this recipient/group (un-starring whatever was starred), or un-star it
+ *  if it's already the target. Setting the single `pairingStarred` value re-fires
+ *  both editors' `settings.subscribe`, so the star visibly moves. */
+function toggleStarredTarget(kind: 'partner' | 'group', ref: string): void {
+  settings.set('pairingStarred', isStarredTarget(kind, ref) ? null : { kind, ref });
+}
+
+/** A small star toggle for a recipient/group row. Filled (via CSS) when it's the
+ *  current Send-to-Starred target. */
+function makeStarButton(starred: boolean, disabled: boolean, onToggle: () => void): HTMLButtonElement {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'pmd-pairing-star';
+  btn.setAttribute('aria-pressed', starred ? 'true' : 'false');
+  btn.disabled = disabled;
+  btn.title = starred
+    ? 'Starred — the "Send to Starred" shortcut sends here'
+    : 'Star as the "Send to Starred" target';
+  btn.innerHTML =
+    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+    'stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 ' +
+    '5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+  btn.addEventListener('click', onToggle);
+  return btn;
+}
+
 function buildPairingPartnersEditor(): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-pairing-editor';
@@ -2019,6 +2052,12 @@ function buildPairingPartnersEditor(): HTMLElement {
         );
       });
       row.appendChild(codeInput);
+
+      row.appendChild(
+        makeStarButton(isStarredTarget('partner', partner.code), !partner.code, () =>
+          toggleStarredTarget('partner', partner.code),
+        ),
+      );
 
       const delBtn = document.createElement('button');
       delBtn.type = 'button';
@@ -2095,6 +2134,12 @@ function buildPairingGroupsEditor(): HTMLElement {
         );
       });
       header.appendChild(labelInput);
+
+      header.appendChild(
+        makeStarButton(isStarredTarget('group', group.id), false, () =>
+          toggleStarredTarget('group', group.id),
+        ),
+      );
 
       const delBtn = document.createElement('button');
       delBtn.type = 'button';

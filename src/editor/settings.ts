@@ -939,6 +939,10 @@ export interface Settings {
   pairingPartners: PairingPartner[];
   /** Pairing: named groups of partners for one-drop fan-out sends. */
   pairingGroups: PairingGroup[];
+  /** Pairing: the single starred send target — a partner (by code) or a group
+   *  (by id) — that the "Send to Starred" shortcut sends to. null when nothing is
+   *  starred. Sanitize clears it if it no longer points at a live recipient. */
+  pairingStarred: { kind: 'partner' | 'group'; ref: string } | null;
   /** Pairing: how the receive pill flashes when a card arrives. */
   pairingReceiveFlash: PairingReceiveFlash;
   /** Clean: style names the .docx style cleaner must never prune, remove, or
@@ -1145,6 +1149,7 @@ const DEFAULTS: Settings = {
   pairingDisplayName: '',
   pairingPartners: [],
   pairingGroups: [],
+  pairingStarred: null,
   pairingReceiveFlash: 'once',
   cleanProtectedStyles: [],
 };
@@ -2553,6 +2558,7 @@ function sanitize(s: Settings): Settings {
       typeof s.pairingDisplayName === 'string' ? s.pairingDisplayName.trim().slice(0, 80) : '',
     pairingPartners: sanitizePairingPartners(s.pairingPartners),
     pairingGroups: sanitizePairingGroups(s.pairingGroups, s.pairingPartners),
+    pairingStarred: sanitizePairingStarred(s.pairingStarred, s.pairingPartners, s.pairingGroups),
     pairingReceiveFlash: PAIRING_RECEIVE_FLASHES.includes(s.pairingReceiveFlash)
       ? s.pairingReceiveFlash
       : 'once',
@@ -3138,6 +3144,32 @@ function sanitizePairingGroups(rawGroups: unknown, rawPartners: unknown): Pairin
     out.push({ id, label, memberCodes });
   }
   return out;
+}
+
+/** Coerce the starred send target: keep it only if it still points at a live
+ *  recipient (by code) or group (by id); otherwise clear it. */
+function sanitizePairingStarred(
+  raw: unknown,
+  rawPartners: unknown,
+  rawGroups: unknown,
+): { kind: 'partner' | 'group'; ref: string } | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const kind = (raw as { kind?: unknown }).kind;
+  const ref = String((raw as { ref?: unknown }).ref ?? '').trim();
+  if (!ref) return null;
+  if (kind === 'partner') {
+    const live = new Set(
+      sanitizePairingPartners(rawPartners)
+        .map((p) => p.code)
+        .filter(Boolean),
+    );
+    return live.has(ref) ? { kind: 'partner', ref } : null;
+  }
+  if (kind === 'group') {
+    const live = new Set(sanitizePairingGroups(rawGroups, rawPartners).map((g) => g.id));
+    return live.has(ref) ? { kind: 'group', ref } : null;
+  }
+  return null;
 }
 
 /** Singleton store. */

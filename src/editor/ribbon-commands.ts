@@ -4361,6 +4361,7 @@ export type RibbonCommandId =
   | 'sendToSpeechAtCursor'
   | 'sendToSpeechAtEnd'
   | 'sendToDropzone'
+  | 'sendToStarred'
   | 'insertReceivedAtCursor'
   | 'insertReceivedAtEnd'
   // Select / copy the cursor's enclosing structure (the current card /
@@ -4521,6 +4522,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'sendToSpeechAtCursor',
   'sendToSpeechAtEnd',
   'sendToDropzone',
+  'sendToStarred',
   'insertReceivedAtCursor',
   'insertReceivedAtEnd',
   'selectCurrentHeading',
@@ -4657,6 +4659,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   sendToSpeechAtCursor: 'Send to Speech (At Cursor)',
   sendToSpeechAtEnd: 'Send to Speech (At End)',
   sendToDropzone: 'Send to Dropzone',
+  sendToStarred: 'Send to Starred Recipient',
   insertReceivedAtCursor: 'Insert Received Card (At Cursor)',
   insertReceivedAtEnd: 'Insert Received Card (At End)',
   selectCurrentHeading: 'Select Current Heading',
@@ -4865,6 +4868,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   sendToSpeechAtCursor: '`',
   sendToSpeechAtEnd: 'Alt-`',
   sendToDropzone: 'Mod-`',
+  sendToStarred: '',
   insertReceivedAtCursor: 'Mod-p',
   insertReceivedAtEnd: 'Mod-Alt-p',
   selectCurrentHeading: 'Alt-a',
@@ -5052,6 +5056,8 @@ export interface RibbonContext {
   sendToSpeechAtCursor: () => void;
   sendToSpeechAtEnd: () => void;
   sendToDropzone: () => void;
+  /** Send the cursor's card (or selection) to the starred recipient/group. */
+  sendToStarred: () => void;
   /** Insert the most-recently-received card (from the receive pill) into the
    *  active doc — at the cursor, or at the end of the doc. */
   insertReceivedAtCursor: () => void;
@@ -5183,6 +5189,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   markActiveAsSpeech: () => {},
   sendToSpeechAtCursor: () => {},
   sendToDropzone: () => {},
+  sendToStarred: () => {},
   insertReceivedAtCursor: () => {},
   insertReceivedAtEnd: () => {},
   sendToSpeechAtEnd: () => {},
@@ -5571,6 +5578,12 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.sendToDropzone();
+        return true;
+      };
+    case 'sendToStarred':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.sendToStarred();
         return true;
       };
     case 'insertReceivedAtCursor':

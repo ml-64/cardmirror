@@ -48,6 +48,7 @@ import { dropzoneStore, deriveDropzoneLabel } from './dropzone-store.js';
 import { DropzoneController } from './dropzone-ui.js';
 import { mountPairingPills, initPairingWiring } from './pairing/pairing-wiring.js';
 import { insertMostRecentReceived } from './pairing/inbox-insert.js';
+import { sendViewToStarred } from './pairing/send-to-starred.js';
 import { installExternalInsertHost } from './external-insert-host.js';
 import {
   decodeModeSwitchMarker,
@@ -662,6 +663,7 @@ let multiDocMarkActiveAsSpeech: (() => void) | null = null;
 let multiDocSendToSpeechAtCursor: (() => void) | null = null;
 let multiDocSendToSpeechAtEnd: (() => void) | null = null;
 let multiDocSendToDropzone: (() => void) | null = null;
+let multiDocSendToStarred: (() => void) | null = null;
 /** Filename plumbing for Save-As. In single-doc mode the module's
  *  `currentDocFilename` is the source of truth; in multi-doc each
  *  pane owns its own filename, so the shell installs these hooks
@@ -734,6 +736,7 @@ export function enableMultiDocMode(opts: {
   sendToSpeechAtCursor?: () => void;
   sendToSpeechAtEnd?: () => void;
   sendToDropzone?: () => void;
+  sendToStarred?: () => void;
   getFocusedFilename?: () => string | null;
   setFocusedFilename?: (name: string) => void;
   getFocusedFile?: () => {
@@ -774,6 +777,7 @@ export function enableMultiDocMode(opts: {
   multiDocSendToSpeechAtCursor = opts.sendToSpeechAtCursor ?? null;
   multiDocSendToSpeechAtEnd = opts.sendToSpeechAtEnd ?? null;
   multiDocSendToDropzone = opts.sendToDropzone ?? null;
+  multiDocSendToStarred = opts.sendToStarred ?? null;
   multiDocGetFocusedFilename = opts.getFocusedFilename ?? null;
   multiDocSetFocusedFilename = opts.setFocusedFilename ?? null;
   multiDocGetFocusedFile = opts.getFocusedFile ?? null;
@@ -1169,6 +1173,13 @@ const ribbonContext: RibbonContext = {
       return;
     }
     if (view) void sendViewToDropzone(view);
+  },
+  sendToStarred: () => {
+    if (multiDocSendToStarred) {
+      multiDocSendToStarred();
+      return;
+    }
+    if (view) void sendViewToStarred(view);
   },
   insertReceivedAtCursor: () => {
     if (view) insertMostRecentReceived(view, false);

@@ -783,6 +783,15 @@ gave you and give them a name. You can also bundle several recipients into a
 **Send** pill. It expands to show your recipients and groups; drop on one to
 send. Dropping on a group fans the card out to every member.
 
+**Send to a starred target with one keystroke.** Click the **star** on any
+recipient or group in **Settings → Card Sharing** to make it your starred target
+(only one can be starred — starring another moves it). The **Send to Starred**
+command then sends the card under your cursor (or the current selection) straight
+to that target, without opening the Send pill — just like Send to Dropzone, but
+to a person. It ships without a default key; assign one under Settings → Keyboard
+shortcuts (look in the "Dropzone / Send and Receive Cards" group). If nothing is
+starred, the command does nothing.
+
 **Receive cards.** Cards others send you land in the **Receive** pill, which
 flashes when one arrives and shows how many you haven't read. Open it to see
 each card with who sent it and when; from there a received card behaves just
@@ -1486,6 +1495,7 @@ these to extend the selection.
 |----------|--------|
 | `` ` `` / Alt-`` ` `` | Send to speech at cursor / at end |
 | Mod-`` ` `` | Send to dropzone |
+| *(unbound)* | Send to the starred recipient / group — bind it in Settings |
 | Mod-P / Mod-Alt-P | Insert most recently received card at cursor / at end of doc |
 | Mod-Shift-N | Add note to selection |
 | Mod-Shift-Q | Ask AI about selection |

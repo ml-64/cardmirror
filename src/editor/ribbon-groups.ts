@@ -40,7 +40,12 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
   },
   {
     title: 'Dropzone / Send and Receive Cards',
-    commands: ['sendToDropzone', 'insertReceivedAtCursor', 'insertReceivedAtEnd'],
+    commands: [
+      'sendToDropzone',
+      'sendToStarred',
+      'insertReceivedAtCursor',
+      'insertReceivedAtEnd',
+    ],
   },
   {
     title: 'Quick Cards',

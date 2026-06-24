@@ -35,6 +35,12 @@ see `DETAILED_CHANGELOG.md`.
   bottom. Three-pane mode never did — the leftmost pane (the one the pills sit
   over) now gets the same runway, while the other panes stay flush.
 
+- **Highlighting no longer turns an underlined gap into emphasis.** When two
+  emphasized words are joined by an underlined space (the read-aloud marker),
+  highlighting either word used to rewrite that underline to emphasis. Highlight,
+  shading, and font-size changes now leave underline / emphasis / cite alone —
+  they only tidy their own formatting.
+
 ## 0.1.0-alpha.20 — 2026-06-23
 
 ### Added

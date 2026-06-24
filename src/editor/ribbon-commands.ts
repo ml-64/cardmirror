@@ -1420,11 +1420,12 @@ function rangeFullyHasMark(
  *      with UNDERLINE, so an emphasized selection's edges join an emphasized
  *      neighbor with underline (the continuous read-aloud marker).
  *    - appliesNamedStyle = false: the command was an UNRELATED family
- *      (highlight / shading / font_size), so the named-style family is just
- *      tidied with the manual `fixFormattingGaps` rule — emphasis+emphasis
- *      bridges with EMPHASIS (preserved, never converted to underline).
- *      Otherwise toggling highlight on emphasized text would break the
- *      emphasis at the selection's edge gaps.
+ *      (highlight / shading / font_size), so the named-style family is left
+ *      UNTOUCHED — whatever underline / emphasis / cite the gap already carries
+ *      is the deliberate result of an earlier apply, and an unrelated command
+ *      never changes it. (Rewriting it from the bookends instead would both
+ *      break emphasis on a continuous emphasized phrase AND rewrite an underlined
+ *      emphasis-join to emphasis the moment you highlight either side.)
  *  `effectivePt` omitted → `font_size` is left alone (no size resolver).
  *
  *  The bookends come from `hit`, but the actual mark mutations are confined to
@@ -1456,54 +1457,51 @@ function applyFullGapTarget(
   const marksToAdd: Mark[] = [];
   const marksToRemove: MarkType[] = [];
 
-  // Named-style target (mutually exclusive). When the command that ran toggles
-  // the named-style family (appliesNamedStyle), underline and emphasis are one
-  // "underline family": whenever BOTH bookends carry one of them — underline
-  // both sides, emphasis both sides, OR mixed — the gap fills with UNDERLINE
-  // (two emphasized words joined by underline, the continuous read-aloud
-  // marker). When the command was an UNRELATED family (highlight / shading /
-  // font_size), fall back to the manual normalizer's rule so emphasis on both
-  // sides bridges with EMPHASIS instead of being converted to underline.
-  const fmU = has(fm, um) || has(fm, ud);
-  const lmU = has(lm, um) || has(lm, ud);
-  const fmE = has(fm, emphasisType);
-  const lmE = has(lm, emphasisType);
-  const fmC = has(fm, citeType);
-  const lmC = has(lm, citeType);
-  let named: 'underline' | 'emphasis' | 'cite' | null = null;
+  // Named-style family (underline / emphasis / cite). ONLY normalized when the
+  // command that ran actually toggles this family (appliesNamedStyle: underline /
+  // emphasis / cite). For an UNRELATED command (highlight / shading / font_size)
+  // we leave it completely ALONE — whatever underline / emphasis / cite the gap
+  // already carries is the deliberate result of an earlier named-style apply
+  // (e.g. the underlined read-aloud join between two emphasized words), and the
+  // unrelated command never touched it. Tidying it from the bookends here was a
+  // bug: highlighting either emphasized side of `E <underline> E` saw emphasis on
+  // both bookends and rewrote the underlined join to EMPHASIS.
   if (appliesNamedStyle) {
-    // The emphasis→underline join is for SEPARATELY-emphasized words, which
-    // have a non-emphasized gap between them (a real seam). When the gap is
-    // ALREADY emphasized, the bookends and gap form one CONTINUOUS emphasized
-    // phrase — re-applying emphasis to part of it (F10 is a one-directional
-    // apply, never a toggle-off) must not punch underlined holes at the
-    // sub-span's edges; keep the emphasis. The command only marks the operating
-    // word, never the flanking edge gaps, so `tr.doc` at the gap still reflects
-    // its pre-command state.
+    const fmU = has(fm, um) || has(fm, ud);
+    const lmU = has(lm, um) || has(lm, ud);
+    const fmE = has(fm, emphasisType);
+    const lmE = has(lm, emphasisType);
+    const fmC = has(fm, citeType);
+    const lmC = has(lm, citeType);
+    // Underline and emphasis are one "underline family": whenever BOTH bookends
+    // carry one of them (underline both sides, emphasis both sides, OR mixed) the
+    // gap fills with UNDERLINE — two emphasized words joined by underline, the
+    // continuous read-aloud marker. EXCEPT when the gap is ALREADY a continuous
+    // emphasized phrase (bookends and gap all emphasized): re-applying emphasis
+    // to part of it must not punch underlined holes at the sub-span's edges, so
+    // keep the emphasis. (The command marks only the operating word, so `tr.doc`
+    // at the flanking gap still reflects its pre-command state.)
+    let named: 'underline' | 'emphasis' | 'cite' | null = null;
     if (fmE && lmE && rangeFullyHasMark(tr.doc, modFrom, modTo, emphasisType))
       named = 'emphasis';
     else if ((fmU || fmE) && (lmU || lmE)) named = 'underline';
     else if (fmC && lmC) named = 'cite';
-  } else {
-    if (fmU && lmU) named = 'underline';
-    else if (fmE && lmE) named = 'emphasis';
-    else if (fmC && lmC) named = 'cite';
-    else if ((fmU && lmE) || (fmE && lmU)) named = 'underline';
-  }
-  if (named === 'underline') {
-    const structural = STRUCTURAL_TEXTBLOCKS_FOR_UNDERLINE.has(parent.type.name);
-    marksToAdd.push((structural ? ud : um).create());
-    marksToRemove.push(structural ? um : ud, emphasisType, citeType);
-  } else if (named === 'emphasis') {
-    // `excludes` strips underline_mark / cite automatically; underline_direct
-    // has no excludes, so strip it explicitly.
-    marksToAdd.push(emphasisType.create());
-    marksToRemove.push(ud);
-  } else if (named === 'cite') {
-    marksToAdd.push(citeType.create());
-    marksToRemove.push(ud);
-  } else {
-    marksToRemove.push(um, ud, emphasisType, citeType);
+
+    if (named === 'underline') {
+      const structural = STRUCTURAL_TEXTBLOCKS_FOR_UNDERLINE.has(parent.type.name);
+      marksToAdd.push((structural ? ud : um).create());
+      marksToRemove.push(structural ? um : ud, emphasisType, citeType);
+    } else if (named === 'emphasis') {
+      // `excludes` strips underline_mark / cite automatically; underline_direct
+      // has no excludes, so strip it explicitly.
+      marksToAdd.push(emphasisType.create());
+      marksToRemove.push(ud);
+    } else if (named === 'cite') {
+      marksToAdd.push(citeType.create());
+      marksToRemove.push(ud);
+    } else {
+      marksToRemove.push(um, ud, emphasisType, citeType);
+    }
   }
 
   // highlight / shading: bridge when both carry it (first color wins), else strip.

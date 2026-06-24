@@ -29,6 +29,7 @@ const U = () => schema.marks['underline_mark']!.create();
 const UD = () => schema.marks['underline_direct']!.create();
 const HL = (color = 'yellow') => schema.marks['highlight']!.create({ color });
 const FS = (pt: number) => schema.marks['font_size']!.create({ halfPoints: pt * 2 });
+const E = () => schema.marks['emphasis_mark']!.create();
 
 /** A paragraph from `[text, marks]` runs. */
 function para(...runs: [string, Mark[]?][]): PMNode {
@@ -362,5 +363,26 @@ describe('fixFormattingGaps (manual) — underline_direct in tags', () => {
     const state = EditorState.create({ doc }); // empty selection → whole doc
     const next = apply(state, fixFormattingGaps(() => 11));
     expect(mask(next.doc, 'underline_direct')).toBe('__________'); // "alpha beta"
+  });
+});
+
+describe('withGapFix — an unrelated command leaves the named-style family alone', () => {
+  it('highlighting an emphasized side of E <underline> E keeps the underlined join', () => {
+    // Two emphasized words joined by an underlined space (the read-aloud
+    // marker). Highlighting either emphasized side must NOT rewrite that
+    // underlined join to emphasis just because both bookends carry emphasis.
+    const doc = docOf(['alpha', [E()]], [' ', [U()]], ['gamma', [E()]]);
+    const next = run(doc, 'alpha', applyHighlight(() => 'yellow'));
+    expect(mask(next.doc, 'underline_mark')).toBe('     _     '); // space stays underlined
+    expect(mask(next.doc, 'emphasis_mark')).toBe('_____ _____'); // space NOT emphasized
+    expect(mask(next.doc, 'highlight')).toBe('_____      '); // only "alpha"
+  });
+
+  it('the same holds when highlighting the right side', () => {
+    const doc = docOf(['alpha', [E()]], [' ', [U()]], ['gamma', [E()]]);
+    const next = run(doc, 'gamma', applyHighlight(() => 'yellow'));
+    expect(mask(next.doc, 'underline_mark')).toBe('     _     ');
+    expect(mask(next.doc, 'emphasis_mark')).toBe('_____ _____');
+    expect(mask(next.doc, 'highlight')).toBe('      _____'); // only "gamma"
   });
 });

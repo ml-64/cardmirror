@@ -46,6 +46,18 @@ in each release, see `CHANGELOG.md`.
   CSS rule gives only that pane's editor the same 4.5rem runway. Other panes stay
   flush; gated on pill-hidden like single-pane. The stale comment is corrected.
 
+- **Highlight / shading / font-size no longer rewrite the underline / emphasis /
+  cite of adjacent gaps** (`editor/ribbon-commands.ts`). `applyFullGapTarget`'s
+  `appliesNamedStyle = false` branch normalized the named-style family from the
+  gap's bookends even though the command that ran never touched it — so for
+  `<E> <underlined join> <E>`, highlighting either emphasized side saw emphasis on
+  both bookends and overwrote the deliberate underlined read-aloud join with
+  emphasis. The whole named-style normalization is now gated on
+  `appliesNamedStyle`; an unrelated command leaves underline / emphasis / cite
+  completely untouched and only tidies its own family. This also subsumes the
+  earlier "don't break emphasis on a continuous phrase" fix (now it's just "don't
+  touch it"). Regression test added in `formatting-gaps.test.ts`.
+
 ## 0.1.0-alpha.20 — 2026-06-23
 
 - **No native menu bar on Windows/Linux — Alt-key editor shortcuts now work**

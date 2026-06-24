@@ -29,6 +29,12 @@ see `DETAILED_CHANGELOG.md`.
   file list instead of doing nothing — and re-focuses the search box on the
   way back.
 
+- **Bottom pills no longer cover your text in three-pane mode.** In single-pane,
+  CardMirror leaves a little space at the end of the document so the dropzone /
+  send / receive pills don't sit over the last lines when you scroll to the
+  bottom. Three-pane mode never did — the leftmost pane (the one the pills sit
+  over) now gets the same runway, while the other panes stay flush.
+
 ## 0.1.0-alpha.20 — 2026-06-23
 
 ### Added

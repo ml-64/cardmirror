@@ -2782,6 +2782,14 @@ html.pmd-dropzone-pill-hidden .pmd-dropzone-root {
 html:not(.pmd-dropzone-pill-hidden) body:not(.pmd-multi-doc) #editor .ProseMirror {
   padding-bottom: 4.5rem;
 }
+/* Multi-pane mirror of the runway above. The tray overlaps only the pane it
+   anchors to — the leftmost visible one, tagged `pmd-pane-pill-anchored` by
+   positionDropzone — so give just that pane's editor the same bottom runway;
+   the other panes have no pill over them and stay flush. (Keep the value in
+   sync with the single-doc rule above.) */
+html:not(.pmd-dropzone-pill-hidden) .pmd-pane-pill-anchored .pmd-pane-editor .ProseMirror {
+  padding-bottom: 4.5rem;
+}
 
 /* ---- Dropzone shelf (cross-window scratch space) ----
    The visible "pill" is `.pmd-dropzone-bar`. The surrounding

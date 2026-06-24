@@ -6004,6 +6004,17 @@ function positionDropzone(): void {
   const target = document.body.classList.contains('pmd-multi-doc')
     ? document.querySelector<HTMLElement>('.pmd-pane:not([hidden]) .pmd-pane-body')
     : document.getElementById('app');
+  // Tag the multi-pane anchor pane (the leftmost visible one — the only pane the
+  // tray sits over) so CSS can give just that pane a bottom runway, mirroring the
+  // single-doc `padding-bottom`. Other panes have no pill over them and stay
+  // flush. The class is moved off any pane that's no longer the anchor.
+  const anchorPane = document.body.classList.contains('pmd-multi-doc')
+    ? (target?.closest('.pmd-pane') ?? null)
+    : null;
+  document.querySelectorAll('.pmd-pane-pill-anchored').forEach((stale) => {
+    if (stale !== anchorPane) stale.classList.remove('pmd-pane-pill-anchored');
+  });
+  anchorPane?.classList.add('pmd-pane-pill-anchored');
   const r = target?.getBoundingClientRect();
   if (!r || r.width === 0 || r.height === 0) {
     // Can't measure the anchor yet — booting into multi-doc with every
@@ -6024,9 +6035,10 @@ function positionDropzone(): void {
   // as the left (it's left-anchored, so without this it grows toward
   // the window edge).
   root.style.maxWidth = `${Math.max(160, Math.round(r.width - 16))}px`;
-  // The editor's scroll runway (so the last content clears the pill) is
-  // a fixed CSS height on `.pmd-dropzone-runway-spacer`, gated on the
-  // pill-hidden class — no measurement needed here.
+  // The scroll runway (so the last content clears the tray) is pure CSS: a
+  // `padding-bottom` on the editable, gated on the pill-hidden class. Single-doc
+  // pads `#editor .ProseMirror`; multi-pane pads only the anchored pane's editor
+  // (tagged `.pmd-pane-pill-anchored` above) — no measurement needed here.
 }
 // Load the per-user Learn annotation store (flashcards / schedules /
 // anchors) so review counts + the comments column have it available.

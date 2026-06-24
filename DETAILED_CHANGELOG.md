@@ -34,6 +34,18 @@ in each release, see `CHANGELOG.md`.
   after the toggle and gated on `aiFeaturesEnabled` like the rest of the AI
   settings. Desktop-only; mobile keeps just the toggle.
 
+- **Multi-pane gets the same bottom-pill runway as single-pane**
+  (`editor/index.ts`, `editor/style.css`). The single-doc editor pads
+  `#editor .ProseMirror` with `padding-bottom: 4.5rem` so the bottom pill tray
+  (dropzone / send / receive) doesn't overlap the last lines — but that rule is
+  gated `body:not(.pmd-multi-doc)`, and the multi-pane equivalent was never
+  actually built (a `positionDropzone` comment pointed at a
+  `.pmd-dropzone-runway-spacer` that exists only as a mobile hide-rule). The tray
+  anchors to the leftmost visible pane, so `positionDropzone` now tags that pane
+  `pmd-pane-pill-anchored` (moving the class as the anchor changes), and a mirror
+  CSS rule gives only that pane's editor the same 4.5rem runway. Other panes stay
+  flush; gated on pill-hidden like single-pane. The stale comment is corrected.
+
 ## 0.1.0-alpha.20 — 2026-06-23
 
 - **No native menu bar on Windows/Linux — Alt-key editor shortcuts now work**

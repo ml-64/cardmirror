@@ -215,13 +215,21 @@ export function prewarmQuickCardFiles(): void {
   if (!electron) return;
   const roots = settings.get('fileSearchRoots');
   if (!roots.length) return;
+  // Layer 1 — the file LIST. Kick the per-root scan off in MAIN immediately,
+  // NOT on renderer-idle. `listCmirFiles` is just async IPC; the recursive walk
+  // / disk-index load runs in the main process, so it doesn't compete with the
+  // renderer's launch render. Starting at t≈0 (rather than up to ~2s later, once
+  // the renderer first goes idle) means the index is ready even if the user
+  // opens the command bar a second after launch — the case that was still cold.
+  const lists = Promise.all(
+    roots.map((r) => electron.listCmirFiles(r).then(toFileEntries).catch(() => [] as FileEntry[])),
+  );
+  // Layer 2 — the pin CONTENT parse is renderer CPU, so keep it on idle so it
+  // never janks the launch frame; it just consumes the already-in-flight lists.
   scheduleIdle(() => {
     void (async () => {
       try {
-        const lists = await Promise.all(
-          roots.map((r) => electron.listCmirFiles(r).then(toFileEntries).catch(() => [] as FileEntry[])),
-        );
-        await runWarmPass(electron, mergeFileLists(lists), () => true);
+        await runWarmPass(electron, mergeFileLists(await lists), () => true);
       } catch {
         /* ignore */
       }

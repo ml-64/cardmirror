@@ -117,6 +117,19 @@ in each release, see `CHANGELOG.md`.
   sanitizer slots a newly-added category into an existing saved order at its
   canonical position rather than appending it.
 
+- **Command-bar file pre-warm starts at boot instead of on first idle**
+  (`editor/quick-card-search-ui.ts`). `prewarmQuickCardFiles` already warmed both
+  the file LIST (`listCmirFiles` → main's `cmirIndexMem`) and the pinned-file
+  CONTENT parse (`runWarmPass` → `warmCache`), but the whole thing was wrapped in
+  `scheduleIdle(…, 2000)` — so neither started until the renderer first went idle
+  (≤2s post-launch), and a command-bar open in that window still raced a
+  not-yet-started warm. Split it: the per-root `listCmirFiles` calls now fire
+  synchronously at boot — they're just async IPC, and the recursive walk /
+  disk-index load runs in the main process, so they don't compete with the
+  renderer's launch render — while the renderer-CPU pin parse (`runWarmPass`)
+  stays on the idle delay. The file index is now building from t≈0, so a search
+  opened a second after launch hits a warm cache instead of a cold scan.
+
 ## 0.1.0-alpha.20 — 2026-06-23
 
 - **No native menu bar on Windows/Linux — Alt-key editor shortcuts now work**

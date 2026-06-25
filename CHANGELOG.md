@@ -70,6 +70,14 @@ see `DETAILED_CHANGELOG.md`.
   500 of … — refine to narrow"), and rapid jumps no longer pile up scrolling
   work — so a pathological search can't choke the editor.
 
+- **The command bar's first search is ready sooner after launch.** The search
+  palette pre-warms its file index in the background, but that warm only kicked
+  off once the app first went idle (up to ~2s after launch) — so opening the bar
+  right after launching beat it and the first search hit a cold scan. The
+  file-list scan (which runs in the background process) now starts the moment the
+  app boots, while the heavier content pre-parse stays deferred so it still never
+  janks the launch.
+
 ## 0.1.0-alpha.20 — 2026-06-23
 
 ### Added

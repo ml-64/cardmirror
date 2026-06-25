@@ -5,6 +5,15 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## Unreleased
+
+### Fixed
+
+- **The "Layout on this device" setting (web edition) now matches the others.**
+  Its Auto / Mobile / Desktop options were showing as a cramped, unstyled stack —
+  their CSS classes had never been defined — so they now use the same tidy column
+  styling as every other radio setting.
+
 ## 0.1.0-beta.1 — 2026-06-24
 
 ### Changed

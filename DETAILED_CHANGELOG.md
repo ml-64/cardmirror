@@ -5,6 +5,17 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## Unreleased
+
+- **Web "Layout on this device" options use the shared radio styling**
+  (`editor/settings-ui.ts`). `buildMobileLayoutEditor` set
+  `pmd-mobile-layout-{editor,row,row-label}` classes that were never defined in
+  `style.css`, so the `webOnly` `mobileLayout` radios rendered unstyled (no column
+  layout, gap, or matching font). Repointed them at the shared `pmd-heading-mode-*`
+  classes used by the other radio editors (Heading Mode, the card-cutter radios) —
+  the DOM is identical, so they now match exactly. The radio `groupName` keeps its
+  own value (it's the input `name` attribute, not a CSS class).
+
 ## 0.1.0-beta.1 — 2026-06-24
 
 - **Right-click a file search result dives in instead of pinning**

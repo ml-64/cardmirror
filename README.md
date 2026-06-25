@@ -4,16 +4,15 @@
 
 # CardMirror
 
-CardMirror is a debate-evidence editor for high school and college
-policy, Lincoln–Douglas, and public forum. It's a standalone
+CardMirror is a debate text editor focused on high school and college
+policy debate. It's a standalone
 replacement for the editor side of
 **[Verbatim](https://github.com/ashtarcommunications/verbatim)**, the
-Microsoft Word add-in most US debate teams use: same Pocket / Hat /
-Block / Tag structure, same F-key shortcuts, same send-to-speech
+Microsoft Word add-in most US debate teams use: same organizational structure, 
+same F-key shortcuts, same send-to-speech
 workflow, same Word-compatible `.docx` files — but with no Word, no
 macros, and no add-in. That keeps it fast on the multi-megabyte
-evidence files debaters work in, and makes the same editor first-class
-on Windows, macOS, and Linux.
+evidence files debaters work in, and enables cross-platform feature parity.
 
 Run it as a **desktop app** for tournament-day work, or as a **web
 preview** in any browser for trying it out or working from a Chromebook

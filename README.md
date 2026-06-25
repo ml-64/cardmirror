@@ -21,7 +21,7 @@ or locked-down school machine.
 
 **▶ Try the live web preview: <https://ant981228.github.io/cardmirror/>**
 
-> **🚧 Alpha preview.** Expect rough edges, missing features, and the
+> **🚧 Beta preview.** Expect rough edges, missing features, and the
 > occasional bug. Keep a Verbatim copy of anything important — not
 > recommended for tournament-day use yet.
 >

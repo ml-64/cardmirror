@@ -67,7 +67,7 @@ For every new CardMirror release that should ship via AUR:
    the new tag (without the `v` prefix) and reset `pkgrel=1`.
    Increment `pkgrel` instead of `_origver` for AUR-only changes
    (PKGBUILD fixes, dependency tweaks).
-2. If you're enforcing checksums (recommended after the alpha
+2. If you're enforcing checksums (recommended after the beta
    stabilizes), run `updpkgsums` to refresh `sha256sums`.
 3. Commit + open a PR to merge the bump.
 4. Once merged, `cd` into your local AUR clone (`cardmirror-bin`):

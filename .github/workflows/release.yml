@@ -17,7 +17,7 @@ name: Release
 # `prepare-release` step makes sure every matrix job sees the same
 # draft.
 #
-# Builds are unsigned for the alpha. README documents the
+# Builds are unsigned for the beta. README documents the
 # right-click → Open / More info → Run anyway workaround for the
 # first-launch warnings on macOS Gatekeeper and Windows SmartScreen.
 

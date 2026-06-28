@@ -22,8 +22,8 @@
  *     types a query
  * With a prefix present, an empty query browses that source.
  *
- * Insertion reuses `insertSpeechSlice`; the mid-text confirm is gated
- * on the `quickCardSkipMidTextInsertConfirm` setting.
+ * Insertion reuses `insertSpeechSlice`, which snaps a block-level insert to
+ * the nearest top-level boundary so it never splits the card the caret is in.
  *
  * Also exports `openQuickCardTagPicker` — the ribbon Tag Picker
  * dropdown — which edits the same global active-tags filter.
@@ -1392,14 +1392,10 @@ class QuickCardSearchUI {
             this.input.focus();
           }
         : undefined,
-      {
-        enabled: !settings.get('quickCardSkipMidTextInsertConfirm'),
-        message: 'Insert into the middle of text. Are you sure?',
-      },
     );
-    // Cancelling the confirm returns focus to the editor without firing
-    // `afterInsert`; pull it back to the bar so a cancel still leaves you
-    // ready to search again.
+    // insertSpeechSlice's deferred dispatch ends by focusing the editor view;
+    // pull focus back to the bar so a keep-open insert leaves you ready to
+    // search again.
     if (keepOpen) this.input.focus();
   }
 

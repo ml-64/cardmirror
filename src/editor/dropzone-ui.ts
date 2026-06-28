@@ -40,6 +40,7 @@ import {
 } from './drag-controller.js';
 import { dropzoneStore, deriveDropzoneLabel, type DropzoneItem } from './dropzone-store.js';
 import { TYPE_TO_LEVEL } from './headings.js';
+import { nearestTopLevelInsertPos } from './insert-position.js';
 import { schema } from '../schema/index.js';
 import { setIcon } from './icons';
 import { readModePlugin } from './read-mode-plugin.js';
@@ -388,8 +389,12 @@ export class DropzoneController {
     // In read mode there's no editing caret to target, so a click appends to
     // the bottom of the doc rather than the cursor.
     const inReadMode = readModePlugin.getState(view.state)?.on === true;
+    // Snap a click-to-insert to the nearest top-level boundary (where a drag
+    // would drop it) so a shelf item never splits the card the caret is in.
     const insertPos =
-      atEnd || inReadMode ? view.state.doc.content.size : view.state.selection.head;
+      atEnd || inReadMode
+        ? view.state.doc.content.size
+        : nearestTopLevelInsertPos(view.state.doc, view.state.selection.head);
     const tr = view.state.tr
       .insert(insertPos, rewritten.content)
       .setMeta(READ_MODE_DRAG_META, true);

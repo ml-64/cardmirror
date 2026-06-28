@@ -889,9 +889,6 @@ export interface Settings {
    *  Untagged cards are always in scope. Stored normalized
    *  (lowercased). Global + persisted. */
   quickCardActiveTags: string[];
-  /** When on, inserting a quick card skips the mid-text confirmation
-   *  prompt (inserts immediately even mid-sentence). Default off. */
-  quickCardSkipMidTextInsertConfirm: boolean;
   /** Master switch for the experimental AI card-cutter. Hidden and
    *  OFF by default; flipped on only via the console command
    *  `window.__cardcutter('on')`. When on, the card-cutter ribbon
@@ -1135,7 +1132,6 @@ const DEFAULTS: Settings = {
   mobileLayout: 'auto',
   multiDocLayoutMode: 'compact',
   quickCardActiveTags: [],
-  quickCardSkipMidTextInsertConfirm: false,
   cardCutterEnabled: false,
   cardCutterEnginePath: '',
   cardCutterEmphasisStyle: 'voice',
@@ -1810,14 +1806,6 @@ export const SETTING_METADATA: SettingMeta[] = [
     label: 'Condense after Paste Text (F2)',
     description:
       'When on, text that you paste will be condensed using your default "condense" settings.',
-    kind: 'toggle',
-    category: 'editing',
-  },
-  {
-    key: 'quickCardSkipMidTextInsertConfirm',
-    label: 'Skip mid-text confirm when inserting quick cards',
-    description:
-      'When off (default), inserting a quick card into the middle of a paragraph asks you to confirm first (pressing Enter again). Turn on to always insert immediately, even mid-sentence.',
     kind: 'toggle',
     category: 'editing',
   },
@@ -2539,7 +2527,6 @@ function sanitize(s: Settings): Settings {
     quickCardActiveTags: Array.isArray(s.quickCardActiveTags)
       ? s.quickCardActiveTags.filter((t): t is string => typeof t === 'string')
       : [],
-    quickCardSkipMidTextInsertConfirm: s.quickCardSkipMidTextInsertConfirm === true,
     cardCutterEnabled: s.cardCutterEnabled === true,
     cardCutterEnginePath:
       typeof s.cardCutterEnginePath === 'string' ? s.cardCutterEnginePath : '',

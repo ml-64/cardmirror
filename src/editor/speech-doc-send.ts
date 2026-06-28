@@ -19,6 +19,7 @@ import { Slice, type Node as PMNode, type ResolvedPos } from 'prosemirror-model'
 import { closeHistory } from 'prosemirror-history';
 import { schema } from '../schema/index.js';
 import { rewriteHeadingIds } from './drag-controller.js';
+import { nearestTopLevelInsertPos } from './insert-position.js';
 import { getSpeechDocResolver } from './speech-doc-registry.js';
 import { getElectronHost } from './host/index.js';
 
@@ -138,63 +139,13 @@ export function insertSpeechSlice(
   slice: Slice,
   atEnd: boolean,
   afterInsert?: AfterInsertHook,
-  /** Mid-text insertion guard. Defaults to the speech-doc behavior
-   *  (confirm, speech-worded). Quick-card inserts pass their own
-   *  enabled flag (the `quickCardSkipMidTextInsertConfirm` setting)
-   *  and message. */
-  midTextConfirm: { enabled: boolean; message?: string } = { enabled: true },
 ): void {
-  const state = speechView.state;
-
-  // Compute insertion range. Two refinements over a naive
-  // `tr.insert(pos, content)`:
-  //   1. At-end picks the literal end-of-doc.
-  //   2. If the cursor (or doc tail in at-end mode) sits in an
-  //      empty top-level textblock, we REPLACE that block — otherwise
-  //      the placeholder paragraph that makeBlankDoc seeds the
-  //      speech doc with would leave a stray empty line above
-  //      every sent card.
-  let midText = false;
-  if (atEnd) {
-    const lastChild = state.doc.lastChild;
-    if (!(lastChild && lastChild.isTextblock && lastChild.content.size === 0)) {
-      // No blank line to absorb — we insert at the literal end.
-    }
-  } else {
-    const $from = state.selection.$from;
-    const isEmpty = state.selection.empty;
-    const inBlankLine =
-      isEmpty &&
-      $from.depth >= 1 &&
-      $from.parent.isTextblock &&
-      $from.parent.content.size === 0;
-    // Mid-text means strictly BETWEEN characters in a non-empty
-    // textblock. Cursor at the start of a block (parentOffset === 0)
-    // inserts before that block; cursor at the end (parentOffset ===
-    // parent.content.size) inserts after — both are clean splits
-    // and don't need the user-facing confirmation.
-    const inMidOfText =
-      isEmpty &&
-      $from.parent.isTextblock &&
-      $from.parentOffset > 0 &&
-      $from.parentOffset < $from.parent.content.size;
-    if (!inBlankLine && inMidOfText) midText = true;
-  }
-
-  if (midText && midTextConfirm.enabled) {
-    const ok = window.confirm(
-      midTextConfirm.message ??
-        'Sending to the middle of text in the speech doc. Are you sure?',
-    );
-    if (!ok) {
-      // `window.confirm` steals OS-level focus from the editor's
-      // contenteditable — after dismissal the speech doc renders
-      // a grey (unfocused) selection until something else grabs
-      // focus. Explicitly re-focusing the view fixes that.
-      speechView.focus();
-      return;
-    }
-  }
+  // No mid-text prompt: a block-level slice dropped at a raw caret inside a
+  // card would split it (spawning a phantom blank-tag card). A non-blank caret
+  // instead snaps to the nearest top-level boundary — exactly where a
+  // drag-and-drop would land it — in the live-insert block below. An empty
+  // placeholder line is still REPLACED (filled) so a sent card doesn't leave a
+  // stray blank line above it.
 
   setTimeout(() => {
     // The speech doc can be closed in the 0 ms defer window; dispatching
@@ -221,38 +172,22 @@ export function insertSpeechSlice(
         $from.depth >= 1 &&
         $from.parent.isTextblock &&
         $from.parent.content.size === 0;
-      // If the cursor sits at the very start / end of a non-empty
-      // textblock, insert at that block's TOP-LEVEL boundary
-      // instead of at the cursor position. Otherwise PM has to
-      // split the surrounding block to fit a block-level slice,
-      // which produces an empty heading sibling above (start case)
-      // or below (end case) — matches the bug "the lines added
-      // above and below are the same heading level as my cursor's
-      // block." Inserting at the doc-level boundary cleanly drops
-      // the slice as a sibling without disturbing the cursor's
-      // block's structure.
-      const atStartOfBlock =
-        isEmpty &&
-        $from.depth >= 1 &&
-        $from.parent.isTextblock &&
-        $from.parent.content.size > 0 &&
-        $from.parentOffset === 0;
-      const atEndOfBlock =
-        isEmpty &&
-        $from.depth >= 1 &&
-        $from.parent.isTextblock &&
-        $from.parent.content.size > 0 &&
-        $from.parentOffset === $from.parent.content.size;
       if (inBlank) {
+        // Fill the empty placeholder line rather than insert beside it (which
+        // would leave a stray blank line above the sent card).
         liveFrom = $from.before($from.depth);
         liveTo = $from.after($from.depth);
-      } else if (atStartOfBlock) {
-        liveFrom = liveTo = $from.before(1);
-      } else if (atEndOfBlock) {
-        liveFrom = liveTo = $from.after(1);
+      } else if (isEmpty) {
+        // Snap a block-level slice to the nearest top-level boundary so it
+        // lands as a clean sibling instead of splitting the cursor's card —
+        // exactly where a drag-and-drop would drop it.
+        liveFrom = liveTo = nearestTopLevelInsertPos(
+          liveState.doc,
+          liveState.selection.from,
+        );
       } else {
-        liveFrom = liveState.selection.from;
-        liveTo = liveState.selection.from;
+        // A range selection inserts at its start (existing behavior).
+        liveFrom = liveTo = liveState.selection.from;
       }
     }
     const rewritten = rewriteHeadingIds(slice);

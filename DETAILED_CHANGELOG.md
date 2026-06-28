@@ -51,6 +51,25 @@ in each release, see `CHANGELOG.md`.
   structurally impossible. Covered by new migration tests plus updated
   importer / schema / transform-for-export expectations.
 
+- **Block-level inserts snap to the nearest top-level boundary instead of the
+  raw caret** (`editor/insert-position.ts` (new), `editor/dropzone-ui.ts`,
+  `editor/speech-doc-send.ts`, `editor/quick-card-search-ui.ts`,
+  `editor/settings.ts`, `tests/editor/insert-position.test.ts` (new)). Inserting
+  a structural slice — a dropzone shelf card (click-to-insert), a quick card, a
+  sent slice — at `selection.head` / `selection.from` forced ProseMirror to
+  split the enclosing card to fit it, spawning a phantom blank-tag (`id: null`)
+  card for the orphaned tail. New `nearestTopLevelInsertPos(doc, pos)` returns
+  the doc-level boundary just before/after the enclosing top-level node
+  (whichever is nearer) — where a drag-and-drop would drop it. `dropzone-ui`'s
+  `insertItem` and `speech-doc-send`'s `insertSpeechSlice` now snap a non-blank
+  collapsed caret to that boundary (an empty placeholder line is still filled in
+  place; a range selection still inserts at its start). The `insertSpeechSlice`
+  mid-text `window.confirm` and the `quickCardSkipMidTextInsertConfirm` setting
+  it gated (interface / default / metadata / sanitize) were removed — snapping
+  makes the warning moot. Covered by helper unit tests plus an end-to-end test
+  that a snapped card insert yields two intact sibling cards, versus the
+  raw-caret insert that splits the card and spawns a null-id tag.
+
 ## 0.1.0-beta.2 — 2026-06-25
 
 - **Rebindable single-press doc-cycle commands for three-pane mode**

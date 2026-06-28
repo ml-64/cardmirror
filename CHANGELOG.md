@@ -89,6 +89,13 @@ see `DETAILED_CHANGELOG.md`.
   indent-on-exit — so a card's first body paragraph, which can't be split, can
   still be marked to indent.
 
+- **Repair Paragraph Integrity: undo works inside the workflow.** Ctrl/Cmd-Z now
+  undoes the most recent action without leaving the workflow — re-merging the
+  last paragraph break and/or removing its deferred indent mark. Previously it
+  did nothing (the bar's input swallowed it). It won't reach back into edits made
+  before the workflow opened, and defers to a modal or the command bar layered on
+  top.
+
 - **The navigation pane now follows the cursor in three-pane mode.** Clicking or
   moving the cursor in a document highlights the heading it lands in in the nav
   pane — that already worked in single-pane view, and now works in each pane of

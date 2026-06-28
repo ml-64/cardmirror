@@ -193,6 +193,22 @@ describe('Ctrl-Enter deferred indentation', () => {
     ]);
   });
 
+  it('popDesignation drops the most recent designation (workflow undo)', () => {
+    const d = doc(card(tag('T'), cardBody('A intro. Target sentence here.')));
+    let state = workflowState(d, 'Target');
+    state = state.apply(buildSplitForSingleMatch(state, /* designate */ true)!);
+    expect(designatedCount(state)).toBe(1);
+    state = state.apply(state.tr.setMeta(repairParagraphKey, { type: 'popDesignation' }));
+    expect(designatedCount(state)).toBe(0);
+    // The designation is gone, so exit indents nothing (the split itself is
+    // reversed separately, via the editor's undo history).
+    state = state.apply(buildExitTransaction(state));
+    expect(bodyIndents(state)).toEqual([
+      ['A intro. ', 0],
+      ['Target sentence here.', 0],
+    ]);
+  });
+
   it('a later split inside a designated paragraph shrinks it — only the FINAL paragraph indents', () => {
     const d = doc(card(tag('T'), cardBody('Intro. First here. Second here.')));
     let state = workflowState(d, 'First here');

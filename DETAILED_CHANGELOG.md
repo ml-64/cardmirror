@@ -7,6 +7,21 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Repair Paragraph Integrity: in-workflow undo (Mod-Z)**
+  (`editor/repair-paragraph-plugin.ts`, `editor/repair-paragraph-ui.ts`,
+  `tests/editor/repair-paragraph.test.ts`). The bar tracks a per-session action
+  stack (`split` / `split-designate` / `designate`), pushed on each confirm. The
+  document-level handler (reusing the Escape gating — defers to a supervening
+  modal or the command bar) intercepts Mod-Z (no Shift/Alt) while the workflow is
+  open and reverses the most recent action: a new `{ type: 'popDesignation' }`
+  meta drops the designation it added (if any), and prosemirror-history `undo`
+  reverses the split's doc change (if any). The designate-only case (Ctrl-Enter
+  on an already-broken paragraph — no doc change) is reversed by `popDesignation`
+  alone. No-op once the session's actions are exhausted, so it never reaches into
+  pre-workflow history, and it's consumed while open so it can't fall through to
+  the editor's global undo. Added a `popDesignation` plugin test; the full undo
+  path (needs the history plugin + view) is verified in the dev build.
+
 - **Repair Paragraph Integrity: Ctrl-Enter designates a paragraph that already
   starts a line** (`editor/repair-paragraph-plugin.ts`,
   `editor/repair-paragraph-ui.ts`, `tests/editor/repair-paragraph.test.ts`).

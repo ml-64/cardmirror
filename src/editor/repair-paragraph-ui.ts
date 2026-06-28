@@ -11,6 +11,7 @@
 
 import type { EditorView } from 'prosemirror-view';
 import type { ResolvedPos } from 'prosemirror-model';
+import { undo } from 'prosemirror-history';
 import {
   repairParagraphKey,
   getRepairParagraphState,
@@ -46,6 +47,10 @@ export class RepairParagraphBar {
   /** Match count from the last query, to fire the flash only on the
    *  transition INTO the exactly-one state (not every keystroke). */
   private lastCount = -1;
+  /** This session's actions, newest last, so Mod-Z can reverse the most recent
+   *  one. `split` changed the doc only; `designate` added a designation only
+   *  (Ctrl-Enter on an already-broken paragraph); `split-designate` did both. */
+  private actionStack: Array<'split' | 'split-designate' | 'designate'> = [];
 
   constructor(getView: () => EditorView | null) {
     this.getView = getView;
@@ -107,12 +112,51 @@ export class RepairParagraphBar {
    *  owns Escape first — an overlay-stack modal, or the command bar (which isn't
    *  on the stack). */
   private onDocKeyDown = (e: KeyboardEvent): void => {
-    if (!this.open_ || e.key !== 'Escape') return;
+    if (!this.open_) return;
+    // Defer to anything layered over the workflow that owns these keys first.
     if (isAnyOverlayOpen() || quickCardSearchUI.isOpen()) return;
-    e.preventDefault();
-    e.stopPropagation();
-    this.close();
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      this.close();
+      return;
+    }
+    // Mod-Z undoes the last break / indent mark made in this workflow (the bar's
+    // empty input would otherwise just swallow it). Consume it whenever the
+    // workflow is open so it can't fall through to the editor's global undo.
+    if ((e.key === 'z' || e.key === 'Z') && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      this.undoLast();
+    }
   };
+
+  /** Reverse the most recent workflow action: a split (via the editor's undo
+   *  history) and/or its deferred-indent designation. No-op once the session's
+   *  actions are exhausted — it never reaches back into pre-workflow history. */
+  private undoLast(): void {
+    const action = this.actionStack.pop();
+    if (!action) return;
+    const view = this.getView();
+    if (!view) return;
+    // 'split-designate' and 'designate' each added one designation — drop it.
+    if (action !== 'split') {
+      view.dispatch(view.state.tr.setMeta(repairParagraphKey, { type: 'popDesignation' }));
+    }
+    // 'split' and 'split-designate' changed the doc — reverse that split.
+    if (action !== 'designate') {
+      undo(view.state, view.dispatch);
+    }
+    this.input.value = '';
+    this.root.classList.remove('pmd-repair-ok');
+    this.lastCount = -1;
+    const marked = designatedCount(view.state);
+    const markedNote = marked > 0 ? ` (${marked} still marked to indent on exit)` : '';
+    this.hint.textContent =
+      (action === 'designate' ? 'Removed the last indent mark.' : 'Undid the last paragraph break.') +
+      `${markedNote} Type the next phrase, or Esc to exit.`;
+    this.input.focus();
+  }
 
   open(): void {
     const view = this.getView();
@@ -127,6 +171,7 @@ export class RepairParagraphBar {
     view.dispatch(view.state.tr.setMeta(repairParagraphKey, { type: 'open', cardRange: range }));
 
     this.open_ = true;
+    this.actionStack = [];
     document.addEventListener('keydown', this.onDocKeyDown, true);
     this.lastCount = -1;
     this.input.value = '';
@@ -185,6 +230,10 @@ export class RepairParagraphBar {
     if (getRepairParagraphState(view.state).matches.length !== 1) return;
     const result = splitAtSingleMatch(view, designate);
     if (!result) return; // plain Enter on a phrase already starting a line → no-op
+    // Record the action so Mod-Z can reverse it (newest last).
+    this.actionStack.push(
+      result === 'designated' ? 'designate' : designate ? 'split-designate' : 'split',
+    );
     // The action cleared the query; reset the box for the next phrase.
     this.input.value = '';
     this.root.classList.remove('pmd-repair-ok');

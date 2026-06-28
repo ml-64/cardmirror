@@ -8,10 +8,11 @@
  */
 import { TextSelection } from 'prosemirror-state';
 import type { EditorState, Transaction } from 'prosemirror-state';
-import type { Node as PMNode, ResolvedPos } from 'prosemirror-model';
+import type { Node as PMNode, ResolvedPos, Schema } from 'prosemirror-model';
 import { undo, redo } from 'prosemirror-history';
 import { splitBlock } from 'prosemirror-commands';
 import { settings } from '../settings.js';
+import { newHeadingId } from '../../schema/index.js';
 import { transformDictation, capitalizeForContext } from './dictation-text.js';
 import {
   getRibbonCommand,
@@ -111,6 +112,17 @@ const STRUCTURE_COMMAND: Record<string, RibbonCommandId> = {
 };
 
 // ---- structural helpers ----
+
+/** A fresh empty card with a real (non-null) tag id. Voice "new card" builds
+ *  this rather than `card.createAndFill()`, which fills the required tag with
+ *  default attrs (`id: null`) — an id-less tag is invisible to the nav pane and
+ *  the level filter (see `schema/ids.ts`). Exported for tests. */
+export function newCardNode(schema: Schema): PMNode | null {
+  const cardType = schema.nodes['card'];
+  const tagType = schema.nodes['tag'];
+  if (!cardType || !tagType) return null;
+  return cardType.createAndFill(null, tagType.create({ id: newHeadingId() }));
+}
 
 function nodePositions(doc: PMNode, typeName: string): Array<{ pos: number; node: PMNode }> {
   const out: Array<{ pos: number; node: PMNode }> = [];
@@ -808,8 +820,7 @@ export async function applyVoiceCommand(
       break;
     }
     case 'newCard': {
-      const cardType = view.state.schema.nodes['card'];
-      const filled = cardType?.createAndFill();
+      const filled = newCardNode(view.state.schema);
       if (!filled) { ok = false; break; }
       const after = enclosing(sel.$from, ['card', 'analytic_unit']);
       const insertAt = after ? after.pos + after.node.nodeSize : sel.$from.after(1);

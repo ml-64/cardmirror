@@ -161,6 +161,17 @@ in each release, see `CHANGELOG.md`.
   land inside the card the workflow opened on. Covered by a test that a
   designated position planted in another card is left untouched on exit.
 
+- **Voice "new card" mints a real tag id** (`editor/voice/dispatch.ts`,
+  `tests/editor/voice-new-card.test.ts`). The `newCard` voice command built its
+  card with `card.createAndFill()`, which fills the required tag from attr
+  defaults (`id: null`) — an id-less heading is invisible to the nav pane / level
+  filter and the cursor→nav highlight falls back to the previous card
+  (`schema/ids.ts`). Extracted `newCardNode(schema)`, which builds the card with
+  a tag carrying a fresh `newHeadingId()`, and the command now uses it; other
+  card-creating paths (ribbon F7) already stamp ids, so this brings voice in
+  line. (Load-time `stampMissingHeadingIds` would have repaired it on the next
+  reload, but the card was nav-invisible until then.)
+
 ## 0.1.0-beta.2 — 2026-06-25
 
 - **Rebindable single-press doc-cycle commands for three-pane mode**

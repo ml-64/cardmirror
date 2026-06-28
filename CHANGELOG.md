@@ -66,6 +66,11 @@ see `DETAILED_CHANGELOG.md`.
   The Repair Paragraph workflow's indent-on-exit can now only ever apply inside
   the card it was opened on, never spill into a neighboring card.
 
+- **A card made with the "new card" voice command is now tracked in the nav
+  pane.** Such a card used to get a tag with no internal id, making it invisible
+  to the navigation pane and the outline level filter until the next save. It now
+  gets a real id like every other card.
+
 ## 0.1.0-beta.2 — 2026-06-25
 
 ### Added

@@ -2369,6 +2369,10 @@ function buildDocRecord(
       // a perf win, and it stops a plain nav click from recreating the
       // `<li>`s mid-double-click.
       if (tx.docChanged) {
+        // Keep this pane's cached heading positions current between the
+        // debounced rebuilds so caret-tracking doesn't flicker to the next
+        // heading while typing just above it (parity with single-doc, index.ts).
+        record.navPanel.remapPositions(tx.mapping);
         if (record.heavyUpdateTimer !== null) {
           cancelIdle(record.heavyUpdateTimer);
         }

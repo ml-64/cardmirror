@@ -14,6 +14,7 @@
 import type { EditorView } from 'prosemirror-view';
 import { type Node as PMNode, DOMSerializer } from 'prosemirror-model';
 import { NodeSelection, TextSelection } from 'prosemirror-state';
+import { type Mappable } from 'prosemirror-transform';
 import { settings } from './settings.js';
 import { registerOpenContextMenu, clearOpenContextMenu } from './context-menu-registry.js';
 import { dragController, type DragItem, type DragSurface } from './drag-controller.js';
@@ -529,6 +530,21 @@ export class NavigationPanel {
     if (this.destroyed) return; // a late debounced call must not re-pin the doc
     this.currentDoc = doc;
     this.render(doc);
+  }
+
+  /** Map the cached heading positions forward through a doc change so they stay
+   *  current between the debounced `update()` rebuilds. Without this, the
+   *  cached positions are pre-edit while the caret is post-edit, so
+   *  `setCaretHeading` briefly highlights the next heading while you type just
+   *  above it (and nav click-to-jump targets a stale spot). Cheap:
+   *  O(visible headings), called once per doc-changing transaction. */
+  remapPositions(mapping: Mappable): void {
+    for (const [li, entry] of this.liEntries) {
+      const mapped = mapping.map(entry.pos);
+      if (mapped === entry.pos) continue;
+      entry.pos = mapped;
+      li.dataset['pos'] = String(mapped);
+    }
   }
 
   /** Sync the collapsed set to a maxLevel: every parent at level ≥ N

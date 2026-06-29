@@ -4035,6 +4035,12 @@ function mountView(doc: PMNode, threads: Thread[] = []): void {
       if (tx.docChanged && !isBenchmarkActive()) {
         needsCommentsGC = true;
         scheduleHeavyUpdate();
+        // Keep the nav pane's cached heading positions in lockstep with the doc
+        // so the caret-tracking below compares against current positions, not
+        // the pre-edit ones the debounced rebuild hasn't refreshed yet —
+        // otherwise the highlight flickers to the next heading while you type
+        // on the line just above it.
+        navPanel.remapPositions(tx.mapping);
       }
       // Selection-only changes refresh just the word-count readout so
       // the read time reflects the selection immediately instead of

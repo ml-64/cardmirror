@@ -7,6 +7,24 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Nav-pane caret-tracking no longer flickers to the next heading while typing**
+  (`editor/nav-panel.ts`, `editor/index.ts`, `editor/multi-pane-shell.ts`,
+  `tests/editor/nav-panel-caret-tracking.test.ts`). The nav pane caches each
+  heading's doc position at render time and rebuilds on a ~200ms idle debounce;
+  `setCaretHeading` (which picks the last heading whose cached pos ≤ caret) runs
+  synchronously on every keystroke, so it compared a post-edit caret against
+  pre-edit positions. Typing on the bottom-most line just above a heading
+  advanced the caret past that heading's STALE position, briefly lighting it
+  until the debounced rebuild refreshed positions. New
+  `NavigationPanel.remapPositions(mapping)` maps the cached `liEntries` positions
+  (and their `data-pos`) forward through a doc change; it runs on every
+  doc-changing transaction alongside the heavy-update scheduling in both the
+  single-pane (`index.ts`) and per-pane (`multi-pane-shell.ts`) dispatch hooks,
+  so cached positions track the caret's frame and the comparison is always
+  current. Also removes the same latent staleness for nav click-to-jump between
+  rebuilds. Test reproduces the stale-position mis-selection and confirms the
+  remap keeps the highlight on the correct heading.
+
 - **Custom dash autoformat** (`editor/custom-dash-plugin.ts` new,
   `editor/settings.ts`, `editor/settings-ui.ts`, `editor/index.ts`,
   `tests/editor/custom-dash.test.ts`). New `customDashPlugin()` (pushed in

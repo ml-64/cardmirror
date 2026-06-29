@@ -148,6 +148,13 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Fixed
 
+- **Nav pane no longer flickers while typing just above a heading.** Typing on
+  the bottom-most line directly above a heading used to make the outline's
+  highlight briefly jump to the next heading and snap back. The nav pane now
+  keeps its cached heading positions in sync with every edit, so the
+  active-heading highlight stays put (this also fixes the same brief staleness
+  for nav click-to-jump).
+
 - **Silent Send/Marked Doc saves won't overwrite the original document.** The
   Save Send Doc / Save Marked Cards commands now refuse to clobber the source
   file when the export would land on its exact path (e.g. an empty prefix at the

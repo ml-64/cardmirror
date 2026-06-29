@@ -5516,18 +5516,20 @@ export async function runSaveSendDocFlow(): Promise<boolean> {
   const format: 'cmir' | 'docx' = settings.get('defaultSaveFormat');
   const base = basenameWithoutExt(file.filename ?? 'untitled');
   const filename =
-    (settings.get('prefixPresetSaveFilenames') ? 'SEND_' : '') + `${base}.${format}`;
+    (settings.get('prefixPresetSaveFilenames') ? settings.get('sendDocPrefix') : '') +
+    `${base}.${format}`;
 
-  // Resolve the silent destination. Fixed-folder mode needs a configured
-  // path; same-folder mode needs an on-disk sibling. Either missing →
-  // the dialog fallback below.
-  let folder: string | null = null;
-  let siblingHandle: string | null = null;
-  if (settings.get('sendDocDestination') === 'fixedFolder') {
-    folder = settings.get('sendDocFolder') || null;
-  } else if (typeof file.handle === 'string' && file.handle) {
-    siblingHandle = file.handle;
-  }
+  // Resolve the silent destination. Fixed-folder mode needs a configured path;
+  // same-folder mode needs an on-disk source. Either missing → the dialog
+  // fallback below. `sourceHandle` is ALWAYS passed to the IPC so the desktop
+  // refuses to overwrite the ORIGINAL document (returns 'collision' → we defer
+  // to the dialog) in BOTH modes — including when a custom/empty prefix would
+  // land the export on the source's exact path.
+  const sourceHandle =
+    typeof file.handle === 'string' && file.handle ? file.handle : null;
+  const fixedFolderMode = settings.get('sendDocDestination') === 'fixedFolder';
+  const folder = fixedFolderMode ? settings.get('sendDocFolder') || null : null;
+  const destResolvable = fixedFolderMode ? folder !== null : sourceHandle !== null;
 
   try {
     // Send Doc filtering — drop comments / analytics / undertags. Lossy
@@ -5541,11 +5543,14 @@ export async function runSaveSendDocFlow(): Promise<boolean> {
 
     const electron = getElectronHost();
     let result: { name: string; handle?: unknown } | null = null;
-    if (electron && (folder || siblingHandle)) {
-      const silent = await electron.saveSendDoc({ folder, siblingHandle, filename }, bytes);
+    if (electron && destResolvable) {
+      const silent = await electron.saveSendDoc(
+        { folder, siblingHandle: sourceHandle, filename },
+        bytes,
+      );
       if (silent === 'collision') {
-        // Target would overwrite the source (prefix off + same folder +
-        // same format) — defer to the dialog so the user can rename.
+        // Target would overwrite the SOURCE document (a custom/empty prefix +
+        // same folder/format) — defer to the dialog so the user can rename.
         result = await getHost().saveAs(filename, bytes, {
           filters: saveFiltersForFormat(format),
         });
@@ -5597,15 +5602,16 @@ export async function runSaveMarkedCardsFlow(): Promise<boolean> {
   const format: 'cmir' | 'docx' = settings.get('defaultSaveFormat');
   const base = basenameWithoutExt(file.filename ?? 'untitled');
   const filename =
-    (settings.get('prefixPresetSaveFilenames') ? 'MARKED_' : '') + `${base}.${format}`;
+    (settings.get('prefixPresetSaveFilenames') ? settings.get('markedDocPrefix') : '') +
+    `${base}.${format}`;
 
-  let folder: string | null = null;
-  let siblingHandle: string | null = null;
-  if (settings.get('markedCardsDestination') === 'fixedFolder') {
-    folder = settings.get('markedCardsFolder') || null;
-  } else if (typeof file.handle === 'string' && file.handle) {
-    siblingHandle = file.handle;
-  }
+  // Always pass the source path so the desktop refuses to overwrite the original
+  // (→ 'collision' → dialog) in BOTH destination modes; see runSaveSendDocFlow.
+  const sourceHandle =
+    typeof file.handle === 'string' && file.handle ? file.handle : null;
+  const fixedFolderMode = settings.get('markedCardsDestination') === 'fixedFolder';
+  const folder = fixedFolderMode ? settings.get('markedCardsFolder') || null : null;
+  const destResolvable = fixedFolderMode ? folder !== null : sourceHandle !== null;
 
   try {
     const bytes = await serializeForSave(format, {
@@ -5618,10 +5624,13 @@ export async function runSaveMarkedCardsFlow(): Promise<boolean> {
 
     const electron = getElectronHost();
     let result: { name: string; handle?: unknown } | null = null;
-    if (electron && (folder || siblingHandle)) {
+    if (electron && destResolvable) {
       // Reuse the Send Doc silent-write IPC — it just writes bytes to a
       // folder/sibling + filename, agnostic to what the bytes are.
-      const silent = await electron.saveSendDoc({ folder, siblingHandle, filename }, bytes);
+      const silent = await electron.saveSendDoc(
+        { folder, siblingHandle: sourceHandle, filename },
+        bytes,
+      );
       if (silent === 'collision') {
         result = await getHost().saveAs(filename, bytes, {
           filters: saveFiltersForFormat(format),

@@ -9,6 +9,12 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Added
 
+- **Custom filename prefixes for preset saves.** Settings → General now lets you
+  change the **Send Doc / Read Doc / Marked Doc** filename prefixes (defaults
+  `SEND_` / `READ_` / `MARKED_`; leave one empty for no prefix). They apply to
+  both the Save As preset buttons and the silent Save Send Doc / Save Marked
+  Cards commands, gated on the existing "Prefix preset saves" toggle.
+
 - **Paste and Destructively Condense (desktop).** A command that pastes the
   clipboard's plain text and immediately condenses just what you pasted, merging
   its paragraphs (paragraph integrity off, destructive) — the result of an F2
@@ -136,6 +142,13 @@ see `DETAILED_CHANGELOG.md`.
   undertags didn't clear font size, and none cleared font color.
 
 ### Fixed
+
+- **Silent Send/Marked Doc saves won't overwrite the original document.** The
+  Save Send Doc / Save Marked Cards commands now refuse to clobber the source
+  file when the export would land on its exact path (e.g. an empty prefix at the
+  same folder and format) — in fixed-folder mode as well as same-folder mode —
+  falling back to the Save As dialog so you can rename. (More reachable now that
+  the prefix is customizable.)
 
 - **The bottom scroll runway now accounts for the send/receive pills.** The
   extra space that lets the last line of a document clear the bottom-left shelf

@@ -901,12 +901,15 @@ ipcMain.handle(
   },
 );
 
-// Silent "Save Send Doc" write. The renderer has already resolved the
-// destination (a fixed folder, or the source file's own folder) and the
-// final filename; main just joins, guards against clobbering the source,
-// and writes. Returns the literal string 'collision' when the resolved
-// target would overwrite the source document (prefix off + same folder +
-// same format) so the renderer can defer to the Save As dialog instead.
+// Silent "Save Send Doc" / "Save Marked Cards" write. The renderer has already
+// resolved the destination (a fixed folder, or the source file's own folder),
+// the final filename, AND passes the source document's own path as
+// `siblingHandle`; main just joins, guards against clobbering the source, and
+// writes. Returns the literal string 'collision' whenever the resolved target
+// would overwrite the source document — in EITHER destination mode (e.g. a
+// custom/empty prefix at the same folder + format, or a fixed folder that
+// happens to contain the source) — so the renderer can defer to the Save As
+// dialog instead.
 ipcMain.handle(
   'host:save-send-doc',
   async (

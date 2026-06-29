@@ -254,12 +254,22 @@ export interface Settings {
    *  on-disk files always Save As in their current format — the
    *  handle wins over this default. */
   defaultSaveFormat: 'cmir' | 'docx';
-  /** When on (default), saving via the Save-As dialog's Send Doc /
-   *  Read Doc presets prepends `SEND_` / `READ_` to the file name
-   *  (e.g. `SEND_1AC.docx`). The As-Is preset and the Save Custom
-   *  button are never prefixed. Off saves presets under the exact
-   *  name shown in the box. */
+  /** When on (default), saving via the Save-As dialog's Send Doc / Read Doc /
+   *  Marked Doc presets (and their commands) prepends a per-type prefix to the
+   *  file name (e.g. `SEND_1AC.docx`). The As-Is preset and the Save Custom
+   *  button are never prefixed. Off saves presets under the exact name shown in
+   *  the box. The prefix strings are `sendDocPrefix` / `readDocPrefix` /
+   *  `markedDocPrefix`. */
   prefixPresetSaveFilenames: boolean;
+  /** Filename prefix for Send Doc saves when `prefixPresetSaveFilenames` is on.
+   *  Default `SEND_`. Empty = no prefix for this type. */
+  sendDocPrefix: string;
+  /** Filename prefix for Read Doc saves when `prefixPresetSaveFilenames` is on.
+   *  Default `READ_`. */
+  readDocPrefix: string;
+  /** Filename prefix for Marked Doc saves when `prefixPresetSaveFilenames` is on.
+   *  Default `MARKED_`. */
+  markedDocPrefix: string;
   /** Where Save Send Doc writes. `sameFolder` (default) drops the
    *  send doc beside the source file; `fixedFolder` always writes into
    *  `sendDocFolder`. Either way, an unresolvable destination (a
@@ -1033,6 +1043,9 @@ const DEFAULTS: Settings = {
   defaultSpeechDocFormat: 'docx',
   defaultSaveFormat: 'docx',
   prefixPresetSaveFilenames: true,
+  sendDocPrefix: 'SEND_',
+  readDocPrefix: 'READ_',
+  markedDocPrefix: 'MARKED_',
   sendDocDestination: 'sameFolder',
   sendDocFolder: '',
   markedCardsDestination: 'sameFolder',
@@ -1487,11 +1500,35 @@ export const SETTING_METADATA: SettingMeta[] = [
   },
   {
     key: 'prefixPresetSaveFilenames',
-    label: 'Prefix preset saves with SEND_ / READ_',
+    label: 'Prefix preset saves',
     description:
-      'When on (default), the Save As dialog\'s Send Doc and Read Doc presets prepend SEND_ and READ_ to the file name (e.g. SEND_1AC.docx). The As-Is preset and the Save Custom button are never prefixed. Turn off to save presets under the exact name shown in the box.',
+      'When on (default), the Save As dialog\'s Send Doc / Read Doc / Marked Doc presets (and their commands) prepend the prefixes below to the file name (e.g. SEND_1AC.docx). The As-Is preset and the Save Custom button are never prefixed. Turn off to save presets under the exact name shown in the box.',
     kind: 'toggle',
     category: 'general',
+  },
+  {
+    key: 'sendDocPrefix',
+    label: 'Send Doc filename prefix',
+    description: 'Prepended to Send Doc saves when the option above is on. Default SEND_. Leave empty for no prefix.',
+    kind: 'text',
+    category: 'general',
+    dependsOn: 'prefixPresetSaveFilenames',
+  },
+  {
+    key: 'readDocPrefix',
+    label: 'Read Doc filename prefix',
+    description: 'Prepended to Read Doc saves when the option above is on. Default READ_. Leave empty for no prefix.',
+    kind: 'text',
+    category: 'general',
+    dependsOn: 'prefixPresetSaveFilenames',
+  },
+  {
+    key: 'markedDocPrefix',
+    label: 'Marked Doc filename prefix',
+    description: 'Prepended to Marked Doc saves when the option above is on. Default MARKED_. Leave empty for no prefix.',
+    kind: 'text',
+    category: 'general',
+    dependsOn: 'prefixPresetSaveFilenames',
   },
   {
     key: 'sendDocDestination',
@@ -2390,6 +2427,9 @@ function sanitize(s: Settings): Settings {
     // Default-on: only an explicit `false` disables the preset
     // filename prefixes (survives upgrades from before this existed).
     prefixPresetSaveFilenames: s.prefixPresetSaveFilenames === false ? false : true,
+    sendDocPrefix: typeof s.sendDocPrefix === 'string' ? s.sendDocPrefix : 'SEND_',
+    readDocPrefix: typeof s.readDocPrefix === 'string' ? s.readDocPrefix : 'READ_',
+    markedDocPrefix: typeof s.markedDocPrefix === 'string' ? s.markedDocPrefix : 'MARKED_',
     sendDocDestination:
       s.sendDocDestination === 'fixedFolder' ? 'fixedFolder' : 'sameFolder',
     sendDocFolder: typeof s.sendDocFolder === 'string' ? s.sendDocFolder : '',

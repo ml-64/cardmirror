@@ -7,6 +7,24 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Configurable preset filename prefixes + overwrite guard in fixed-folder
+  mode** (`editor/settings.ts`, `editor/save-as-ui.ts`, `editor/index.ts`,
+  `apps/desktop/src/main.ts`, `tests/editor/settings-backup.test.ts`). New string
+  settings `sendDocPrefix` / `readDocPrefix` / `markedDocPrefix` (General,
+  `kind: 'text'`, `dependsOn: 'prefixPresetSaveFilenames'`, defaults SEND_ /
+  READ_ / MARKED_); the previously-hardcoded literals in the Save-As presets
+  (`save-as-ui.ts`) and the silent `runSaveSendDocFlow` / `runSaveMarkedCardsFlow`
+  (`index.ts`) now read them, and the `prefixPresetSaveFilenames` toggle's
+  label/description were de-hardcoded. Overwrite guard: both silent flows now
+  ALWAYS pass the source document's path as `siblingHandle` and gate the silent
+  write on a per-mode resolvable destination
+  (`fixedFolderMode ? folder !== null : sourceHandle !== null`), so the desktop's
+  existing `resolve(target) === resolve(siblingHandle)` collision check fires in
+  fixed-folder mode too — a custom/empty prefix colliding with the original →
+  'collision' → Save As dialog — not just same-folder mode. The IPC/main code is
+  unchanged (only its comment); the fix is renderer-side. Tests cover the prefix
+  defaults + custom/empty values.
+
 - **Per-editor (unlinked) body-text zoom** (`editor/settings.ts`,
   `editor/settings-ui.ts`, `editor/index.ts`, `editor/multi-pane-shell.ts`,
   `editor/drag-editor-surface.ts`, `editor/mobile-shell.ts`,

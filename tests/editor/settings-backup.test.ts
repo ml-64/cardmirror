@@ -158,3 +158,20 @@ describe('defaultZoomPct (the open-at body-zoom default)', () => {
     expect(new SettingsStore().get('defaultZoomPct')).toBe(100);
   });
 });
+
+describe('preset filename prefixes', () => {
+  it('default to SEND_ / READ_ / MARKED_', () => {
+    const s = new SettingsStore();
+    expect(s.get('sendDocPrefix')).toBe('SEND_');
+    expect(s.get('readDocPrefix')).toBe('READ_');
+    expect(s.get('markedDocPrefix')).toBe('MARKED_');
+  });
+
+  it('accept custom strings (including empty)', () => {
+    const s = new SettingsStore();
+    s.replaceAll({ sendDocPrefix: 'OUT-', readDocPrefix: '', markedDocPrefix: 'MK_' } as never);
+    expect(s.get('sendDocPrefix')).toBe('OUT-');
+    expect(s.get('readDocPrefix')).toBe('');
+    expect(s.get('markedDocPrefix')).toBe('MK_');
+  });
+});

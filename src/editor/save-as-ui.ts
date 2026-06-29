@@ -212,7 +212,7 @@ class SaveAsModal {
           includeAiThreads: false,
           markedCardsOnly: false,
         },
-        'SEND_',
+        settings.get('sendDocPrefix'),
       ),
     );
     presets.appendChild(
@@ -228,7 +228,7 @@ class SaveAsModal {
           includeAiThreads: false,
           markedCardsOnly: false,
         },
-        'READ_',
+        settings.get('readDocPrefix'),
       ),
     );
     presets.appendChild(
@@ -244,7 +244,7 @@ class SaveAsModal {
           includeAiThreads: false,
           markedCardsOnly: true,
         },
-        'MARKED_',
+        settings.get('markedDocPrefix'),
       ),
     );
     form.appendChild(presets);

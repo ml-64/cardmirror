@@ -65,11 +65,11 @@ You can run CardMirror two ways:
   Chromium browsers you can **install it as an app** for most of the
   desktop experience.
 
-**Installing as an app (Chrome / Edge / ChromeOS).** Open the web edition
-and click the **Install** button in the address bar to run CardMirror in
+**Installing the web edition as an app (Chrome / Edge / ChromeOS).** Open
+it and click the **Install** button in the address bar to run CardMirror in
 its own window — offline, and updating itself when you relaunch. On a
-Chromebook this is how to run it. Installed, the web app covers most of the
-desktop experience; what follows is only what still differs.
+Chromebook, this is the best way to run it. Installed, the web app covers
+most of the desktop experience; what follows is only what still differs.
 
 A few capabilities still need the **desktop app**: the background
 **[file-library search](#the-search-everything-palette-mod-shift-space)**,

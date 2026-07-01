@@ -25,6 +25,14 @@ see `DETAILED_CHANGELOG.md`.
   access is denied it falls back to the previous "next Ctrl/Cmd+V pastes as text"
   behavior, and the button lights up with a cue.
 
+- **Multi-tab sharing on the web.** With CardMirror open in more than one browser
+  tab, the **dropzone shelf** and your **Quick Cards** library now sync across
+  them, and **Send to Speech** can deliver a card to the speech document open in
+  another tab (mark a doc as the speech doc in one tab, send to it from another).
+  The dropzone stays a scratch shelf — it clears once you fully close the app —
+  while Quick Cards persist. (Quick Cards also moved to roomier browser storage,
+  so a large library no longer risks hitting the old size limit.)
+
 ## 0.1.0-beta.4 — 2026-06-29
 
 ### Added

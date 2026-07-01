@@ -24,6 +24,31 @@ import { normalizeSelectionForSend } from './send-normalize.js';
 import { getSpeechDocResolver } from './speech-doc-registry.js';
 import { getElectronHost } from './host/index.js';
 
+// ── Web multi-tab slice transport ──────────────────────────────────────────
+// With no main process to route through, the speech doc may live in another
+// same-origin TAB. We deliver the serialized slice over a BroadcastChannel;
+// whichever tab has that uid's view mounted inserts it through the SAME
+// `insertSpeechSlice` path as an in-window send and acks back, so the sender
+// knows it landed (mirroring the Electron 'delivered' / 'speech-window-gone'
+// result). A card slice is small, so no chunking is needed.
+interface SpeechSliceMsg {
+  kind: 'slice';
+  nonce: string;
+  uid: string;
+  sliceJson: unknown;
+  atEnd: boolean;
+}
+interface SpeechAckMsg {
+  kind: 'ack';
+  nonce: string;
+}
+type SpeechChannelMsg = SpeechSliceMsg | SpeechAckMsg;
+
+const speechChannel: BroadcastChannel | null =
+  typeof BroadcastChannel !== 'undefined'
+    ? new BroadcastChannel('pmd-speech-slice')
+    : null;
+
 /** Optional hook fired after a successful local insert. Multi-pane
  *  uses it to focus the destination slot and cancel its debounced
  *  heavy-update timer; single-doc has nothing to do here. */
@@ -282,16 +307,11 @@ export function sendToSpeech(
     return;
   }
 
-  // Speech doc lives in another window. Serialize and route via main.
+  // Speech doc lives in another window / tab.
   const electron = getElectronHost();
   if (!electron) {
-    // Shouldn't happen — a uid that resolves to no view AND no
-    // Electron host means an orphaned cross-window designation in a
-    // non-Electron context, which is impossible by construction.
-    // Log + bail.
-    console.warn(
-      'sendToSpeech: speech uid is set but neither a local view nor an Electron host can resolve it.',
-    );
+    // Web multi-tab: broadcast the slice to whichever tab owns the speech doc.
+    sendSpeechSliceCrossTab(speechUid, slice.toJSON(), atEnd, sourceView);
     return;
   }
   const sliceJson = slice.toJSON();
@@ -316,32 +336,85 @@ export function sendToSpeech(
   });
 }
 
-/** Install the receive-side handler. Listens for incoming slices
- *  from main, resolves the target uid to a local view, and applies
- *  the slice via `insertSpeechSlice`. Called once at boot from
- *  whichever editor surface is alive (single-doc and multi-pane both
- *  install it; the resolver's view map filters incoming slices to
- *  whichever doc actually lives in this renderer). */
+/** Web: broadcast a slice to the tab that owns the speech doc, confirming
+ *  delivery via an ack — so a designation pointing at a closed tab surfaces the
+ *  same "window's gone" notice the Electron path shows, not a silent drop. */
+function sendSpeechSliceCrossTab(
+  uid: string,
+  sliceJson: unknown,
+  atEnd: boolean,
+  sourceView: EditorView,
+): void {
+  if (!speechChannel) {
+    window.alert("This browser can't reach the speech document in another tab.");
+    sourceView.focus();
+    return;
+  }
+  const nonce = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  let timer: ReturnType<typeof setTimeout>;
+  const onAck = (e: MessageEvent<SpeechChannelMsg>): void => {
+    if (e.data?.kind === 'ack' && e.data.nonce === nonce) {
+      speechChannel?.removeEventListener('message', onAck);
+      clearTimeout(timer);
+    }
+  };
+  speechChannel.addEventListener('message', onAck);
+  speechChannel.postMessage({
+    kind: 'slice',
+    nonce,
+    uid,
+    sliceJson,
+    atEnd,
+  } as SpeechSliceMsg);
+  timer = setTimeout(() => {
+    speechChannel?.removeEventListener('message', onAck);
+    // No tab acked — the designated speech doc isn't open anywhere.
+    window.alert("The speech document isn't open in any tab.");
+    sourceView.focus(); // reclaim focus the alert stole (see notes above)
+  }, 600);
+}
+
+/** Deserialize + insert an incoming slice into the local view for `uid`, via the
+ *  same `insertSpeechSlice` path as an in-window send. Returns true iff a local
+ *  view for `uid` existed (so the web transport acks only when THIS tab owns the
+ *  target doc). */
+function applyIncomingSlice(uid: string, sliceJson: unknown, atEnd: boolean): boolean {
+  const view = getSpeechDocResolver().viewForUid(uid);
+  if (!view) return false;
+  let slice: Slice;
+  try {
+    slice = Slice.fromJSON(schema, sliceJson as Parameters<typeof Slice.fromJSON>[1]);
+  } catch (err) {
+    console.error('Failed to deserialize incoming speech slice:', err);
+    return false;
+  }
+  insertSpeechSlice(view, slice, atEnd);
+  return true;
+}
+
+/** Install the receive-side handler. Resolves an incoming slice's target uid to
+ *  a local view and applies it via `insertSpeechSlice`. Electron receives over
+ *  the host IPC (routed by main); the browser receives over a BroadcastChannel
+ *  from another tab and acks so the sender can confirm delivery. Called once at
+ *  boot from whichever editor surface is alive (the resolver's per-tab view map
+ *  filters incoming slices to whichever doc actually lives in this renderer). */
 export function installIncomingSpeechSliceHandler(): void {
   const electron = getElectronHost();
-  if (!electron) return;
-  electron.onIncomingSpeechSlice(({ uid, sliceJson, atEnd }) => {
-    const resolver = getSpeechDocResolver();
-    const view = resolver.viewForUid(uid);
-    if (!view) {
-      console.warn('Incoming speech slice for unregistered uid', uid);
-      return;
+  if (electron) {
+    electron.onIncomingSpeechSlice(({ uid, sliceJson, atEnd }) => {
+      if (!applyIncomingSlice(uid, sliceJson, atEnd)) {
+        console.warn('Incoming speech slice for unregistered uid', uid);
+      }
+    });
+    return;
+  }
+  // Web multi-tab: another tab broadcast a slice — insert + ack if THIS tab owns
+  // the target doc; otherwise ignore (a different tab will handle it).
+  speechChannel?.addEventListener('message', (e: MessageEvent<SpeechChannelMsg>) => {
+    const msg = e.data;
+    if (!msg || msg.kind !== 'slice') return;
+    if (applyIncomingSlice(msg.uid, msg.sliceJson, msg.atEnd)) {
+      speechChannel?.postMessage({ kind: 'ack', nonce: msg.nonce } as SpeechAckMsg);
     }
-    let slice: Slice;
-    try {
-      slice = Slice.fromJSON(
-        schema,
-        sliceJson as Parameters<typeof Slice.fromJSON>[1],
-      );
-    } catch (err) {
-      console.error('Failed to deserialize incoming speech slice:', err);
-      return;
-    }
-    insertSpeechSlice(view, slice, atEnd);
   });
 }

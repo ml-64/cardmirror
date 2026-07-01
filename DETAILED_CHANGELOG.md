@@ -52,6 +52,28 @@ in each release, see `CHANGELOG.md`.
   settings search all route through — so neither the tab nor a palette entry for it
   appears on web.
 
+- **Web multi-tab sync for the dropzone, quick cards, and send-to-speech**
+  (`src/editor/web-shared-store.ts` (new), `dropzone-store.ts`, `quick-cards-store.ts`,
+  `speech-doc-registry.ts`, `speech-doc-send.ts`, `index.ts`). New `WebSharedStore<T>`
+  backs a value with IndexedDB (large disk-fraction quota, past localStorage's ~5 MB)
+  plus a BroadcastChannel for cross-tab live sync — best-effort, with a toast on a
+  quota refusal and graceful in-memory fallback where IndexedDB/BroadcastChannel are
+  absent. The **dropzone** and **quick-cards** web backends moved onto it (quick
+  cards migrate once from the old `localStorage` key, left intact as a fallback).
+  The dropzone stays session-scoped: on a fresh browser session — a new tab that
+  isn't an in-tab reload (a `sessionStorage` marker distinguishes the multi-pane
+  toggle's reload) and with no peer answering a presence ping — the stale shelf is
+  cleared; concurrent tabs share it. **Send-to-speech** gains a web cross-tab path:
+  a `WebSpeechDocResolver` shares the speech-doc designation across tabs
+  (`localStorage` + `storage` event), and `sendToSpeech` broadcasts the serialized
+  slice over a BroadcastChannel with an ack — the tab owning that uid's view inserts
+  it through the SAME `insertSpeechSlice` the Electron receive path uses (extracted
+  as `applyIncomingSlice`; no duplicate handler), and a no-ack timeout surfaces the
+  "speech doc isn't open in any tab" notice (mirroring Electron's window-gone case).
+  The speech-stack ribbon buttons now appear on web single-doc (`pmd-multi-window`
+  gated on the browser host too), and the desktop-only "New Speech Document" error
+  was rewritten to point users at the Three-pane workspace.
+
 ## 0.1.0-beta.4 — 2026-06-29
 
 - **Discontinuous (Ctrl/Cmd) selection** (`editor/word-selection-plugin.ts`,

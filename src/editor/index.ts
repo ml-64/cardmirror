@@ -31,7 +31,7 @@ import { isBenchmarkActive, setBenchmarkActive } from './benchmark.js';
 import { openReference } from './reference-ui.js';
 import {
   getSpeechDocResolver,
-  installElectronSpeechDocResolver,
+  installSpeechDocResolver,
 } from './speech-doc-registry.js';
 import {
   sendToSpeech as runSendToSpeech,
@@ -283,7 +283,7 @@ let autosaveStateForActive: () => boolean = () => settings.get('autosaveEnabled'
 // subscribers attach. On the browser this is a no-op; on Electron
 // it swaps in the main-process-mirroring resolver so doc
 // registrations and speech-set calls flow through IPC.
-installElectronSpeechDocResolver(getHost());
+installSpeechDocResolver(getHost());
 
 /** Sync the speech-mark button's aria-pressed with whether the
  *  currently-active view IS the speech doc. Called from
@@ -469,7 +469,11 @@ async function runNewSpeechDocumentSingleDoc(): Promise<void> {
   const host = getHost();
   if (!host.canSpawnWindow) {
     window.alert(
-      'New Speech Document requires the desktop edition (multi-window).',
+      'New Speech Document opens a separate window, which the web version can’t ' +
+        'create. To use a speech document here, turn on the Three-pane workspace ' +
+        '(Settings → General) — it shows several docs side by side in one window, ' +
+        'where one can be marked as the speech doc. (Or, in a second browser tab, ' +
+        'open a doc and use “Mark active doc as speech”.)',
     );
     getActiveView()?.focus(); // reclaim focus the alert stole (Windows/Linux)
     return;
@@ -6327,10 +6331,15 @@ if (BOOT_MOBILE_ENV.hostKind === 'browser') {
 }
 if (BOOT_MOBILE) setMobileShellActive(true);
 const BOOT_MULTI_DOC_WORKSPACE = !BOOT_MOBILE && settings.get('multiDocWorkspace');
-// Multi-window mode = single-doc + a host that can spawn windows
-// (Electron). Gates the speech-stack ribbon cluster's visibility
-// via CSS (single-doc-without-spawn has nothing to send TO).
-if (!BOOT_MULTI_DOC_WORKSPACE && getHost().canSpawnWindow) {
+// Multi-window mode shows the speech-stack ribbon cluster (mark-as-speech + the
+// two send buttons). On desktop that's single-doc + a host that can spawn
+// windows (Electron). On the web a single-doc tab can send to the speech doc in
+// ANOTHER same-origin tab (cross-tab transport, see speech-doc-send.ts), so
+// surface it there too — but not on the mobile shell, which has no such flow.
+if (
+  !BOOT_MULTI_DOC_WORKSPACE &&
+  (getHost().canSpawnWindow || (getHost().kind === 'browser' && !BOOT_MOBILE))
+) {
   document.body.classList.add('pmd-multi-window');
 }
 // Install the cross-window send-to-speech receiver. No-op when not

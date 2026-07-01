@@ -218,22 +218,66 @@ class ElectronSpeechDocResolver extends DefaultSpeechDocResolver {
   }
 }
 
+/** Browser resolver — shares the speech-doc DESIGNATION across same-origin tabs
+ *  via `localStorage` (persisted so a newly-opened tab learns it) + the `storage`
+ *  event (live cross-tab sync). The view map stays per-tab; a designated uid with
+ *  no local view means the speech doc lives in ANOTHER tab, and `sendToSpeech`
+ *  routes the slice there over a BroadcastChannel (see `speech-doc-send.ts`). */
+const SPEECH_UID_KEY = 'pmd-speech-uid';
+
+class WebSpeechDocResolver extends DefaultSpeechDocResolver {
+  constructor() {
+    super();
+    try {
+      const stored = localStorage.getItem(SPEECH_UID_KEY);
+      this.speechUid = stored && stored.length > 0 ? stored : null;
+    } catch {
+      /* storage unavailable — designation stays per-tab */
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', (e) => {
+        if (e.key !== SPEECH_UID_KEY) return;
+        const next = e.newValue && e.newValue.length > 0 ? e.newValue : null;
+        if (this.speechUid !== next) {
+          this.speechUid = next;
+          this.fire();
+        }
+      });
+    }
+  }
+
+  override setSpeechByUid(uid: string | null): void {
+    if (this.speechUid !== uid) {
+      this.speechUid = uid;
+      this.fire();
+    }
+    try {
+      if (uid) localStorage.setItem(SPEECH_UID_KEY, uid);
+      else localStorage.removeItem(SPEECH_UID_KEY);
+    } catch {
+      /* best-effort — cross-tab sync just won't persist */
+    }
+  }
+}
+
 let resolver: SpeechDocResolver = new DefaultSpeechDocResolver();
 
 export function getSpeechDocResolver(): SpeechDocResolver {
   return resolver;
 }
 
-/** Install an Electron-aware resolver bridged to the host's
- *  speech-doc IPC. Call once at boot after the host is established.
- *  No-op when the host isn't Electron. */
-export function installElectronSpeechDocResolver(host: Host): void {
-  if (host.kind !== 'electron') return;
-  resolver = new ElectronSpeechDocResolver(host as ElectronHost);
+/** Install the host-appropriate resolver. Call once at boot after the host is
+ *  established: Electron gets the main-process-bridged resolver; the browser
+ *  gets the cross-tab (localStorage-shared) resolver. */
+export function installSpeechDocResolver(host: Host): void {
+  resolver =
+    host.kind === 'electron'
+      ? new ElectronSpeechDocResolver(host as ElectronHost)
+      : new WebSpeechDocResolver();
 }
 
 /** Swap in a custom resolver. Mainly an escape hatch for tests; in
- *  normal use, `installElectronSpeechDocResolver` is what callers
+ *  normal use, `installSpeechDocResolver` is what callers
  *  reach for. */
 export function setSpeechDocResolver(next: SpeechDocResolver): void {
   resolver = next;

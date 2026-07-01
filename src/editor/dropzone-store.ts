@@ -1,16 +1,18 @@
 /**
- * Dropzone shelf store — a small reactive store for the in-memory
- * scratch-space items that the dropzone bubble visualizes.
+ * Dropzone shelf store — a small reactive store for the scratch-space items
+ * that the dropzone bubble visualizes.
  *
  * Two backends, same surface:
  *   - **Electron**: state lives in main, mutations flow through IPC,
- *     `dropzone:changed` broadcasts keep every window's local cache
- *     in sync. Survives renderer reloads (multi-pane mode toggle is
- *     a renderer reload) because main isn't reloaded.
- *   - **Web**: state lives in `sessionStorage`. Single window only,
- *     but survives the in-tab reload that the multi-pane toggle
- *     fires. Cleared on tab close per the same "no cross-session
- *     persistence" rule.
+ *     `dropzone:changed` broadcasts keep every window's local cache in sync.
+ *     Session-scoped (cleared on app quit).
+ *   - **Web**: state lives in IndexedDB (large disk-fraction quota — the shelf
+ *     can hold image-bearing cards that would blow past localStorage's ~5 MB),
+ *     BroadcastChannel-synced across same-origin tabs. Kept SESSION-SCOPED like
+ *     the Electron shelf: on the first tab of a fresh browser session (no other
+ *     tab answers a presence ping) the stale shelf is cleared, so it doesn't
+ *     survive a full close-and-reopen — but it IS shared across tabs open at the
+ *     same time.
  *
  * Subscribers are notified on every state change. The renderer UI
  * (dropzone-ui.ts) is the only intended consumer.
@@ -19,6 +21,7 @@
 import type { Slice } from 'prosemirror-model';
 import { collectCiteText } from './headings.js';
 import { getElectronHost } from './host/index.js';
+import { WebSharedStore } from './web-shared-store.js';
 
 export interface DropzoneItem {
   id: string;
@@ -36,7 +39,53 @@ export interface DropzoneItem {
 
 type Listener = (items: DropzoneItem[]) => void;
 
-const SESSION_STORAGE_KEY = 'pmd-dropzone-items';
+const webShelf = new WebSharedStore<DropzoneItem[]>(
+  'dropzone-items',
+  'pmd-dropzone-channel',
+  'dropzone shelf',
+);
+
+// Per-tab marker: sessionStorage survives an in-tab RELOAD (the multi-pane
+// toggle) but is cleared on tab close, so a present marker means this tab has
+// already run this session — i.e. we're reloading, not starting fresh.
+const SESSION_MARKER = 'pmd-dropzone-session';
+
+// Presence channel — lets a newly-opened tab detect whether ANY other tab has
+// the app open, so a fresh browser session (no peers) can clear the stale
+// scratch shelf. Keeps the shelf cross-TAB but not cross-SESSION, matching the
+// Electron dropzone (which clears on app quit).
+const presenceChannel: BroadcastChannel | null =
+  typeof BroadcastChannel !== 'undefined'
+    ? new BroadcastChannel('pmd-dropzone-presence')
+    : null;
+presenceChannel?.addEventListener('message', (e: MessageEvent) => {
+  if (e.data === 'ping') presenceChannel?.postMessage('pong');
+});
+
+/** Resolve true if another tab answers a presence ping within a short window. */
+function anyPeerTabOpen(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (!presenceChannel) {
+      resolve(false);
+      return;
+    }
+    let settled = false;
+    const onPong = (e: MessageEvent): void => {
+      if (settled || e.data !== 'pong') return;
+      settled = true;
+      presenceChannel?.removeEventListener('message', onPong);
+      resolve(true);
+    };
+    presenceChannel.addEventListener('message', onPong);
+    presenceChannel.postMessage('ping');
+    setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      presenceChannel?.removeEventListener('message', onPong);
+      resolve(false);
+    }, 200);
+  });
+}
 
 class DropzoneStore {
   private items: DropzoneItem[] = [];
@@ -62,14 +111,29 @@ class DropzoneStore {
         this.fire();
       });
     } else {
-      // Web path — sessionStorage. Storage events let us hear writes
-      // from other tabs on the same origin, but the multi-pane
-      // toggle is a same-tab reload so the on-init read alone covers
-      // the survival case the user asked for.
-      this.items = readSessionItems();
-      window.addEventListener('storage', (e) => {
-        if (e.key !== SESSION_STORAGE_KEY) return;
-        this.items = readSessionItems();
+      // Web — IndexedDB + BroadcastChannel. Clear a shelf left over from a
+      // PREVIOUS session: if no other tab is open, this is a fresh browser
+      // session and the scratch shelf shouldn't survive it. When a peer IS open,
+      // join the shared shelf.
+      const loaded = sanitizeItems(await webShelf.load());
+      let sameTabReload = false;
+      try {
+        sameTabReload = sessionStorage.getItem(SESSION_MARKER) === '1';
+        sessionStorage.setItem(SESSION_MARKER, '1');
+      } catch {
+        /* sessionStorage unavailable — fall back to the presence check alone */
+      }
+      // Clear only when this is a genuinely fresh browser session: a brand-new
+      // tab (not a reload) AND no other tab currently open. Reloads and
+      // concurrent tabs keep the shared shelf.
+      if (loaded.length > 0 && !sameTabReload && !(await anyPeerTabOpen())) {
+        this.items = [];
+        void webShelf.save(this.items);
+      } else {
+        this.items = loaded;
+      }
+      webShelf.onExternalChange(async () => {
+        this.items = sanitizeItems(await webShelf.load());
         this.fire();
       });
     }
@@ -83,44 +147,38 @@ class DropzoneStore {
   }
 
   async add(item: DropzoneItem): Promise<void> {
+    this.items = [...this.items.filter((x) => x.id !== item.id), item];
     const electron = getElectronHost();
     if (electron) {
+      // Optimistic local update above — main will broadcast back too, but the
+      // UI feels snappier when this returns instantly.
       await electron.dropzoneAdd(item);
-      // Optimistic local update — main will broadcast back too, but
-      // the UI feels snappier when this returns instantly.
-      this.items = [...this.items.filter((x) => x.id !== item.id), item];
-      this.fire();
     } else {
-      this.items = [...this.items.filter((x) => x.id !== item.id), item];
-      writeSessionItems(this.items);
-      this.fire();
+      void webShelf.save(this.items);
     }
+    this.fire();
   }
 
   async remove(id: string): Promise<void> {
+    this.items = this.items.filter((x) => x.id !== id);
     const electron = getElectronHost();
     if (electron) {
       await electron.dropzoneRemove(id);
-      this.items = this.items.filter((x) => x.id !== id);
-      this.fire();
     } else {
-      this.items = this.items.filter((x) => x.id !== id);
-      writeSessionItems(this.items);
-      this.fire();
+      void webShelf.save(this.items);
     }
+    this.fire();
   }
 
   async clear(): Promise<void> {
+    this.items = [];
     const electron = getElectronHost();
     if (electron) {
       await electron.dropzoneClear();
-      this.items = [];
-      this.fire();
     } else {
-      this.items = [];
-      writeSessionItems(this.items);
-      this.fire();
+      void webShelf.save(this.items);
     }
+    this.fire();
   }
 
   subscribe(fn: Listener): () => void {
@@ -133,34 +191,19 @@ class DropzoneStore {
   }
 }
 
-function readSessionItems(): DropzoneItem[] {
-  try {
-    const raw = sessionStorage.getItem(SESSION_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    // Tolerate malformed entries — keep the well-shaped ones.
-    return parsed.filter(
+/** Tolerate malformed / partial persisted entries — keep the well-shaped ones. */
+function sanitizeItems(raw: DropzoneItem[] | null): DropzoneItem[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(
       (e): e is DropzoneItem =>
-        e &&
+        !!e &&
         typeof e === 'object' &&
         typeof e.id === 'string' &&
         typeof e.label === 'string' &&
         typeof e.createdAt === 'number',
-    ).map((e: DropzoneItem) => ({ ...e, type: typeof e.type === 'string' ? e.type : '' }));
-  } catch {
-    return [];
-  }
-}
-
-function writeSessionItems(items: DropzoneItem[]): void {
-  try {
-    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(items));
-  } catch {
-    // Quota / disabled storage — silently drop. The renderer cache
-    // still works for the current window; we just lose cross-reload
-    // survival.
-  }
+    )
+    .map((e) => ({ ...e, type: typeof e.type === 'string' ? e.type : '' }));
 }
 
 export const dropzoneStore = new DropzoneStore();

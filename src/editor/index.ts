@@ -58,8 +58,10 @@ import {
   modeSwitchDirtyMap,
   type ModeSwitchDoc,
 } from './mode-switch.js';
-// TEMPORARY: self-close feasibility probe for web multi-window (remove later).
-import { installSelfCloseProbe } from './dev-selfclose-probe.js';
+import {
+  webCloseOtherWindowsForModeSwitch,
+  installModeSwitchCloseHandler,
+} from './window-coordination.js';
 import { resolveMobileLayout } from './mobile-layout.js';
 import { mobilePlugin, setMobileShellActive } from './mobile-plugin.js';
 import { installCardCutterGate, cardCutterActive } from './card-cutter-gate.js';
@@ -6350,6 +6352,10 @@ if (
 // on Electron; safe to install in both single-doc and (will-be)
 // multi-pane paths since the resolver filters by uid.
 installIncomingSpeechSliceHandler();
+// Passenger side of a web mode switch: listen for another window's please-close,
+// journal our open doc(s), report them, and self-close. No-op on Electron (which
+// coordinates through main) and where BroadcastChannel is unavailable.
+installModeSwitchCloseHandler(journalAllForModeSwitch);
 // Load the persistent, cross-window Quick Cards library + subscribe to
 // changes. Done at boot (not on first UI mount) so the add command and
 // search palette work the instant they're invoked, in either layout.
@@ -6469,10 +6475,6 @@ void loadLearnStore();
 
 // Drag-and-drop file opening works in both single-doc and multi-pane modes.
 installDragToOpen();
-
-// TEMPORARY: probe whether a spawned window can window.close() itself (remove
-// once the web mode-switch design is settled). Gated behind ?probe=selfclose.
-installSelfCloseProbe();
 
 if (BOOT_MULTI_DOC_WORKSPACE) {
   void import('./multi-pane-shell.js').then(async (m) => {
@@ -6751,18 +6753,30 @@ async function handleModeSwitch(newValue: boolean): Promise<void> {
     // reload. The post-reload recovery picks up every journal and
     // restores the docs in the new layout.
     const electronHost = getElectronHost();
+    let remoteDocs: ModeSwitchDoc[] = [];
     if (electronHost) {
       await electronHost.journalAndCloseOtherWindows();
+    } else {
+      // Web: ask the other windows to journal their doc(s) and close over a
+      // BroadcastChannel, and collect what each had open. Their journals land
+      // in the shared journal store; only the uid+dirty list travels here, to
+      // be folded into the marker so the survivor reopens them too.
+      remoteDocs = await webCloseOtherWindowsForModeSwitch();
     }
     const docs = await journalAllForModeSwitch();
     // The marker carries exactly which journals belong to this
-    // switch (plus each doc's pre-switch dirty state). The
-    // post-reload recovery reopens those and ONLY those — without
-    // the list it swept in every journal in the store, so stale
-    // entries from earlier sessions reappeared on every toggle.
-    sessionStorage.setItem(MODE_SWITCH_MARKER_KEY, encodeModeSwitchMarker(docs));
+    // switch (plus each doc's pre-switch dirty state) — this
+    // window's docs AND any collected from the windows we just
+    // closed. The post-reload recovery reopens those and ONLY
+    // those — without the list it swept in every journal in the
+    // store, so stale entries from earlier sessions reappeared on
+    // every toggle.
+    sessionStorage.setItem(
+      MODE_SWITCH_MARKER_KEY,
+      encodeModeSwitchMarker([...docs, ...remoteDocs]),
+    );
     console.log(
-      `[cardmirror] modeswitch: journaled ${docs.length} local doc(s), switching to ${newValue ? 'multi' : 'single'}-pane`,
+      `[cardmirror] modeswitch: journaled ${docs.length} local + ${remoteDocs.length} remote doc(s), switching to ${newValue ? 'multi' : 'single'}-pane`,
     );
   } catch (err) {
     console.error('Mode-switch journaling failed:', err);

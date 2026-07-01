@@ -85,13 +85,13 @@ Features that work in only one edition are marked **(desktop only)** or
 **(web only)** throughout, so you'll find the specifics in each relevant
 section as you read.
 
-**Mobile layout (web edition).** Open CardMirror in a phone or tablet
-browser — or any browser window narrower than about 768px — and it
-switches to a view-first **mobile layout**: a slim top bar, the document
-full-bleed, a **Read** button for read mode (tap the page to drop or
-remove a reading marker), pinch-zoom, an outline drawer, and a
+**The web edition has a mobile layout.** Open CardMirror in a phone or
+tablet browser — or any browser window narrower than about 768px — and
+it switches to a view-first **mobile layout**: a slim top bar, the
+document full-bleed, a **Read** button for read mode (tap the page to
+drop or remove a reading marker), pinch-zoom, an outline drawer, and a
 touch-sized Settings page. **Use desktop layout** switches back to the
-full editor. Web edition only.
+full editor.
 
 ### First launch and the welcome guide
 

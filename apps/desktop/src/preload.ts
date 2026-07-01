@@ -236,10 +236,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
    *  which windows can take a file into their slot picker. */
   registerMultipane: (isMultiPane: boolean) =>
     ipcRenderer.invoke('host:register-multipane', isMultiPane),
-  /** TEMPORARY cross-window probe: fire-and-forget log line folded into
-   *  main's single timeline (carries this window's visibilityState). */
-  debugLog: (event: string, data?: unknown) =>
-    ipcRenderer.send('host:debug-log', { event, data }),
   /** Main forwards an OS-opened file (path) to an existing multi-pane
    *  window so it routes through the slot picker instead of spawning a
    *  blank window. Returns an unsubscribe. */

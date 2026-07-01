@@ -60,3 +60,12 @@ apps/desktop/resources/voice/
 # other binary attachments referenced from the wishlist.
 WISHLIST.md
 WISHLIST.assets/
+
+# Local-only investigation / audit working docs (white-screen crash
+# investigation, crash-reporting scoping, perf & housecleaning audit)
+# and the white-screen repro harness.
+WHITE_SCREEN_AUDIT.md
+WHITE_SCREEN_FIX_PLAN.md
+CRASH_REPORTING_SCOPE.md
+PERF_HOUSECLEANING_AUDIT.md
+repro-white-screen.ts

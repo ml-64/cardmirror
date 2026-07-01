@@ -4340,15 +4340,6 @@ function setCurrentDocHandle(next: unknown | null): void {
   if (prev === next) return;
   const electron = getElectronHost();
   if (!electron) return;
-  // TEMPORARY cross-window probe: record this window's visibility when
-  // it (re)registers its open path. A window registering while hidden
-  // (occluded) may have its async register land late vs. another
-  // window's check — a candidate for the duplicate-open guard missing.
-  electron.debugLog?.('setdochandle', {
-    vis: document.visibilityState,
-    releasing: typeof prev === 'string' && !!prev,
-    registering: typeof next === 'string' && !!next,
-  });
   if (typeof prev === 'string' && prev) {
     void electron.openPathRelease(prev);
   }
@@ -6141,18 +6132,6 @@ function pushNativeMenuBindings(): void {
     // close regardless so the originating window's
     // `journalAndCloseOtherWindows` promise resolves promptly.
     electronHost.onPleaseCloseForModeSwitch(() => {
-      // TEMPORARY cross-window probe: capture this (possibly occluded)
-      // window's visibility at the moment it's asked to close, and the
-      // time each phase takes. A long gap between main's please-close
-      // send and this firing — or `visibilityState: 'hidden'` — points
-      // at macOS native window occlusion freezing the background
-      // renderer (the lead theory for the flaky mode-switch).
-      const t0 = performance.now();
-      electronHost.debugLog?.('please-close-received', {
-        vis: document.visibilityState,
-        hidden: document.hidden,
-        multiDocActive,
-      });
       void (async (): Promise<void> => {
         try {
           // Journals this window's open doc(s) — single doc or, in
@@ -6167,10 +6146,6 @@ function pushNativeMenuBindings(): void {
         } catch (err) {
           console.warn('Mode-switch journaling failed:', err);
         }
-        electronHost.debugLog?.('please-close-journaled', {
-          journalMs: Math.round(performance.now() - t0),
-          vis: document.visibilityState,
-        });
         await electronHost.closeSelf();
       })();
     });

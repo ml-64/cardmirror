@@ -5,6 +5,105 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## Unreleased
+
+First tier of fixes from a systematic performance & housecleaning audit
+(multi-agent review across hot paths, startup, memory, the Electron main
+process, and repo hygiene; every finding adversarially verified before
+acceptance).
+
+- **Find/Replace: incremental doc-change rescan**
+  (`src/editor/find-replace-plugin.ts`, new
+  `tests/editor/find-replace-incremental.test.ts`). With a query active, every
+  doc-changing transaction re-ran `findMatches` over EVERY textblock in the
+  doc — O(doc chars) time plus a per-block offset-map allocation per keystroke
+  while the find bar was open. Now the existing matches are mapped through
+  `tr.mapping` (they live in untouched textblocks, so mapping is exact) and
+  only the top-level children the change touched are re-scanned
+  (`changedRange` + `expandToTopLevel`, the same helpers font-size-class and
+  read-mode already use), then the merged list is re-sorted with the existing
+  comparator. Falls back to the full rescan when the list is at
+  `FIND_MATCH_CAP` (which hits survive the cap depends on whole-doc scan
+  order) or when the scope band collapses (the search re-widens doc-wide).
+  The active match now survives edits by its MAPPED position, so typing above
+  the current hit no longer risks bumping the selection to a different match.
+  The contract — incremental result set identical to a full rescan — is
+  enforced by a 14-case equivalence suite incl. a deterministic 40-edit fuzz.
+  Synthetic worst case (3,000 paragraphs, 3,000 hits): 3.7ms → 0.5ms per
+  keystroke; real docs (fewer matches) improve far more.
+
+- **Find/Replace: results panel + nav markers debounced off the keystroke
+  path** (`src/editor/find-replace-ui.ts`). The `input`/`keyup` handler on the
+  editor DOM synchronously rebuilt up to 500 snippet rows (`innerHTML = ''`,
+  `doc.resolve` + `textBetween` + a listener per row) plus a full nav-panel
+  render per keystroke — the identity guards never hit because the plugin
+  returns a fresh matches array per rescan. The O(1) count label stays
+  synchronous; the O(matches) rebuilds now coalesce behind a 150ms trailing
+  timer (cleared on bar close).
+
+- **Startup: tinyld's language model moved out of the main chunk**
+  (`src/editor/translate.ts`). A static `import { detect } from 'tinyld'`
+  embedded the 577 KB n-gram model (~30% of the main chunk), parsed on every
+  launch, to serve one fallback — source-language detection when MyMemory
+  translation runs with source='auto'. `detectSourceLanguage` now dynamically
+  imports tinyld inside its existing try/catch (chunk-load failure degrades to
+  the same "pick a source language" error). Main chunk: 1,957 KB → 1,366 KB.
+  Deliberately NOT the 69 KB `tinyld/light` build: tested empirically, light
+  misidentifies several picker languages with confidence (uk→ru, cs→fi,
+  vi→hu, fa→ar, id/ms→tr), which would silently mistranslate; the full model
+  scores 27/29 on the picker language set vs light's 21/29.
+
+- **Desktop: folder-wide Compress off the main-process event loop**
+  (`apps/desktop/src/main.ts`). `host:bulk-compress` ran `gzipSync` +
+  `gunzipSync` (the losslessness verify) per file on the Electron main
+  process — ~100–300ms of event-loop blockage per multi-MB `.cmir`, stalling
+  every window's IPC (journal writes, autosaves, menus, dialogs) for the
+  duration of a run. Now `util.promisify(zlib.gzip/gunzip)` on libuv's thread
+  pool; identical output bytes, level 6, same per-file order / verify / mtime
+  restoration.
+
+- **Desktop: temporary cross-window debug probe removed** (`main.ts`,
+  `preload.ts`, `src/editor/host/electron-host.ts`, `src/editor/index.ts`;
+  ~250 lines). The self-labeled TEMPORARY probe (`xlog` / `pathForensics` /
+  `dedupeNearMisses`, the per-window focus/blur/hide/show listeners, the
+  renderer→main `host:debug-log` bridge, and the `modeSwitchAskedAt` timing
+  map) shipped in release builds, appending an uncapped JSON log to
+  `{userData}/cross-window-debug.log` on every focus change (1.4 MB in ~3
+  weeks on one machine) and running sync `realpathSync` forensics inside the
+  file-open IPC handlers. The investigation it served is driven by crash
+  dumps instead. The behavior it observed (mode-switch close/destroy timing,
+  open-path dedup) is untouched. The stale log file is deleted at boot as a
+  one-time cleanup, and the accessibility-crash telemetry that piggybacked on
+  the boot log survives as two plain console lines.
+
+- **Leftover per-keystroke debug logging removed**
+  (`src/editor/multi-pane-shell.ts`, `nav-panel.ts`, `speech-doc-send.ts`).
+  The `[cardmirror] wc:` warns from the 2026-06-10 stale-word-count hunt
+  fired on every doc-changing transaction in multi-pane mode (plus per
+  debounced flush and per `refreshWordCount`), and the mobile nav-pan
+  `console.log` did forced-layout reads purely to build its message. The
+  `navPanel.update` catch now reports via `console.error` instead of being
+  deleted with the rest — it was the only error visibility on that path.
+
+- **Three-pane: slot-picker keydown listener leak / swallowed digit**
+  (`src/editor/multi-pane-shell.ts`). `promptForSlot` removed its
+  document-level keydown listener only on the Escape / digit paths; completing
+  the picker with the MOUSE leaked it, and the stale handler
+  `preventDefault()`ed the next unmodified 1/2/3 typed into the editor before
+  self-healing. All four resolution paths now route through one `finish()`
+  that detaches the listener.
+
+- **Desktop package declares its compiler**
+  (`apps/desktop/package.json` + lockfile). `build:main` runs `tsc` but
+  typescript was undeclared in the desktop tree — it resolved only via npm's
+  ancestor `.bin` PATH from the ROOT devDependency, undermining the package's
+  documented self-contained `npm --prefix apps/desktop ci` install. Declared
+  `typescript ^5.7.2` (resolves to the same 5.9.3 the root uses).
+
+- **Repo hygiene** (`.gitignore`): local investigation working docs
+  (WHITE_SCREEN_*, CRASH_REPORTING_SCOPE, PERF_HOUSECLEANING_AUDIT,
+  repro-white-screen.ts) no longer clutter `git status`.
+
 ## 0.1.0-beta.5 — 2026-07-01
 
 - **Web: suppress password-manager DOM crawl on palette / Find focus**

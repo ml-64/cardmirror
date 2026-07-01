@@ -114,6 +114,9 @@ export class FindReplaceBar {
    *  user's feet. */
   private anchor = 0;
   private setQueryTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Trailing debounce for the O(matches) panel/nav rebuilds triggered
+   *  by edits in the document while the bar is open. */
+  private stateChangeTimer: ReturnType<typeof setTimeout> | null = null;
   private unsubscribeView: (() => void) | null = null;
   private sortLabel: HTMLElement;
 
@@ -668,10 +671,13 @@ export class FindReplaceBar {
     nav.setFindHitPositions(s.matches.map((m) => m.from));
   }
 
-  /** Listen for editor state changes so the count label stays in
-   *  sync as the user types into the doc (matches re-scan on every
-   *  doc-changing transaction). Cheap — we just re-read the
-   *  plugin's state and update one text node. */
+  /** Listen for editor state changes so the bar stays in sync as the
+   *  user types into the doc (matches re-scan on every doc-changing
+   *  transaction). The count label is O(1) and stays synchronous; the
+   *  results panel + nav markers rebuild O(matches) DOM (the plugin
+   *  hands back a fresh matches array each rescan, so their identity
+   *  guards never hit while typing), so those are coalesced into one
+   *  trailing rebuild per burst of edits. */
   private subscribeToStateChanges(): void {
     if (this.unsubscribeView) this.unsubscribeView();
     const view = this.getView();
@@ -679,8 +685,12 @@ export class FindReplaceBar {
     const dom = view.dom;
     const handler = () => {
       this.syncCount();
-      this.renderResults();
-      this.syncNavHits();
+      if (this.stateChangeTimer !== null) clearTimeout(this.stateChangeTimer);
+      this.stateChangeTimer = setTimeout(() => {
+        this.stateChangeTimer = null;
+        this.renderResults();
+        this.syncNavHits();
+      }, 150);
     };
     // PM doesn't expose a "state-changed" event on the view, but
     // input + focus events fire after dispatch in practice. Pair
@@ -692,6 +702,10 @@ export class FindReplaceBar {
     this.unsubscribeView = () => {
       dom.removeEventListener('input', handler);
       dom.removeEventListener('keyup', handler);
+      if (this.stateChangeTimer !== null) {
+        clearTimeout(this.stateChangeTimer);
+        this.stateChangeTimer = null;
+      }
     };
   }
 

@@ -24,8 +24,12 @@
  *   - `{ type: 'clear' }` — reset to inactive state.
  *
  * Doc changes (transactions where `tr.docChanged`) trigger a rescan
- * iff the query is non-empty. `currentIndex` is clamped to the new
- * `matches.length` so the active hit never points past the end.
+ * iff the query is non-empty. The rescan is incremental: existing
+ * matches are mapped through the transaction and only the top-level
+ * children the change touched are re-scanned (full O(doc) rescan is
+ * reserved for cap/scope edge cases — see
+ * `rescanIncrementalAfterDocChange`). `currentIndex` is clamped to the
+ * new `matches.length` so the active hit never points past the end.
  *
  * Replace logic lives in the `runReplace` / `runReplaceAll` Commands
  * exported below — the plugin only owns query state and decorations;
@@ -38,9 +42,11 @@ import {
   TextSelection,
   type Command,
   type EditorState,
+  type Transaction,
 } from 'prosemirror-state';
 import { Decoration, DecorationSet } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
+import { changedRange, expandToTopLevel } from './decoration-range.js';
 import { preciseScrollIntoView } from './precise-scroll.js';
 import { isWordChar, normalizeForMatch } from './word-break.js';
 
@@ -181,6 +187,11 @@ function findMatches(
   caseSensitive: boolean,
   wholeWord: boolean,
   scope: { from: number; to: number } | null,
+  /** When set, scan only the textblocks overlapping this range instead
+   *  of the whole doc. Must be expanded to top-level-child boundaries
+   *  (see `expandToTopLevel`) so no textblock is half-covered. Used by
+   *  the incremental doc-change rescan. */
+  range: { from: number; to: number } | null = null,
 ): FindMatch[] {
   if (!query) return [];
   const out: FindMatch[] = [];
@@ -189,7 +200,7 @@ function findMatches(
   // vice versa. The `.map` returned alongside translates normalized offsets back
   // to real ones (only the "..."→"…" collapse changes length).
   const needleNorm = normalizeForMatch(caseSensitive ? query : query.toLowerCase()).text;
-  state.doc.descendants((node, pos) => {
+  const visit = (node: PMNode, pos: number): boolean => {
     if (out.length >= FIND_MATCH_CAP) return false; // stop collecting past the cap
     if (!node.isTextblock) return true;
     // NOT textContent: inline atoms (images) have nodeSize 1 but
@@ -252,7 +263,9 @@ function findMatches(
     // Don't descend into the textblock's inline content — we already
     // consumed its `textContent`.
     return false;
-  });
+  };
+  if (range) state.doc.nodesBetween(range.from, range.to, visit);
+  else state.doc.descendants(visit);
   return out;
 }
 
@@ -348,6 +361,71 @@ function rescanAfterDocChange(
   return { ...prev, matches, currentIndex: nextIndex };
 }
 
+/** Incremental `rescanAfterDocChange`: map the existing matches
+ *  through the transaction (cheap) and re-scan only the top-level
+ *  children the change touched, so typing with an active query costs
+ *  O(edited card) instead of O(doc). Falls back to the full rescan
+ *  whenever the incremental result could differ from a full scan:
+ *  no computable changed range (defensive), or the match list at /
+ *  reaching FIND_MATCH_CAP (which hits survive the cap depends on
+ *  whole-doc scan order). Invariant: the produced match SET is always
+ *  identical to what `rescanAfterDocChange` would produce. */
+function rescanIncrementalAfterDocChange(
+  state: EditorState,
+  prev: FindReplaceState,
+  tr: Transaction,
+): FindReplaceState {
+  if (!prev.query) {
+    return { ...prev, matches: [], currentIndex: -1 };
+  }
+  if (prev.matches.length >= FIND_MATCH_CAP) {
+    return rescanAfterDocChange(state, prev);
+  }
+  const changed = changedRange(tr);
+  if (!changed) return rescanAfterDocChange(state, prev);
+  const zone = expandToTopLevel(state.doc, changed.from, changed.to);
+
+  // Matches outside the changed zone can only MOVE: they live in
+  // untouched textblocks (matches never span textblocks, and
+  // `changedRange` covers mark-only steps too), so mapping their
+  // positions is exact. Anything overlapping the zone is dropped here
+  // and re-found by the range scan below if it still exists.
+  const kept: FindMatch[] = [];
+  for (const m of prev.matches) {
+    const fromResult = tr.mapping.mapResult(m.from, 1);
+    if (fromResult.deleted) continue;
+    const from = fromResult.pos;
+    const to = tr.mapping.map(m.to, -1);
+    if (to <= from) continue;
+    if (from < zone.to && to > zone.from) continue;
+    kept.push(from === m.from && to === m.to ? m : { ...m, from, to });
+  }
+  const fresh = findMatches(
+    state,
+    prev.query,
+    prev.caseSensitive,
+    prev.wholeWord,
+    prev.scope,
+    zone,
+  );
+  if (kept.length + fresh.length >= FIND_MATCH_CAP) {
+    return rescanAfterDocChange(state, prev);
+  }
+  const matches = kept.concat(fresh);
+  if (matches.length === 0) return { ...prev, matches, currentIndex: -1 };
+  sortMatches(matches, prev.sortMode, prev.anchor, prev.categoryOrder);
+  // Preserve the active match across the edit by its mapped position
+  // (same contract as rescanAfterDocChange, made exact by the mapping:
+  // the full-rescan variant can only re-find position-stable hits).
+  let nextIndex = 0;
+  if (prev.currentIndex >= 0 && prev.matches[prev.currentIndex]) {
+    const mappedFrom = tr.mapping.map(prev.matches[prev.currentIndex]!.from, 1);
+    const found = matches.findIndex((m) => m.from === mappedFrom);
+    nextIndex = found >= 0 ? found : Math.min(prev.currentIndex, matches.length - 1);
+  }
+  return { ...prev, matches, currentIndex: nextIndex };
+}
+
 export function findReplacePlugin(): Plugin<FindReplaceState> {
   // Per-instance memo of the BASE decoration set — the scope band + every match
   // with the base class. Keyed on (doc, matches, scope) but NOT currentIndex, so
@@ -415,6 +493,7 @@ export function findReplacePlugin(): Plugin<FindReplaceState> {
         // the transaction's mapping so it tracks edits. Then run the
         // rescan (which depends on the up-to-date scope).
         let scope = prev.scope;
+        let scopeCollapsed = false;
         if (tr.docChanged && scope) {
           const fromMapped = tr.mapping.map(scope.from);
           const toMapped = tr.mapping.map(scope.to);
@@ -425,6 +504,7 @@ export function findReplacePlugin(): Plugin<FindReplaceState> {
             scope = { from: fromMapped, to: toMapped };
           } else {
             scope = null;
+            scopeCollapsed = true;
           }
         }
         // Doc-change rescan runs BEFORE the rest of the meta dispatch
@@ -434,7 +514,12 @@ export function findReplacePlugin(): Plugin<FindReplaceState> {
         // `matches` stale.
         let next = scope === prev.scope ? prev : { ...prev, scope };
         if (tr.docChanged && next.query) {
-          next = rescanAfterDocChange(newState, next);
+          // A collapsed scope widens the searchable region from the
+          // old scope band to the whole doc, so matches far from the
+          // edit can appear; only the full rescan sees those.
+          next = scopeCollapsed
+            ? rescanAfterDocChange(newState, next)
+            : rescanIncrementalAfterDocChange(newState, next, tr);
         }
         if (meta?.type === 'setScope') {
           const newMatches = next.query

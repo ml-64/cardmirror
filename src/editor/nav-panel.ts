@@ -1094,9 +1094,6 @@ export class NavigationPanel {
         if (px * px + py * py > 64) {
           this.cancelLongPress();
           this.manualPan = { lastY: e.clientY };
-          console.log(
-            `[cardmirror] mobile: nav pan engaged scrollTop=${this.listEl.scrollTop} scrollHeight=${this.listEl.scrollHeight} clientHeight=${this.listEl.clientHeight}`,
-          );
           // Keep the stream alive even if the starting row re-renders
           // out from under the gesture.
           try {

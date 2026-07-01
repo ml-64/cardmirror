@@ -5,6 +5,19 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## Unreleased
+
+### Fixed
+
+- **Performance improvements** throughout the editor: faster startup, smooth
+  typing with the Find bar open even in very large documents, no more brief
+  stalls after typing pauses in big files, and folder-wide **Compress** no
+  longer makes the rest of the app unresponsive while it runs.
+- **Three-pane: picking a slot with the mouse no longer swallows the next
+  typed 1, 2, or 3.** Using the "Open into…" picker with the mouse previously
+  left a hidden key handler behind that ate the next digit typed into the
+  editor.
+
 ## 0.1.0-beta.5 — 2026-07-01
 
 ### Added

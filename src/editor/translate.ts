@@ -19,7 +19,6 @@
  */
 
 import type { EditorView } from 'prosemirror-view';
-import { detect } from 'tinyld';
 import { settings, condenseWarningCloseFor } from './settings.js';
 import { callAnthropic, AnthropicError, resolveAiModel } from './ai/anthropic.js';
 import { showToast } from './toast.js';
@@ -162,7 +161,7 @@ export async function translateText(text: string): Promise<TranslateOutcome> {
   // MyMemory — needs a concrete source language.
   let source = sourceSetting;
   if (source === 'auto') {
-    source = detectSourceLanguage(text);
+    source = await detectSourceLanguage(text);
     if (!source) {
       throw new Error(
         'Could not detect the source language. Pick one under Settings → Editing → Translation.',
@@ -174,9 +173,15 @@ export async function translateText(text: string): Promise<TranslateOutcome> {
 }
 
 /** Local source-language detection (tinyld → ISO 639-1). Returns '' when
- *  the detector can't make a confident call. */
-function detectSourceLanguage(text: string): string {
+ *  the detector can't make a confident call.
+ *  tinyld is loaded lazily: its n-gram model is ~577 KB — a third of the
+ *  main chunk if imported statically — and only this one MyMemory
+ *  source='auto' path needs it. The full (not 'light') build is
+ *  deliberate: light confidently misidentifies several picker languages
+ *  (uk→ru, cs→fi, vi→hu), which would silently mistranslate. */
+async function detectSourceLanguage(text: string): Promise<string> {
   try {
+    const { detect } = await import('tinyld');
     const code = detect(text);
     return code || '';
   } catch {

@@ -257,7 +257,6 @@ export function insertSpeechSlice(
     tr = closeHistory(tr);
     tr.setMeta('addToHistory', true);
 
-    console.warn('[cardmirror] wc: insertSpeechSlice dispatching into speech view');
     speechView.dispatch(tr.scrollIntoView());
     speechView.focus();
     // Fire destination-side hook (e.g., nav-panel collapse refresh)

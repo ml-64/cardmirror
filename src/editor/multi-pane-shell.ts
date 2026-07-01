@@ -957,9 +957,6 @@ class Slot {
    *  for the first two configured readers. */
   refreshWordCount(): void {
     const rec = this.visible;
-    console.warn(
-      `[cardmirror] wc: refresh slot=${this.id} visible="${rec?.filename ?? 'none'}"`,
-    );
     if (!rec) {
       this.wcEl.textContent = '—';
       return;
@@ -2160,6 +2157,15 @@ class MultiPaneShell {
     return new Promise((resolve) => {
       const overlay = document.createElement('div');
       overlay.className = 'pmd-route-overlay';
+      // Single resolution path for all four ways out (slot click,
+      // Cancel, Escape, digit key) so the document-level keydown
+      // listener always detaches — a mouse-completed pick must not
+      // leave a stale handler that eats the next typed '1'/'2'/'3'.
+      const finish = (choice: SlotId | null): void => {
+        document.removeEventListener('keydown', onKey);
+        overlay.remove();
+        resolve(choice);
+      };
       const dialog = document.createElement('div');
       dialog.className = 'pmd-route-dialog';
       const header = document.createElement('div');
@@ -2178,10 +2184,7 @@ class MultiPaneShell {
             ? '(empty)'
             : `${slot.visible?.filename ?? ''}${slot.stack.length > 1 ? ` (+${slot.stack.length - 1})` : ''}`;
         btn.innerHTML = `<strong>${id.replace('slot', 'Slot ')}</strong><br><span>${stackLabel}</span>`;
-        btn.addEventListener('click', () => {
-          overlay.remove();
-          resolve(id);
-        });
+        btn.addEventListener('click', () => finish(id));
         row.appendChild(btn);
       }
       dialog.appendChild(row);
@@ -2189,10 +2192,7 @@ class MultiPaneShell {
       cancel.type = 'button';
       cancel.className = 'pmd-route-cancel';
       cancel.textContent = 'Cancel';
-      cancel.addEventListener('click', () => {
-        overlay.remove();
-        resolve(null);
-      });
+      cancel.addEventListener('click', () => finish(null));
       dialog.appendChild(cancel);
       overlay.appendChild(dialog);
       document.body.appendChild(overlay);
@@ -2201,9 +2201,7 @@ class MultiPaneShell {
       // meaning even if a picker is open.
       const onKey = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
-          document.removeEventListener('keydown', onKey);
-          overlay.remove();
-          resolve(null);
+          finish(null);
           return;
         }
         if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
@@ -2213,9 +2211,7 @@ class MultiPaneShell {
         else if (e.key === '3') idx = 2;
         if (idx >= 0) {
           e.preventDefault();
-          document.removeEventListener('keydown', onKey);
-          overlay.remove();
-          resolve(SLOT_IDS[idx]!);
+          finish(SLOT_IDS[idx]!);
         }
       };
       document.addEventListener('keydown', onKey);
@@ -2651,15 +2647,8 @@ function buildDocRecord(
         if (record.heavyUpdateTimer !== null) {
           cancelIdle(record.heavyUpdateTimer);
         }
-        console.warn(
-          `[cardmirror] wc: docChanged "${record.filename}" → scheduling flush (owner=${record.owner.id})`,
-        );
         record.heavyUpdateTimer = scheduleIdle(() => {
           record.heavyUpdateTimer = null;
-          console.warn(
-            `[cardmirror] wc: flush "${record.filename}" owner=${record.owner.id} ` +
-              `ownerVisible="${record.owner.visible?.filename}" isVisible=${record.owner.visible === record}`,
-          );
           try {
             record.navPanel.update(view.state.doc);
             // Re-apply against the rebuilt entries (fresh positions) so a
@@ -2667,9 +2656,7 @@ function buildDocRecord(
             // single-doc, index.ts).
             record.navPanel.setCaretHeading(view.state.selection.from);
           } catch (e) {
-            console.warn(
-              `[cardmirror] wc: navPanel.update THREW: ${e instanceof Error ? e.stack ?? e.message : String(e)}`,
-            );
+            console.error('[cardmirror] navPanel.update failed in multi-pane flush:', e);
           }
           // record.owner, not the build-time `slot` — the record may
           // have moved panes since (sendDocToSlotN), and refreshing

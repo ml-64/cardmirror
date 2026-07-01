@@ -89,10 +89,15 @@ in each release, see `CHANGELOG.md`.
   STICKY via a `localStorage` flag once the app has run standalone, so a window Chrome
   opens as a plain tab (rather than a standalone app window) still behaves as
   multi-window — New Document spawns rather than overwriting, and New Speech Document
-  doesn't refuse. Whether the spawned window renders as a separate app window vs. a
-  browser window is Chrome's own navigation-capturing decision (in-scope `window.open`
-  → app window is Chrome 139+ and effectively HTTPS-only — a browser window on
-  `http://localhost`); the editor behaves identically either way. One current limit:
+  doesn't refuse. Windows are opened with a `rel="noopener"` anchor click rather than
+  `window.open`: Chrome's navigation capturing routes a navigation into the installed
+  app window only when it targets a non-auxiliary browsing context (no opener), and
+  `window.open` always creates an auxiliary context — so it's excluded from capture and
+  lands in a browser tab even with the app's link-capturing enabled (Chrome offers only
+  a manual "Open in app" button). A noopener link click is capturable, so an installed
+  PWA with "open in app" set opens spawned windows as real app windows (Chrome 139+,
+  HTTPS); elsewhere — a plain tab, `http://localhost`, or capture disabled — they open
+  as tabs, and the editor behaves identically either way. One current limit:
   a file opened into a spawned window loses its `FileSystemFileHandle` (Save-As only),
   since the handle isn't yet threaded through the spawn payload.
 

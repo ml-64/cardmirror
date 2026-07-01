@@ -165,6 +165,28 @@ function detectCanSpawnWindow(): boolean {
   }
 }
 
+/** Open a new editor window via a programmatic `rel="noopener"` anchor click,
+ *  NOT `window.open()`. Chrome only routes a navigation into the installed app
+ *  window (its "navigation capturing") when the navigation targets a
+ *  NON-auxiliary browsing context — one with no `opener`. `window.open()` always
+ *  creates an auxiliary context, so Chrome excludes it from capturing and it
+ *  lands in a browser tab even with the app's "open in app" link setting on
+ *  (Chrome only offers a manual "Open in app" button). A `noopener` link click
+ *  creates a non-auxiliary context, which IS capturable — so in an installed PWA
+ *  with link-capturing enabled it opens as a real app window; everywhere else it
+ *  opens a normal tab. The doc payload rides via IndexedDB, so losing the opener
+ *  reference costs us nothing. */
+function openNewWindow(url: string): void {
+  const a = document.createElement('a');
+  a.href = url;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
 function openDb(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
@@ -491,11 +513,11 @@ export class BrowserHost implements Host {
   }
 
   async spawnWindow(payload: SpawnWindowPayload | null): Promise<void> {
-    // Open a new app window. In a standalone PWA `window.open` yields a real app
-    // window (not a browser tab). A doc payload is handed off via IndexedDB,
-    // keyed by an id in the URL, which the new window reads back in
-    // `getInitialDoc`. Written BEFORE the open so the payload is present by the
-    // time the (slower-booting) new window looks for it.
+    // Open a new editor window (see `openNewWindow` for why an anchor click and
+    // not `window.open`). A doc payload is handed off via IndexedDB, keyed by an
+    // id in the URL, which the new window reads back in `getInitialDoc`. Written
+    // BEFORE the open so the payload is present by the time the (slower-booting)
+    // new window looks for it.
     let query = '';
     if (payload) {
       const id = crypto.randomUUID();
@@ -515,9 +537,7 @@ export class BrowserHost implements Host {
       }
     }
     const url = window.location.origin + window.location.pathname + query;
-    if (!window.open(url, '_blank')) {
-      throw new Error('BrowserHost: the browser blocked opening a new window.');
-    }
+    openNewWindow(url);
   }
 
   async getInitialDoc(): Promise<SpawnWindowPayload | null> {

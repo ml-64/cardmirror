@@ -729,9 +729,9 @@ class Slot {
   /** Close the currently-visible doc. Reveals the next stack member
    *  (or empties the slot). Prompts for save / discard / cancel if
    *  the doc has unsaved changes; clean docs close immediately. */
-  async closeVisible(): Promise<void> {
+  async closeVisible(): Promise<boolean> {
     const idx = this.visibleIndex;
-    if (idx < 0) return;
+    if (idx < 0) return false;
     const closing = this.stack[idx]!;
     if (closing.dirty) {
       // Focus this pane so the save commands (which route via
@@ -739,13 +739,13 @@ class Slot {
       // happened to be focused before the user clicked X.
       this.shell.focusSlot(this);
       const choice = await confirmCloseUnsaved();
-      if (choice === 'cancel') return;
+      if (choice === 'cancel') return false;
       if (choice === 'save') {
         const ok = await runSaveFlow();
-        if (!ok) return;
+        if (!ok) return false;
       } else if (choice === 'saveAs') {
         const ok = await runSaveAsFlow();
-        if (!ok) return;
+        if (!ok) return false;
       }
       // discard: fall through; existing journal-clear path runs.
     }
@@ -791,12 +791,28 @@ class Slot {
       this.shell.refreshLayout();
       // If this slot was focused, hand focus to the next active slot.
       this.shell.handleSlotEmptied(this);
-      return;
+      return true;
     }
     // Show the next-newest doc (the one that was second-from-top).
     this.visibleIndex = Math.min(idx, this.stack.length - 1);
     this.mountVisible();
     this.shell.focusSlot(this);
+    return true;
+  }
+
+  /** Close every doc in this slot except `keep` (if it lives here),
+   *  prompting save / discard for dirty ones. Returns false as soon as
+   *  the user cancels a prompt (leaving the remaining docs open), true
+   *  when the slot is reduced to `keep` (or empty). Used by the web
+   *  mode-switch to collapse three-pane down to the focused doc. */
+  async closeAllExcept(keep: DocRecord | null): Promise<boolean> {
+    // Snapshot: closeVisible mutates the stack + visibleIndex as it goes.
+    for (const rec of this.stack.filter((r) => r !== keep)) {
+      if (!this.stack.includes(rec)) continue; // already closed (defensive)
+      this.showRecord(rec); // make it visible so its save prompt is in context
+      if (!(await this.closeVisible())) return false; // user cancelled
+    }
+    return true;
   }
 
   /** Detach the currently-mounted record's DOM (without destroying
@@ -1431,6 +1447,30 @@ class MultiPaneShell {
     const slot = this.focusedSlot;
     if (!slot || slot.visible === null) return false;
     await slot.closeVisible();
+    return true;
+  }
+
+  /** Web mode-switch (three-pane → one-per-window): the browser can't reopen
+   *  the other docs in their own windows, so close them here — prompting to
+   *  save any with unsaved changes — and keep only the focused doc, which the
+   *  reload reopens in the single-doc window. Returns false if the user
+   *  cancelled a save prompt (the switch aborts and three-pane stays). */
+  async reduceToFocusedForModeSwitch(): Promise<boolean> {
+    let keep = this.focusedSlot?.visible ?? null;
+    // Defensive: if nothing is focused but docs are open, keep the first so we
+    // never collapse to a blank window.
+    if (!keep) {
+      for (const id of SLOT_IDS) {
+        const v = this.slots[id].visible;
+        if (v) {
+          keep = v;
+          break;
+        }
+      }
+    }
+    for (const id of SLOT_IDS) {
+      if (!(await this.slots[id].closeAllExcept(keep))) return false;
+    }
     return true;
   }
 
@@ -2555,5 +2595,6 @@ export function mountMultiPaneShell(): void {
     clearFocusedJournal: () => shell!.clearFocusedJournal(),
     onRecoveredDoc: (entry) => shell!.onRecoveredDoc(entry),
     journalAll: () => shell!.journalAll(),
+    reduceToFocusedForModeSwitch: () => shell!.reduceToFocusedForModeSwitch(),
   });
 }

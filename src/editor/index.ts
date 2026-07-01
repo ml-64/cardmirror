@@ -744,6 +744,10 @@ let multiDocNotifyFocusedSaved: (() => void) | null = null;
  *  the workspace in the new layout. Returns each doc's uid +
  *  pre-switch dirty state for the mode-switch marker. */
 let multiDocJournalAll: (() => Promise<ModeSwitchDoc[]>) | null = null;
+/** Web three-pane → one-per-window: close every non-focused doc (save-prompting
+ *  dirty ones), keeping only the focused doc for the single-doc window. Returns
+ *  false if the user cancelled a save prompt (the switch aborts). */
+let multiDocReduceToFocused: (() => Promise<boolean>) | null = null;
 /** Crash-recovery hook: load a recovered journal entry into the
  *  multi-pane workspace. The shell picks a slot (first empty, or
  *  prompts the user) and pushes a DocRecord built from the
@@ -808,6 +812,7 @@ export function enableMultiDocMode(opts: {
     dirty: boolean;
   }) => Promise<void>;
   journalAll?: () => Promise<ModeSwitchDoc[]>;
+  reduceToFocusedForModeSwitch?: () => Promise<boolean>;
 }): void {
   multiDocActive = true;
   multiDocOnFileOpen = opts.onFileOpen;
@@ -833,6 +838,7 @@ export function enableMultiDocMode(opts: {
   multiDocNotifyFocusedSaved = opts.notifyFocusedSaved ?? null;
   multiDocOnRecoveredDoc = opts.onRecoveredDoc ?? null;
   multiDocJournalAll = opts.journalAll ?? null;
+  multiDocReduceToFocused = opts.reduceToFocusedForModeSwitch ?? null;
   // Hide the single-doc editor surface. The multi-pane shell
   // mounts its own DOM into #app alongside it. The comments
   // column is NOT hidden — the shell adopts it as a sibling of
@@ -6737,9 +6743,17 @@ const MODE_SWITCH_MARKER_KEY = 'cardmirror:mode-switch-recovery';
 
 async function handleModeSwitch(newValue: boolean): Promise<void> {
   modeSwitchInFlight = true;
-  const message = newValue
-    ? 'Switch to three-pane workspace?\n\nAny other open CardMirror windows will close, and every open document will reopen as a pane in this window.'
-    : 'Switch to one-document-per-window mode?\n\nThe editor will reload and your open documents will each reopen in their own window.';
+  const electron = !!getElectronHost();
+  let message: string;
+  if (newValue) {
+    message = electron
+      ? 'Switch to three-pane workspace?\n\nAny other open CardMirror windows will close, and every open document will reopen as a pane in this window.'
+      : 'Switch to three-pane workspace?\n\nEvery open document will move into a pane in this window. Your other CardMirror windows will ask you to close them.';
+  } else {
+    message = electron
+      ? 'Switch to one-document-per-window mode?\n\nThe editor will reload and your open documents will each reopen in their own window.'
+      : 'Switch to one-document-per-window mode?\n\nThis window keeps the current document. Your other open documents will be closed — you’ll be prompted to save any with unsaved changes — and stay available in Recent Files.';
+  }
   if (!window.confirm(message)) {
     // Revert. The `modeSwitchInFlight` guard prevents the
     // subscriber from re-running and looping.
@@ -6756,12 +6770,23 @@ async function handleModeSwitch(newValue: boolean): Promise<void> {
     let remoteDocs: ModeSwitchDoc[] = [];
     if (electronHost) {
       await electronHost.journalAndCloseOtherWindows();
-    } else {
-      // Web: ask the other windows to journal their doc(s) and close over a
-      // BroadcastChannel, and collect what each had open. Their journals land
-      // in the shared journal store; only the uid+dirty list travels here, to
-      // be folded into the marker so the survivor reopens them too.
+    } else if (newValue) {
+      // Web → three-pane: ask the other windows to journal their doc(s) and
+      // close over a BroadcastChannel, and collect what each had open. Their
+      // journals land in the shared journal store; only the uid+dirty list
+      // travels here, folded into the marker so the survivor reopens them too.
       remoteDocs = await webCloseOtherWindowsForModeSwitch();
+    } else if (multiDocActive && multiDocReduceToFocused) {
+      // Web → one-per-window: the browser can't reopen the other docs in their
+      // own windows, so close them here (prompting to save unsaved ones) and
+      // keep the focused doc, which the reload reopens in the single-doc window.
+      const reduced = await multiDocReduceToFocused();
+      if (!reduced) {
+        // User cancelled a save prompt — abort the switch; stay in three-pane.
+        settings.set('multiDocWorkspace', BOOT_MULTI_DOC_WORKSPACE);
+        modeSwitchInFlight = false;
+        return;
+      }
     }
     const docs = await journalAllForModeSwitch();
     // The marker carries exactly which journals belong to this

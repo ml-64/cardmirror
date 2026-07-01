@@ -12,9 +12,9 @@
  * removed — kept in its own file so that's a clean deletion.
  */
 
-import { getHost, getElectronHost } from './host/index.js';
+import { getElectronHost } from './host/index.js';
 import { parseNative, serializeNative } from '../index.js';
-import { showToast } from './toast.js';
+import { runWebFileTool } from './web-file-tools.js';
 import type { BulkCompressProgress } from './host/electron-host.js';
 import { setIcon } from './icons';
 
@@ -224,38 +224,30 @@ export function openBulkCompress(): void {
  *  (parse + re-serialize, preserving threads + docId), and Save-As the smaller
  *  copy. The web edition can't do the desktop in-place folder walk, so it works
  *  one file at a time. */
-export async function runCompressSingleFileWeb(): Promise<void> {
-  const host = getHost();
-  const input = await host.openFile().catch((err: unknown) => {
-    alert(`Couldn't open the file: ${err instanceof Error ? err.message : err}`);
-    return null;
+export function runCompressSingleFileWeb(): Promise<void> {
+  return runWebFileTool({
+    label: 'Compress',
+    verb: 'Compressing',
+    accept: /\.cmir$/i,
+    acceptMsg: 'Compress works on .cmir files — please choose a .cmir file.',
+    run: async (bytes, name) => {
+      const { doc, threads, docId } = parseNative(bytes);
+      const out = serializeNative(doc, {
+        ...(threads.length ? { threads } : {}),
+        ...(docId ? { docId } : {}),
+      });
+      const before = bytes.length;
+      const after = out.length;
+      const pct = before > 0 ? Math.round((1 - after / before) * 100) : 0;
+      return {
+        bytes: out,
+        outputName: name,
+        filter: { name: 'CardMirror document', extensions: ['cmir'] },
+        doneToast:
+          after < before
+            ? `Compressed ${formatBytes(before)} → ${formatBytes(after)} (${pct}% smaller)`
+            : `Saved compressed copy (${formatBytes(after)}) — already compact`,
+      };
+    },
   });
-  if (!input) return;
-  if (!/\.cmir$/i.test(input.name)) {
-    alert('Compress works on .cmir files — please choose a .cmir file.');
-    return;
-  }
-  let out: Uint8Array;
-  try {
-    const { doc, threads, docId } = parseNative(input.bytes);
-    out = serializeNative(doc, {
-      ...(threads.length ? { threads } : {}),
-      ...(docId ? { docId } : {}),
-    });
-  } catch (err) {
-    alert(`Compress failed: ${err instanceof Error ? err.message : err}`);
-    return;
-  }
-  const saved = await host.saveAs(input.name, out, {
-    filters: [{ name: 'CardMirror document', extensions: ['cmir'] }],
-  });
-  if (!saved) return;
-  const before = input.bytes.length;
-  const after = out.length;
-  const pct = before > 0 ? Math.round((1 - after / before) * 100) : 0;
-  showToast(
-    after < before
-      ? `Compressed ${formatBytes(before)} → ${formatBytes(after)} (${pct}% smaller)`
-      : `Saved compressed copy (${formatBytes(after)}) — already compact`,
-  );
 }

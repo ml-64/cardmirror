@@ -15,6 +15,7 @@
 import JSZip from 'jszip';
 import { fromDocxFull, parseNative, serializeNative, toDocx } from '../index.js';
 import { getHost, getElectronHost } from './host/index.js';
+import { runWebFileTool } from './web-file-tools.js';
 import { setIcon } from './icons';
 
 type Direction = 'docx2cmir' | 'cmir2docx';
@@ -367,34 +368,23 @@ export function openBulkConvert(): void {
 /** Web single-file Convert: pick one `.docx` or `.cmir` and Save-As it in the
  *  other format (direction inferred from the input's extension). The web edition
  *  can't do the desktop folder-recursive batch, so it works one file at a time. */
-export async function runConvertSingleFileWeb(): Promise<void> {
-  const host = getHost();
-  const input = await host.openFile().catch((err: unknown) => {
-    alert(`Couldn't open the file: ${err instanceof Error ? err.message : err}`);
-    return null;
-  });
-  if (!input) return;
-  const isDocx = /\.docx$/i.test(input.name);
-  const isCmir = /\.cmir$/i.test(input.name);
-  if (!isDocx && !isCmir) {
-    alert('Convert works on .docx or .cmir files — please choose one.');
-    return;
-  }
-  const dir: Direction = isDocx ? 'docx2cmir' : 'cmir2docx';
-  let out: Uint8Array;
-  try {
-    out = await convertBytes(input.bytes, dir);
-  } catch (err) {
-    alert(`Convert failed: ${err instanceof Error ? err.message : err}`);
-    return;
-  }
-  const ext = dir === 'docx2cmir' ? 'cmir' : 'docx';
-  await host.saveAs(swapExt(input.name, dir), out, {
-    filters: [
-      {
-        name: ext === 'cmir' ? 'CardMirror document' : 'Word document',
-        extensions: [ext],
-      },
-    ],
+export function runConvertSingleFileWeb(): Promise<void> {
+  return runWebFileTool({
+    label: 'Convert',
+    verb: 'Converting',
+    accept: /\.(docx|cmir)$/i,
+    acceptMsg: 'Convert works on .docx or .cmir files — please choose one.',
+    run: async (bytes, name) => {
+      const dir: Direction = /\.docx$/i.test(name) ? 'docx2cmir' : 'cmir2docx';
+      const ext = dir === 'docx2cmir' ? 'cmir' : 'docx';
+      return {
+        bytes: await convertBytes(bytes, dir),
+        outputName: swapExt(name, dir),
+        filter: {
+          name: ext === 'cmir' ? 'CardMirror document' : 'Word document',
+          extensions: [ext],
+        },
+      };
+    },
   });
 }

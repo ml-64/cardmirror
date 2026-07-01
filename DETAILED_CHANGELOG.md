@@ -51,6 +51,37 @@ acceptance).
   doc), so the very largest docs keep a small synchronous blip per pause —
   the dominant ~70% (compression) is what moved off-thread.
 
+- **Voice: base recognition model + Node runtime are first-use downloads,
+  not bundled** (`apps/desktop/src/voice/ipc.ts`, `preload.ts`,
+  `scripts/fetch-voice-assets.cjs`, `src/editor/voice/controller.ts`,
+  `settings-ui.ts`, `settings.ts`, `MANUAL.md`). The installer shipped the
+  standard model (~230 MB extracted) plus a standalone Node runtime (~30 MB
+  compressed) in `resources/voice/` for every user, though most never enable
+  voice (audit finding P-13). Now `fetch-voice-assets.cjs` bundles only
+  libvosk by default (kept in the signed artifact — a downloaded native
+  `.dylib`/`.so`/`.dll` would raise Gatekeeper/library-validation issues that
+  pure-data model files don't); the base model downloads on first use into
+  `{userData}/voice-models/…-lgraph`, mirroring the existing large-model flow
+  (`downloadLargeModel`), and the Node runtime (needed only by the large
+  model — Electron's allocator SIGTRAPs on it) is fetched alongside the large
+  model. `resolveVoiceAssets` now resolves lib and model independently and
+  checks userData before packaged resources, so **existing fat installs keep
+  working** until they update. `voice-start` returns a distinct
+  `voice-model-missing` (vs `voice-assets-missing`) when libvosk is present
+  but the model isn't; the controller then offers a one-time download and —
+  by explicit UX decision — does NOT auto-start when it lands (a multi-minute
+  download outlasts attention; a surprise hot mic is worse than a second key
+  press), instead notifying via a modal so the "ready" state can't be missed.
+  Settings → Accessibility → **Dictation model** gains a "Download standard
+  model" button beside the existing large-model one (pre-fetch before going
+  offline), with the two sharing one progress channel (tagged by `model`).
+  A `--full` flag on the fetch script reproduces the old fat bundle for an
+  offline-appliance build. Net: installer ~130 MB smaller, installed
+  footprint ~250+ MB smaller for non-voice users. Trade-offs: first-time
+  voice users wait for a one-time download (mitigated by the Settings
+  pre-fetch + a MANUAL note), and an updated install that previously used
+  voice re-downloads the model once.
+
 - **Search palette: paginated results (100 per page, "show more")**
   (`src/editor/quick-card-search-ui.ts`, `style.css`, `MANUAL.md`). The
   palette hard-capped every search at 50 rows with no indication anything

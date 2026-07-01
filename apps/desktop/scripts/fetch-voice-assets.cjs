@@ -1,14 +1,24 @@
 #!/usr/bin/env node
 /**
- * Fetch the voice recognition assets (libvosk + the lgraph model) into
- * resources/voice/ for electron-builder's extraResources. Idempotent —
- * skips anything already present. In the dev repo, the recognizer
- * spike's downloads act as a local cache (no network needed).
+ * Fetch the voice recognition assets into resources/voice/ for
+ * electron-builder's extraResources. Idempotent — skips anything already
+ * present. In the dev repo, the recognizer spike's downloads act as a
+ * local cache (no network needed).
+ *
+ * By default fetches ONLY libvosk: the base recognition model (~230 MB
+ * extracted) and the Node runtime are first-use downloads into userData
+ * (voice/ipc.ts: downloadBaseModel / downloadLargeModel), so the
+ * installer doesn't carry ~250+ MB that most users — who never enable
+ * voice — will never use. Pass `--full` to also bundle the base model +
+ * Node runtime, reproducing the old fat installer (e.g. for an offline
+ * appliance build).
  *
  * Layout produced (matches voice/ipc.ts resolution):
  *   resources/voice/libvosk.{so,dylib,dll} (+ runtime DLLs on win32)
- *   resources/voice/model/                 (vosk-model-en-us-0.22-lgraph)
+ *   resources/voice/model/   (base model — only with --full)
+ *   resources/voice/node     (Node runtime — only with --full)
  */
+const FULL = process.argv.includes('--full');
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -152,9 +162,15 @@ async function ensureNode() {
 
 (async () => {
   await ensureLib();
-  await ensureModel();
-  await ensureNode();
-  console.log(`fetch-voice-assets: ready at ${dest}`);
+  if (FULL) {
+    await ensureModel();
+    await ensureNode();
+    console.log(`fetch-voice-assets: ready (full bundle) at ${dest}`);
+  } else {
+    console.log(
+      `fetch-voice-assets: ready (libvosk only) at ${dest} — base model + node runtime are first-use downloads (pass --full to bundle them)`,
+    );
+  }
 })().catch((err) => {
   console.error(err);
   process.exit(1);

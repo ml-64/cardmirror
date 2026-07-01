@@ -14,6 +14,16 @@ see `DETAILED_CHANGELOG.md`.
   tells you — click **show more**, or just keep arrowing down past the end,
   to reveal the next hundred.
 
+### Changed
+
+- **Smaller desktop installer; voice model downloads on first use.** The
+  speech recognition model no longer ships inside the installer (which drops
+  its size by roughly 130 MB) — the first time you turn voice control on,
+  CardMirror offers to download it (~130 MB, one time) and tells you when
+  it's ready, so you can keep working meanwhile. If you'll be offline, you
+  can fetch it ahead of time under **Settings → Accessibility → Dictation
+  model**, which is also where the optional large model lives.
+
 ### Fixed
 
 - **Performance improvements** throughout the editor: faster startup, smooth

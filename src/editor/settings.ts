@@ -1399,9 +1399,9 @@ export const SETTING_METADATA: SettingMeta[] = [
   },
   {
     key: 'voiceDictationModel',
-    label: 'Dictation accuracy model',
+    label: 'Dictation model',
     description:
-      'The standard model ships with CardMirror and handles commands and dictation. The large model (a one-time 1.8 GB download, ~5 GB of memory while voice is on) roughly halves dictation word errors on general English — it does not affect commands, targeting, paint, or debate jargon. Takes effect the next time voice starts.',
+      'The standard model — a one-time ~130 MB download — handles all commands and dictation, and is what voice needs to run at all. The large model — a one-time 1.8 GB download, ~5 GB of memory while voice is on — roughly halves dictation word errors on general English, and changes dictation only (not commands, targeting, paint, or debate jargon). Download either below, or let the first voice start fetch the standard model. Takes effect the next time voice starts.',
     kind: 'voiceDictationModel',
     category: 'accessibility',
   },

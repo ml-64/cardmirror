@@ -387,6 +387,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
       modelLoadMs?: number;
       largeDictationMissing?: boolean;
     }>,
+  /** Base recognition model (~130 MB, stored in userData) — the model
+   *  voice needs to run at all. First-use download, not bundled. */
+  voiceBaseModelInfo: () =>
+    ipcRenderer.invoke('host:voice-base-model-info') as Promise<{
+      present: boolean;
+      downloading: boolean;
+    }>,
+  voiceDownloadBaseModel: () =>
+    ipcRenderer.invoke('host:voice-download-base-model') as Promise<{
+      ok: boolean;
+      error?: string;
+    }>,
   /** Opt-in large dictation model (~1.8 GB, stored in userData). */
   voiceDictationModelInfo: () =>
     ipcRenderer.invoke('host:voice-dictation-model-info') as Promise<{
@@ -399,11 +411,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
       error?: string;
     }>,
   onVoiceDownloadProgress(
-    handler: (p: { pct: number; receivedMB?: number; extracting?: boolean }) => void,
+    handler: (p: {
+      model?: 'base-model' | 'large-model' | 'node-runtime';
+      pct: number;
+      receivedMB?: number;
+      extracting?: boolean;
+    }) => void,
   ): () => void {
     const listener = (
       _evt: unknown,
-      payload: { pct: number; receivedMB?: number; extracting?: boolean },
+      payload: {
+        model?: 'base-model' | 'large-model' | 'node-runtime';
+        pct: number;
+        receivedMB?: number;
+        extracting?: boolean;
+      },
     ): void => handler(payload);
     ipcRenderer.on('voice:download-progress', listener);
     return () => ipcRenderer.removeListener('voice:download-progress', listener);

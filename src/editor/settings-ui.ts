@@ -2523,15 +2523,21 @@ function buildVoiceDictationModelEditor(): HTMLElement {
   wrap.className = 'pmd-multi-doc-layout-mode-editor';
   const api = (window as unknown as {
     electronAPI?: {
+      voiceBaseModelInfo(): Promise<{ present: boolean; downloading: boolean }>;
+      voiceDownloadBaseModel(): Promise<{ ok: boolean; error?: string }>;
       voiceDictationModelInfo(): Promise<{ present: boolean; downloading: boolean }>;
       voiceDownloadDictationModel(): Promise<{ ok: boolean; error?: string }>;
-      onVoiceDownloadProgress(h: (p: { pct: number; extracting?: boolean }) => void): () => void;
+      onVoiceDownloadProgress(
+        h: (p: { model?: string; pct: number; extracting?: boolean }) => void,
+      ): () => void;
     };
   }).electronAPI;
 
+  // Radio choice first (which model voice uses), then the download
+  // controls for each below.
   const groupName = `pmd-voice-dict-model-${Math.random().toString(36).slice(2, 8)}`;
   for (const o of [
-    { value: 'standard' as const, label: 'Standard — ships with CardMirror' },
+    { value: 'standard' as const, label: 'Standard' },
     { value: 'large' as const, label: 'Large — better general-English dictation' },
   ]) {
     const row = document.createElement('label');
@@ -2547,6 +2553,44 @@ function buildVoiceDictationModelEditor(): HTMLElement {
     labelText.textContent = o.label;
     row.append(input, labelText);
     wrap.appendChild(row);
+  }
+
+  // Base (standard) model: the one voice needs to run at all. First-use
+  // download, pre-fetchable here (useful before going somewhere with no
+  // wifi).
+  if (api?.voiceBaseModelInfo) {
+    const baseStatus = document.createElement('div');
+    baseStatus.className = 'pmd-voice-model-status';
+    const baseButton = document.createElement('button');
+    baseButton.type = 'button';
+    baseButton.className = 'pmd-voice-model-download';
+    wrap.append(baseStatus, baseButton);
+    const refreshBase = async (): Promise<void> => {
+      const info = await api.voiceBaseModelInfo();
+      if (info.present) {
+        baseStatus.textContent = 'Standard model downloaded ✓';
+        baseButton.style.display = 'none';
+      } else {
+        baseStatus.textContent = info.downloading
+          ? 'Downloading standard model…'
+          : 'Standard model not downloaded.';
+        baseButton.style.display = info.downloading ? 'none' : '';
+        baseButton.textContent = 'Download standard model (~130 MB)';
+      }
+    };
+    void refreshBase();
+    baseButton.addEventListener('click', () => {
+      baseButton.style.display = 'none';
+      const unsub = api.onVoiceDownloadProgress((p) => {
+        if (p.model && p.model !== 'base-model') return;
+        baseStatus.textContent = p.extracting ? 'Extracting…' : `Downloading… ${p.pct}%`;
+      });
+      void api.voiceDownloadBaseModel().then((res) => {
+        unsub();
+        if (!res.ok) baseStatus.textContent = `Download failed: ${res.error ?? 'unknown'}`;
+        void refreshBase();
+      });
+    });
   }
 
   const status = document.createElement('div');
@@ -2578,6 +2622,11 @@ function buildVoiceDictationModelEditor(): HTMLElement {
     if (!api) return;
     button.style.display = 'none';
     const unsub = api.onVoiceDownloadProgress((p) => {
+      // Shared progress channel — ignore base-model / node-runtime ticks.
+      if (p.model && p.model !== 'large-model') {
+        if (p.model === 'node-runtime') status.textContent = 'Downloading runtime…';
+        return;
+      }
       status.textContent = p.extracting ? 'Extracting…' : `Downloading… ${p.pct}%`;
     });
     void api.voiceDownloadDictationModel().then((res) => {

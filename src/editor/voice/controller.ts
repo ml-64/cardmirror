@@ -43,6 +43,8 @@ interface VoiceHostApi {
   voiceSendKey(key: string): Promise<void>;
   onVoiceEvent(handler: (event: unknown) => void): () => void;
   onVoiceLevel(handler: (level: VoiceLevel) => void): () => void;
+  voiceBaseModelInfo?(): Promise<{ present: boolean; downloading: boolean }>;
+  voiceDownloadBaseModel?(): Promise<{ ok: boolean; error?: string }>;
 }
 
 function voiceHost(): VoiceHostApi | null {
@@ -132,6 +134,13 @@ export class VoiceController {
     }
     if (!res.ok) {
       this.pill.setListening(false);
+      // The base model is a first-use download now, not a bundled
+      // asset — so "missing" is the common, recoverable case: offer to
+      // fetch it rather than showing a dead-end error.
+      if (res.error === 'voice-model-missing') {
+        void this.offerBaseModelDownload(host);
+        return;
+      }
       let msg: string;
       if (res.error === 'voice-assets-missing') {
         msg = 'Voice model not found (set CARDMIRROR_VOICE_DIR)';
@@ -246,6 +255,48 @@ export class VoiceController {
     };
     ship();
     this.vocabTimer = setInterval(ship, VOCAB_POLL_MS);
+  }
+
+  /** First-run flow when the base recognition model isn't downloaded
+   *  yet. Confirm, kick off the background download, and — per an
+   *  explicit UX call — DON'T auto-start when it lands (a multi-minute
+   *  download outlasts the user's attention; a surprise hot mic is
+   *  worse than a second key press). Instead inform them, unmissably,
+   *  that it's ready. Live progress is available in Settings → the
+   *  voice section. */
+  private async offerBaseModelDownload(host: VoiceHostApi): Promise<void> {
+    if (!host.voiceDownloadBaseModel || !host.voiceBaseModelInfo) {
+      showToast('Voice model not found (set CARDMIRROR_VOICE_DIR)', { durationMs: 2600 });
+      return;
+    }
+    const info = await host.voiceBaseModelInfo();
+    if (info.downloading) {
+      showToast('Voice model is already downloading — you’ll be notified when it’s ready', {
+        durationMs: 3200,
+      });
+      return;
+    }
+    const proceed =
+      typeof window !== 'undefined' &&
+      window.confirm(
+        'Voice control needs a one-time download of its recognition model (about 130 MB). ' +
+          'This can take a few minutes; you can keep working and you’ll be notified when it’s ready. ' +
+          'Download now?',
+      );
+    if (!proceed) return;
+    showToast('Downloading voice model in the background…', { durationMs: 3200 });
+    const res = await host.voiceDownloadBaseModel();
+    if (res.ok) {
+      // Modal, not a toast: after minutes away the user has moved on,
+      // and the whole point is to catch their attention so the "ready"
+      // state isn't a surprise the next time they hit the voice key.
+      if (typeof window !== 'undefined') {
+        window.alert('Voice model downloaded. Press the voice key (or the ribbon button) to start voice control.');
+      }
+    } else {
+      const reason = res.error === 'download-in-progress' ? 'already in progress' : (res.error ?? 'unknown error');
+      showToast(`Voice model download failed: ${reason}`, { durationMs: 4000 });
+    }
   }
 
   stop(): void {

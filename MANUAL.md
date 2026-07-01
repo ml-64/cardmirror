@@ -1176,9 +1176,15 @@ Keyboard shortcuts**. They appear only on Windows.
 hands-free editing session and work a card by voice — read text aloud to
 ink it, dictate tags and cites, and move around the document without
 touching the keyboard. Recognition runs **entirely on your own machine** —
-no audio ever leaves it, with or without a network connection. The speech
-models ship inside the app, which is why the desktop installers are about
-130 MB larger.
+no audio ever leaves it, with or without a network connection.
+
+The speech model is a **one-time ~130 MB download** rather than part of
+the installer, so the app itself stays small for the many people who never
+use voice. The first time you turn voice on, CardMirror asks to download it
+and notifies you when it's ready (you can keep working meanwhile — it does
+not start listening on its own). If you'll be somewhere without a
+connection, download it ahead of time under **Settings → Accessibility →
+Dictation accuracy model**.
 
 This is early, experimental software; expect rough edges, particularly
 pertaining to the voice recognition model, and keep the keyboard within

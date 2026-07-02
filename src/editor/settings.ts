@@ -1389,38 +1389,6 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'general',
   },
   {
-    key: 'voiceInputDeviceId',
-    label: 'Voice control microphone',
-    description:
-      'Which microphone the voice session (Ctrl-Shift-V) listens to. "System default" follows the OS setting. Device names appear after the first voice session grants microphone access. Desktop only.',
-    kind: 'voiceInputDevice',
-    category: 'accessibility',
-  },
-  {
-    key: 'voiceAutoSleepSeconds',
-    label: 'Voice auto-sleep (seconds)',
-    description:
-      'How long the voice session can sit idle before it parks itself asleep, so a forgotten mic doesn\'t eat a conversation. The status pill dims during the last ten seconds. Say "voice wake" to resume. 0 disables auto-sleep.',
-    kind: 'number',
-    category: 'accessibility',
-  },
-  {
-    key: 'voiceDashStyle',
-    label: 'Spoken "dash" inserts',
-    description:
-      'The glyph dictated by the bare word "dash". Explicit names always work regardless of this setting: "hyphen", "n dash", "m dash", "double dash", "triple dash", each optionally followed by "spaced".',
-    kind: 'voiceDashStyle',
-    category: 'accessibility',
-  },
-  {
-    key: 'voiceDictationModel',
-    label: 'Dictation model',
-    description:
-      'The standard model — a one-time ~130 MB download — handles all commands and dictation, and is what voice needs to run at all. The large model — a one-time 1.8 GB download, ~5 GB of memory while voice is on — roughly halves dictation word errors on general English, and changes dictation only (not commands, targeting, paint, or debate jargon). Download either below, or let the first voice start fetch the standard model. Takes effect the next time voice starts.',
-    kind: 'voiceDictationModel',
-    category: 'accessibility',
-  },
-  {
     key: 'multiDocWorkspace',
     label: 'Three-pane workspace',
     descriptionFn: workspaceLayoutDescription,
@@ -1614,22 +1582,21 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'general',
   },
   {
-    key: 'showCitePreview',
-    label: 'Cite preview on hover',
+    key: 'timerProfile',
+    label: 'Timer profile',
     description:
-      'Show the cite-formatted text from a card on the right side of its nav-pane entry when you hover.',
-    kind: 'toggle',
+      "Picks which set of durations the timer is currently running on. Each profile remembers its own customizations, so changing values below saves to the active profile (no separate 'custom' option). Defaults: High school = 3/5/8 + 8 min prep, College = 3/6/9 + 10 min prep, Pomodoro = 25/15/5 + 0 prep.",
+    kind: 'timerProfile',
     category: 'general',
-    aliases: ['hover preview'],
+    aliases: ['timer preset', 'timer presets'],
   },
   {
-    key: 'flashcardDueDot',
-    label: 'Flashcards-due dot',
+    key: 'timerProfiles',
+    label: 'Timer durations',
     description:
-      "Show a red dot on the ribbon's Manage Flashcards button when one or more flashcards are due for review today. On by default; turn off if you'd rather not be nudged.",
-    kind: 'toggle',
+      "Edit the active profile's three preset durations (in minutes, biggest first — these become the top-right 9 / 6 / 3 buttons on the panel) and the per-side prep total. Changes save into the currently-selected profile only.",
+    kind: 'timerProfileDurations',
     category: 'general',
-    aliases: ['flashcard due', 'review reminder', 'due indicator', 'red dot'],
   },
   {
     key: 'editorSpellcheck',
@@ -1778,21 +1745,22 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'appearance',
   },
   {
-    key: 'timerProfile',
-    label: 'Timer profile',
+    key: 'showCitePreview',
+    label: 'Cite preview on hover',
     description:
-      "Picks which set of durations the timer is currently running on. Each profile remembers its own customizations, so changing values below saves to the active profile (no separate 'custom' option). Defaults: High school = 3/5/8 + 8 min prep, College = 3/6/9 + 10 min prep, Pomodoro = 25/15/5 + 0 prep.",
-    kind: 'timerProfile',
+      'Show the cite-formatted text from a card on the right side of its nav-pane entry when you hover.',
+    kind: 'toggle',
     category: 'appearance',
-    aliases: ['timer preset', 'timer presets'],
+    aliases: ['hover preview'],
   },
   {
-    key: 'timerProfiles',
-    label: 'Timer durations',
+    key: 'flashcardDueDot',
+    label: 'Flashcards-due dot',
     description:
-      "Edit the active profile's three preset durations (in minutes, biggest first — these become the top-right 9 / 6 / 3 buttons on the panel) and the per-side prep total. Changes save into the currently-selected profile only.",
-    kind: 'timerProfileDurations',
+      "Show a red dot on the ribbon's Manage Flashcards button when one or more flashcards are due for review today. On by default; turn off if you'd rather not be nudged.",
+    kind: 'toggle',
     category: 'appearance',
+    aliases: ['flashcard due', 'review reminder', 'due indicator', 'red dot'],
   },
   {
     key: 'timerPrepLabel',
@@ -1912,6 +1880,38 @@ export const SETTING_METADATA: SettingMeta[] = [
     kind: 'uiFont',
     category: 'accessibility',
     aliases: ['ui font', 'app font'],
+  },
+  {
+    key: 'voiceInputDeviceId',
+    label: 'Voice control microphone',
+    description:
+      'Which microphone the voice session (Ctrl-Shift-V) listens to. "System default" follows the OS setting. Device names appear after the first voice session grants microphone access. Desktop only.',
+    kind: 'voiceInputDevice',
+    category: 'accessibility',
+  },
+  {
+    key: 'voiceAutoSleepSeconds',
+    label: 'Voice auto-sleep (seconds)',
+    description:
+      'How long the voice session can sit idle before it parks itself asleep, so a forgotten mic doesn\'t eat a conversation. The status pill dims during the last ten seconds. Say "voice wake" to resume. 0 disables auto-sleep.',
+    kind: 'number',
+    category: 'accessibility',
+  },
+  {
+    key: 'voiceDashStyle',
+    label: 'Spoken "dash" inserts',
+    description:
+      'The glyph dictated by the bare word "dash". Explicit names always work regardless of this setting: "hyphen", "n dash", "m dash", "double dash", "triple dash", each optionally followed by "spaced".',
+    kind: 'voiceDashStyle',
+    category: 'accessibility',
+  },
+  {
+    key: 'voiceDictationModel',
+    label: 'Dictation model',
+    description:
+      'The standard model — a one-time ~130 MB download — handles all commands and dictation, and is what voice needs to run at all. The large model — a one-time 1.8 GB download, ~5 GB of memory while voice is on — roughly halves dictation word errors on general English, and changes dictation only (not commands, targeting, paint, or debate jargon). Download either below, or let the first voice start fetch the standard model. Takes effect the next time voice starts.',
+    kind: 'voiceDictationModel',
+    category: 'accessibility',
   },
   {
     key: 'ribbonTooltipMode',

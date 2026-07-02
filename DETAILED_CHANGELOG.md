@@ -7,6 +7,17 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Settings menu reorganization** (`settings.ts` SETTING_METADATA order +
+  category fields, `MANUAL.md` mirrored). Per maintainer direction: the four
+  voice entries (microphone, auto-sleep, dash style, dictation model) moved
+  from the top to the bottom of Accessibility; Timer profile + Timer
+  durations moved Appearance → General, placed above Editor spellcheck (the
+  other three timer settings — prep label style, compact layout, low-time
+  flash — stay in Appearance); Cite preview on hover + Flashcards-due dot
+  moved General → Appearance, placed above the prep-label setting. MANUAL's
+  per-tab lists and the one "Settings → General → Flashcards-due dot" path
+  reference updated to match.
+
 - **Accessibility: color-vision friendly palette preset** (`settings.ts`,
   `index.ts`, `style.css`, `MANUAL.md`, `ARCHITECTURE.md`). New
   `colorVisionFriendly` toggle drives a `data-cvd="friendly"` attribute on

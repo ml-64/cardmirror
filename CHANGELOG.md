@@ -32,6 +32,11 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Changed
 
+- **Settings reorganized:** voice options now sit at the bottom of
+  Accessibility; Timer profile and Timer durations moved to General (above
+  Editor spellcheck); Cite preview on hover and the Flashcards-due dot moved
+  to Appearance.
+
 - **Convert's .zip output is now compressed.** When bulk **Convert** is set
   to produce a .zip, the archive is now deflate-compressed (it was
   previously stored uncompressed), so the output is meaningfully smaller.

@@ -1025,7 +1025,7 @@ it to a different file.
 
 The button shows a small **red dot** when one or more cards are due for
 review today — a nudge to start a session. If you'd rather not be nudged,
-turn it off under Settings → General → **Flashcards-due dot**.
+turn it off under Settings → Appearance → **Flashcards-due dot**.
 
 ---
 
@@ -1449,10 +1449,10 @@ Workflow and document behavior.
 - **Seed new speech docs with a Pocket heading** — when on, New Speech
   Document opens with a Pocket carrying the speech's name; off starts
   blank.
-- **Cite preview on hover** — show a card's cite-formatted text beside its
-  navigation-pane entry when you hover.
-- **Flashcards-due dot** — show a red dot on the ribbon's Manage
-  Flashcards button when cards are due for review today. On by default.
+- **Timer profile** — which duration set the timer runs: High school,
+  College, or Pomodoro. Each remembers its own edits.
+- **Timer durations** — the active profile's three speech presets (the
+  9 / 6 / 3 buttons) and per-side prep total.
 - **Editor spellcheck** — underline misspellings in the visible document,
   including text in files you've opened (not just what you're typing).
   Right-click a flagged word for suggestions, Add to Dictionary, or
@@ -1491,10 +1491,10 @@ How things look. None of these change the file — only your view (see
 - **Style typography** — bold / italic / underline / box per named style.
 - **Style colors** — the color of Analytic and Undertag text (the same
   control as Accessibility → Color overrides → Document text).
-- **Timer profile** — which duration set the timer runs: High school,
-  College, or Pomodoro. Each remembers its own edits.
-- **Timer durations** — the active profile's three speech presets (the
-  9 / 6 / 3 buttons) and per-side prep total.
+- **Cite preview on hover** — show a card's cite-formatted text beside its
+  navigation-pane entry when you hover.
+- **Flashcards-due dot** — show a red dot on the ribbon's Manage
+  Flashcards button when cards are due for review today. On by default.
 - **Prep button label style** — how the Aff / Neg prep buttons are
   marked: text (A: / N:), color, or both.
 - **Compact timer layout** — drop the 9 / 6 / 3 presets and tuck Reset

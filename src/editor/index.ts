@@ -980,11 +980,16 @@ const ribbonContext: RibbonContext = {
   },
   runCreateReference: () => {
     if (!view) return;
-    void createReference(
-      view.state,
-      effectivePtForNode,
-      settings.get('forReferenceUseGray50'),
-    ).then((ok) => {
+    void createReference(view.state, effectivePtForNode, {
+      includeHeading: settings.get('createReferenceIncludeHeading'),
+      delimiter: settings.get('createReferenceDelimiter'),
+      includeCite: settings.get('createReferenceIncludeCite'),
+      customHeading: settings.get('createReferenceCustomHeading'),
+      shrink: settings.get('createReferenceShrinks'),
+      shrinkPt: settings.get('createReferenceShrinkPt'),
+      highlightMode: settings.get('createReferenceHighlightMode'),
+      useGray50: settings.get('forReferenceUseGray50'),
+    }).then((ok) => {
       if (ok) showToast('Copied!');
     });
   },

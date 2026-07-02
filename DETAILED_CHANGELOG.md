@@ -52,6 +52,60 @@ in each release, see `CHANGELOG.md`.
   all result sources — file rows, in-file object rows (headings / tags /
   cites), and outline browse rows all render through the same spans.
 
+- **Create Reference customization** (`create-reference.ts`, `settings.ts`,
+  `settings-ui.ts`, `index.ts`).
+  User-requested: control over what Create Reference puts on the
+  clipboard. `createReference` now takes a `CreateReferenceOptions`
+  object instead of the lone `useGray50` boolean, and the transform is
+  extracted into `buildReferenceNodes` — a pure node builder (no DOM, no
+  clipboard) so every option combination is directly testable. Seven new
+  settings in a new Editing-tab "Create Reference" section (the existing
+  `forReferenceUseGray50` toggle moved in, relabeled "Use Gray-50% body
+  text" since the section supplies the context):
+  `createReferenceIncludeHeading` (default on — off drops the
+  `<<CITE FOR REFERENCE>>` heading paragraph); three heading-shape
+  settings `dependsOn`-greyed while the heading is off —
+  `createReferenceDelimiter` (the six "Condense with warning" mirror
+  pairs, default `<<`; heading assembly lives in the exported pure
+  helper `referenceHeadingText`), `createReferenceIncludeCite`
+  (default on), and `createReferenceCustomHeading` (free label
+  replacing FOR REFERENCE; a case-insensitive `%Cite%` token marks
+  where the cite goes, no token = cite prepended as in the default;
+  whitespace left by an emptied token is collapsed, and a label that
+  ends up empty falls back to FOR REFERENCE rather than emitting bare
+  brackets); `createReferenceShrinks` (default on) with
+  `createReferenceShrinkPt` (default 3, sanitizer-clamped 1–20,
+  `dependsOn`-greyed while shrinking is off; with shrinking off, runs
+  keep their existing `font_size` marks untouched rather than being
+  restamped); and `createReferenceHighlightMode`
+  (`'shading'` default = the old highlight → grey C0C0C0 conversion;
+  `'convert'` = a background in the highlight's own color via
+  `highlightRgbFor`, matching the Highlight to Background command;
+  `'keep'` leaves highlight marks in place; `'remove'` strips them
+  without adding shading). Body coloring and the 1pt floor are
+  unchanged. Per maintainer direction, user-facing text says "grey",
+  not "Protected Grey", where no disambiguation from the other grey
+  swatches is needed. New test file
+  `tests/editor/create-reference-options.test.ts` (16 tests) covering
+  the default composition, each option axis, cite collection, the
+  heading-assembly rules, and the empty-selection guard.
+
+- **Terminology: "shading" → "background color" in user-facing text**
+  (`settings.ts`, `MANUAL.md`).
+  Per maintainer direction, user-facing text uses Word's name for the
+  feature. Accessibility settings renamed: "Override shading color in
+  display" → "Override background color in display", "Shading override
+  colors" → "Background override colors", "Show highlight & shading
+  names…" → "Show highlight & background color names…" (labels and
+  descriptions only — setting keys, the `shading` mark, and the `Sh:`
+  status-bar abbreviation are unchanged; `aliases` with the old wording
+  keep palette search working). Two override descriptions were also
+  shortened per maintainer wording. MANUAL swept with the convention:
+  first use reads "background color (or shading)", every later use just
+  "background color". The ribbon and command labels already said
+  "Background color", so this closes the gap rather than opening one.
+  Released changelog sections keep their historical wording.
+
 ## 0.1.0-beta.6 — 2026-07-02
 
 - **Settings navigability: section headers, Files tab, category moves**

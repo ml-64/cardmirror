@@ -1,19 +1,27 @@
 /**
  * Verbatim-adjacent "Create Reference" — given a card_body-only
  * selection inside a single card, copy a richly-formatted "for-
- * reference" excerpt to the system clipboard:
+ * reference" excerpt to the system clipboard. Each step is
+ * configurable via `CreateReferenceOptions` (backed by the "Create
+ * Reference" settings section); the defaults produce:
  *
  *   1. A heading paragraph: `<<{cite} FOR REFERENCE>>`, normal 11pt
  *      black body text (regardless of the Gray-50% setting).
+ *      Skipped when `includeHeading` is off; the delimiter pair, the
+ *      cite's presence, and the label text are all configurable (see
+ *      `referenceHeadingText`).
  *   2. The selected card_body paragraphs, with:
- *      - every text run's effective font-size reduced by 3pt
- *        (emitted as an explicit `font_size` mark);
+ *      - every text run's effective font-size reduced by `shrinkPt`
+ *        points (emitted as an explicit `font_size` mark); with
+ *        `shrink` off, runs keep their sizes untouched;
  *      - every text run colored black (or Gray-50% `#808080`
- *        if `forReferenceUseGray50` is on);
- *      - any `highlight` mark converted to a `shading` mark with
- *        the light gray (`C0C0C0`) "protected-highlight" color so
- *        the highlight isn't lost on paste into Word but reads as
- *        a quiet background. Existing shading marks are untouched.
+ *        if `useGray50` is on);
+ *      - `highlightMode`: any `highlight` mark converted to a
+ *        `shading` mark — light gray (`C0C0C0`) so the highlight
+ *        isn't lost on paste into Word but reads as a quiet
+ *        background (`'shading'`, default) or the highlight's own
+ *        color (`'convert'`) — kept as a highlight (`'keep'`), or
+ *        stripped (`'remove'`). Existing shading marks are untouched.
  *
  * No-op (returns false) if the selection is empty, touches any
  * non-card_body content, or spans more than one card.
@@ -26,10 +34,15 @@ import { DOMSerializer, Fragment, type Node as PMNode } from 'prosemirror-model'
 import type { Command, EditorState } from 'prosemirror-state';
 import { schema } from '../schema/index.js';
 import { collectCiteText } from './headings.js';
+import { highlightRgbFor } from './color-palette.js';
+import {
+  condenseWarningCloseFor,
+  type CreateReferenceDelimiter,
+  type CreateReferenceHighlightMode,
+} from './settings.js';
 
 /** Light gray for highlight → shading conversion in references. */
 const REFERENCE_SHADING_HEX = 'C0C0C0';
-const FONT_SIZE_DECREMENT_PT = 3;
 
 interface CardBodySelection {
   paragraphs: { node: PMNode; pos: number }[];
@@ -90,31 +103,84 @@ export type EffectivePtForNode = (
   parent: PMNode,
 ) => number;
 
-export async function createReference(
+/** The user-configurable knobs of Create Reference — built from the
+ *  "Create Reference" settings section at the call site so the
+ *  transform itself stays pure and testable. */
+export interface CreateReferenceOptions {
+  /** Emit the `<<CITE FOR REFERENCE>>` heading line. */
+  includeHeading: boolean;
+  /** Bracket pair wrapping the heading line. */
+  delimiter: CreateReferenceDelimiter;
+  /** Put the card's cite (SMITH 24) in the heading. */
+  includeCite: boolean;
+  /** Custom label replacing FOR REFERENCE; `%Cite%` (any case) marks
+   *  where the cite goes, otherwise the cite is prepended. Empty =
+   *  the default label. */
+  customHeading: string;
+  /** Reduce every run's font size by `shrinkPt`. */
+  shrink: boolean;
+  /** Points to reduce by when `shrink` is on (result floors at 1pt). */
+  shrinkPt: number;
+  /** What highlighted runs become in the excerpt. */
+  highlightMode: CreateReferenceHighlightMode;
+  /** Gray-50% body text instead of black. */
+  useGray50: boolean;
+}
+
+/** The heading line's text for a given cite + options — extracted so
+ *  the interplay of delimiter / include-cite / custom-label rules
+ *  stays in one place. `cite` is the raw collected cite (may be ''). */
+export function referenceHeadingText(
+  cite: string,
+  opts: Pick<CreateReferenceOptions, 'delimiter' | 'includeCite' | 'customHeading'>,
+): string {
+  const citePart = opts.includeCite ? cite.trim().toUpperCase() : '';
+  const custom = opts.customHeading.trim();
+  let label: string;
+  if (custom) {
+    label = /%cite%/i.test(custom)
+      ? custom.replace(/%cite%/gi, citePart)
+      : citePart
+        ? `${citePart} ${custom}`
+        : custom;
+    // Substituting an empty cite can leave doubled spaces behind.
+    label = label.replace(/\s{2,}/g, ' ').trim();
+    if (!label) label = 'FOR REFERENCE';
+  } else {
+    label = citePart ? `${citePart} FOR REFERENCE` : 'FOR REFERENCE';
+  }
+  return `${opts.delimiter}${label}${condenseWarningCloseFor(opts.delimiter)}`;
+}
+
+/** Build the excerpt's nodes (heading + transformed body paragraphs),
+ *  or null when the selection isn't a valid single-card card_body
+ *  range. Pure — no DOM, no clipboard — so tests can exercise every
+ *  option combination directly. */
+export function buildReferenceNodes(
   state: EditorState,
   effectivePtForNode: EffectivePtForNode,
-  useGray50: boolean,
-): Promise<boolean> {
+  opts: CreateReferenceOptions,
+): PMNode[] | null {
   const sel = state.selection;
-  if (sel.empty) return false;
+  if (sel.empty) return null;
 
   // 1. Validate: every touched textblock must be a card_body in one card.
   const found = collectCardBodySelection(state, sel.from, sel.to);
-  if (!found) return false;
+  if (!found) return null;
   const { paragraphs, parentCard } = found;
 
   // 2. Compute the cite for the heading via the same logic the nav
   // pane uses (handles cite_mark bridging, the ampersand fix-up).
-  // Force the cite portion to all-caps for the FOR REFERENCE label.
-  const cite = collectCiteText(parentCard).trim();
-  const headingText = `<<${cite ? `${cite.toUpperCase()} ` : ''}FOR REFERENCE>>`;
+  // The cite portion is forced to all-caps by referenceHeadingText.
+  const headingText = referenceHeadingText(collectCiteText(parentCard), opts);
 
-  // 3. Build the output fragment.
+  // 3. Build the output nodes.
   const fontSizeType = schema.marks['font_size']!;
   const fontColorType = schema.marks['font_color']!;
   const highlightType = schema.marks['highlight']!;
   const shadingType = schema.marks['shading']!;
-  const bodyColor = useGray50 ? '808080' : '000000';
+  const bodyColor = opts.useGray50 ? '808080' : '000000';
+  const stripHighlight = opts.highlightMode !== 'keep';
 
   const outNodes: PMNode[] = [];
 
@@ -122,9 +188,11 @@ export async function createReference(
   // marks. Generic `paragraph` so it pastes cleanly into any
   // context (PM normalization will reshape it to card_body if the
   // paste lands inside a card).
-  outNodes.push(
-    schema.nodes['paragraph']!.create(null, schema.text(headingText)),
-  );
+  if (opts.includeHeading) {
+    outNodes.push(
+      schema.nodes['paragraph']!.create(null, schema.text(headingText)),
+    );
+  }
 
   for (const { node: para } of paragraphs) {
     const transformed: PMNode[] = [];
@@ -133,32 +201,38 @@ export async function createReference(
         transformed.push(child);
         return;
       }
-      const existingFs = child.marks.find((m) => m.type === fontSizeType);
-      const currentPt = existingFs
-        ? Number(existingFs.attrs['halfPoints'] ?? 22) / 2
-        : effectivePtForNode(child, para);
-      const newPt = Math.max(1, currentPt - FONT_SIZE_DECREMENT_PT);
-
-      // Strip the marks we're about to override (font_size,
-      // font_color) plus highlight (we'll convert to shading).
+      // Strip the marks we're about to override (font_color, plus
+      // font_size when shrinking and highlight unless keeping it).
       const filtered = child.marks.filter(
         (m) =>
-          m.type !== fontSizeType &&
+          (!opts.shrink || m.type !== fontSizeType) &&
           m.type !== fontColorType &&
-          m.type !== highlightType,
+          (!stripHighlight || m.type !== highlightType),
       );
 
       // Re-build the mark set in rank order (Mark.addToSet handles
       // that for us).
       let newMarks = filtered as readonly import('prosemirror-model').Mark[];
-      if (child.marks.some((m) => m.type === highlightType)) {
-        newMarks = shadingType
-          .create({ color: REFERENCE_SHADING_HEX })
+      const hlMark = child.marks.find((m) => m.type === highlightType);
+      if (hlMark && (opts.highlightMode === 'shading' || opts.highlightMode === 'convert')) {
+        // 'shading' → the quiet grey; 'convert' → the highlight's own
+        // color, matching the Convert Highlighting to Background command.
+        const hex =
+          opts.highlightMode === 'shading'
+            ? REFERENCE_SHADING_HEX
+            : highlightRgbFor(String(hlMark.attrs['color'] ?? 'yellow')) ?? 'FFFF00';
+        newMarks = shadingType.create({ color: hex }).addToSet(newMarks);
+      }
+      if (opts.shrink) {
+        const existingFs = child.marks.find((m) => m.type === fontSizeType);
+        const currentPt = existingFs
+          ? Number(existingFs.attrs['halfPoints'] ?? 22) / 2
+          : effectivePtForNode(child, para);
+        const newPt = Math.max(1, currentPt - opts.shrinkPt);
+        newMarks = fontSizeType
+          .create({ halfPoints: Math.round(newPt * 2) })
           .addToSet(newMarks);
       }
-      newMarks = fontSizeType
-        .create({ halfPoints: Math.round(newPt * 2) })
-        .addToSet(newMarks);
       newMarks = fontColorType.create({ color: bodyColor }).addToSet(newMarks);
 
       transformed.push(child.mark(newMarks));
@@ -172,6 +246,17 @@ export async function createReference(
       schema.nodes['card_body']!.create(null, Fragment.fromArray(transformed)),
     );
   }
+
+  return outNodes;
+}
+
+export async function createReference(
+  state: EditorState,
+  effectivePtForNode: EffectivePtForNode,
+  opts: CreateReferenceOptions,
+): Promise<boolean> {
+  const outNodes = buildReferenceNodes(state, effectivePtForNode, opts);
+  if (!outNodes) return false;
 
   const outputFragment = Fragment.fromArray(outNodes);
 

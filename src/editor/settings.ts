@@ -868,6 +868,33 @@ export interface Settings {
    *  in Gray-50% (#808080) instead of black. Heading line stays
    *  black either way. */
   forReferenceUseGray50: boolean;
+  /** When true (default), the Create Reference excerpt starts with
+   *  the `<<CITE FOR REFERENCE>>` heading line. Off copies just the
+   *  reformatted body paragraphs. */
+  createReferenceIncludeHeading: boolean;
+  /** Bracket pair wrapping the heading line (default `<<` … `>>`). */
+  createReferenceDelimiter: CreateReferenceDelimiter;
+  /** When true (default), the card's cite (e.g. SMITH 24) appears in
+   *  the heading — before the label, or wherever `%Cite%` sits in a
+   *  custom heading. Off drops it (and empties `%Cite%`). */
+  createReferenceIncludeCite: boolean;
+  /** Custom heading text replacing the default FOR REFERENCE label.
+   *  `%Cite%` (any case) marks where the cite goes; without it the
+   *  cite is prepended as in the default heading. Empty = default. */
+  createReferenceCustomHeading: string;
+  /** When true (default), Create Reference reduces every run's font
+   *  size in the copied excerpt (by `createReferenceShrinkPt`). Off
+   *  keeps each run's size untouched. */
+  createReferenceShrinks: boolean;
+  /** How many points Create Reference reduces text size by (default
+   *  3). Results never drop below 1pt. Only applies while
+   *  `createReferenceShrinks` is on. */
+  createReferenceShrinkPt: number;
+  /** What Create Reference does with highlighted text in the copied
+   *  excerpt. 'shading' (default) converts highlights to the
+   *  Protected Grey background; 'keep' leaves them as highlights;
+   *  'remove' strips them. */
+  createReferenceHighlightMode: CreateReferenceHighlightMode;
   /** When true, Shrink (Mod-8) treats bracketed "Omitted" spans AND
    *  the `[PARAGRAPH INTEGRITY PAUSES/RESUMES]` markers emitted by
    *  "Condense with warning" specially: their existing size is
@@ -1123,6 +1150,26 @@ export interface ShrinkProtection {
 export type HeadingMode = 'strict' | 'respect' | 'demolish';
 const HEADING_MODES: HeadingMode[] = ['strict', 'respect', 'demolish'];
 
+/** What Create Reference does with highlighted text in the copied
+ *  excerpt: convert to the grey background (default), convert to a
+ *  background of the same color (like the Convert Highlighting to
+ *  Background command), keep the highlights as-is, or remove them. */
+export type CreateReferenceHighlightMode = 'shading' | 'convert' | 'keep' | 'remove';
+const CREATE_REFERENCE_HIGHLIGHT_MODES: CreateReferenceHighlightMode[] = [
+  'shading',
+  'convert',
+  'keep',
+  'remove',
+];
+
+/** Bracket pair wrapping the Create Reference heading line — the
+ *  same mirror-pair choices as "Condense with warning" (minus the
+ *  custom markers, which the free heading text covers instead). */
+export type CreateReferenceDelimiter = Exclude<CondenseWarningDelimiter, 'custom'>;
+const CREATE_REFERENCE_DELIMITERS: CreateReferenceDelimiter[] = [
+  '[', '[[', '<', '<<', '{', '{{',
+];
+
 /** Which gaps the formatting-gap bridge treats as bridgeable. */
 export type FormattingGapClass = 'both' | 'whitespace';
 const FORMATTING_GAP_CLASSES: FormattingGapClass[] = ['both', 'whitespace'];
@@ -1265,6 +1312,13 @@ const DEFAULTS: Settings = {
   standardizeHighlightException: 'yellow',
   standardizeShadingException: 'FFFF00',
   forReferenceUseGray50: false,
+  createReferenceIncludeHeading: true,
+  createReferenceDelimiter: '<<',
+  createReferenceIncludeCite: true,
+  createReferenceCustomHeading: '',
+  createReferenceShrinks: true,
+  createReferenceShrinkPt: 3,
+  createReferenceHighlightMode: 'shading',
   shrinkRestoresOmissionsToNormal: false,
   condenseWarningDelimiter: '[',
   condenseWarningCustomPauseMarker: '',
@@ -1384,6 +1438,8 @@ export interface SettingMeta {
     | 'shrinkCustomProtections'
     | 'standardizeHighlightException'
     | 'standardizeShadingException'
+    | 'createReferenceHighlightMode'
+    | 'createReferenceDelimiter'
     | 'keybindings'
     | 'text'
     | 'folder'
@@ -1779,7 +1835,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'colorVisionFriendly',
     label: 'Color-vision friendly palette',
     description:
-      "Remaps the colors that carry meaning — annotation accents, voice-mode dots, prep-timer Aff/Neg, search-match highlights, category chips — onto a palette engineered to stay distinguishable under red-green and blue-yellow color-vision deficiencies (Okabe-Ito). Works with both light and dark themes. Any colors you set under Color overrides below still win. Note: this preset changes CardMirror's interface colors only — it does not recolor highlights or shading stored in documents. For those, use 'Override highlight/shading color in display' and 'Show highlight & shading names in the status bar' below.",
+      "Remaps the colors that carry meaning — annotation accents, voice-mode dots, prep-timer Aff/Neg, search-match highlights, category chips — onto a palette engineered to stay distinguishable under red-green and blue-yellow color-vision deficiencies (Okabe-Ito). Works with both light and dark themes. Any colors you set under Color overrides below still win. Note: this preset changes CardMirror's interface colors only — it does not recolor highlights or background colors stored in documents. For those, use 'Override highlight/background color in display' and 'Show highlight & background color names in the status bar' below.",
     kind: 'toggle',
     category: 'accessibility',
     aliases: ['colorblind', 'color blind', 'cvd', 'deuteranopia', 'protanopia', 'tritanopia'],
@@ -1835,7 +1891,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'overrideHighlightColor',
     label: 'Override highlight color in display',
     description:
-      "When on, highlights in the doc render in the override colors below regardless of what's stored on the mark. Display-only — the doc itself is untouched, so re-saving preserves the original per-mark colors. Useful when cards from many sources have inconsistent highlight conventions and you want a unified read.",
+      "When on, highlights in the doc render in the override colors below regardless of what's stored on the mark. Display-only — the doc itself is untouched.",
     kind: 'toggle',
     category: 'accessibility',
   },
@@ -1850,26 +1906,29 @@ export const SETTING_METADATA: SettingMeta[] = [
   },
   {
     key: 'overrideShadingColor',
-    label: 'Override shading color in display',
+    label: 'Override background color in display',
     description:
-      "Same idea, applied to shading marks (Verbatim's protected-grey emphasis variant). Doc data is untouched.",
+      'Same idea, applied to background color. Display-only — the doc itself is untouched.',
     kind: 'toggle',
     category: 'accessibility',
+    aliases: ['shading', 'override shading color'],
   },
   {
     key: 'overrideShadingSlots',
-    label: 'Shading override colors',
+    label: 'Background override colors',
     kind: 'colorSlots',
     category: 'accessibility',
     dependsOn: 'overrideShadingColor',
+    aliases: ['shading override colors'],
   },
   {
     key: 'showCursorColorNames',
-    label: 'Show highlight & shading names in the status bar',
+    label: 'Show highlight & background color names in the status bar',
     description:
-      'Displays the actual stored highlight and shading color names for the text at your cursor (e.g. "Hl: Yellow · Sh: none"), whether or not the display overrides above are on. Highlight hues often carry meaning in shared files — this gives you that meaning as text, useful when colors are hard to tell apart.',
+      'Displays the actual stored highlight and background color names for the text at your cursor (e.g. "Hl: Yellow · Sh: none"), whether or not the display overrides above are on. Highlight hues often carry meaning in shared files — this gives you that meaning as text, useful when colors are hard to tell apart.',
     kind: 'toggle',
     category: 'accessibility',
+    aliases: ['shading names', 'color names'],
   },
   {
     key: 'customColorOverrides',
@@ -2265,13 +2324,88 @@ export const SETTING_METADATA: SettingMeta[] = [
     section: 'Formatting operations',
   },
   {
-    key: 'forReferenceUseGray50',
-    label: 'Create Reference uses Gray-50% text',
+    key: 'createReferenceIncludeHeading',
+    label: 'Include the FOR REFERENCE heading',
     description:
-      'When on, the body text of a "Create Reference" excerpt is rendered in Gray-50% (#808080) instead of black. The heading line stays black either way.',
+      'When on (default), the copied excerpt starts with a heading line like <<SMITH 24 FOR REFERENCE>>. Turn off to copy just the reformatted body paragraphs.',
     kind: 'toggle',
     category: 'editing',
-    section: 'Formatting operations',
+    section: 'Create Reference',
+    aliases: ['create reference heading', 'for reference heading'],
+  },
+  {
+    key: 'createReferenceDelimiter',
+    label: 'Heading delimiter',
+    description:
+      'Which bracket pair wraps the heading line, e.g. <<SMITH 24 FOR REFERENCE>> vs [SMITH 24 FOR REFERENCE].',
+    kind: 'createReferenceDelimiter',
+    category: 'editing',
+    section: 'Create Reference',
+    dependsOn: 'createReferenceIncludeHeading',
+    aliases: ['create reference delimiter', 'reference brackets'],
+  },
+  {
+    key: 'createReferenceIncludeCite',
+    label: 'Include the cite in the heading',
+    description:
+      "When on (default), the card's cite appears in the heading — the SMITH 24 in <<SMITH 24 FOR REFERENCE>>. In a custom heading it goes wherever %Cite% sits (or is prepended if there's no %Cite%).",
+    kind: 'toggle',
+    category: 'editing',
+    section: 'Create Reference',
+    dependsOn: 'createReferenceIncludeHeading',
+    aliases: ['create reference cite', 'reference cite'],
+  },
+  {
+    key: 'createReferenceCustomHeading',
+    label: 'Custom heading text',
+    description:
+      'Replaces the default FOR REFERENCE label. Type %Cite% where the cite should go — e.g. "FROM %Cite%" gives <<FROM SMITH 24>>. Without %Cite%, the cite is prepended as usual. Leave empty for the default.',
+    kind: 'text',
+    category: 'editing',
+    section: 'Create Reference',
+    dependsOn: 'createReferenceIncludeHeading',
+    aliases: ['create reference custom heading', 'reference heading text'],
+  },
+  {
+    key: 'createReferenceShrinks',
+    label: 'Reduce text size',
+    description:
+      'When on (default), every run in the copied excerpt has its font size reduced by the amount below.',
+    kind: 'toggle',
+    category: 'editing',
+    section: 'Create Reference',
+    aliases: ['create reference shrink', 'reference text size'],
+  },
+  {
+    key: 'createReferenceShrinkPt',
+    label: 'Reduce text size by (points)',
+    description:
+      'How many points the excerpt\'s text size is reduced by (default 3). Sizes never drop below 1pt.',
+    kind: 'number',
+    category: 'editing',
+    section: 'Create Reference',
+    dependsOn: 'createReferenceShrinks',
+    aliases: ['create reference shrink amount'],
+  },
+  {
+    key: 'createReferenceHighlightMode',
+    label: 'Highlights become',
+    description:
+      'What happens to highlighted text in the copied excerpt: converted to a grey background (default — the marking stays visible in Word without occupying the highlight layer), converted to a background of the same color, kept as highlights, or removed.',
+    kind: 'createReferenceHighlightMode',
+    category: 'editing',
+    section: 'Create Reference',
+    aliases: ['create reference highlights', 'reference grey background', 'reference gray background'],
+  },
+  {
+    key: 'forReferenceUseGray50',
+    label: 'Use Gray-50% body text',
+    description:
+      'When on, the body text of the copied excerpt is rendered in Gray-50% (#808080) instead of black. The heading line stays black either way.',
+    kind: 'toggle',
+    category: 'editing',
+    section: 'Create Reference',
+    aliases: ['create reference gray', 'create reference grey', 'reference gray text'],
   },
   {
     key: 'standardizeHighlightException',
@@ -2949,6 +3083,35 @@ function sanitize(s: Settings): Settings {
       s.forReferenceUseGray50 === undefined
         ? DEFAULTS.forReferenceUseGray50
         : !!s.forReferenceUseGray50,
+    createReferenceIncludeHeading:
+      s.createReferenceIncludeHeading === undefined
+        ? DEFAULTS.createReferenceIncludeHeading
+        : !!s.createReferenceIncludeHeading,
+    createReferenceDelimiter: CREATE_REFERENCE_DELIMITERS.includes(
+      s.createReferenceDelimiter as CreateReferenceDelimiter,
+    )
+      ? (s.createReferenceDelimiter as CreateReferenceDelimiter)
+      : DEFAULTS.createReferenceDelimiter,
+    createReferenceIncludeCite:
+      s.createReferenceIncludeCite === undefined
+        ? DEFAULTS.createReferenceIncludeCite
+        : !!s.createReferenceIncludeCite,
+    createReferenceCustomHeading:
+      typeof s.createReferenceCustomHeading === 'string'
+        ? s.createReferenceCustomHeading
+        : DEFAULTS.createReferenceCustomHeading,
+    createReferenceShrinks:
+      s.createReferenceShrinks === undefined
+        ? DEFAULTS.createReferenceShrinks
+        : !!s.createReferenceShrinks,
+    createReferenceShrinkPt: Number.isFinite(Number(s.createReferenceShrinkPt))
+      ? Math.min(20, Math.max(1, Math.round(Number(s.createReferenceShrinkPt))))
+      : DEFAULTS.createReferenceShrinkPt,
+    createReferenceHighlightMode: CREATE_REFERENCE_HIGHLIGHT_MODES.includes(
+      s.createReferenceHighlightMode as CreateReferenceHighlightMode,
+    )
+      ? (s.createReferenceHighlightMode as CreateReferenceHighlightMode)
+      : DEFAULTS.createReferenceHighlightMode,
     shrinkRestoresOmissionsToNormal:
       s.shrinkRestoresOmissionsToNormal === undefined
         ? DEFAULTS.shrinkRestoresOmissionsToNormal

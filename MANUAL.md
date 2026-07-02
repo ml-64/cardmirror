@@ -139,10 +139,10 @@ covered in full in the section linked.
   structure-aware handling (read mode, send-to-speech, Extract Undertag).
   Verbatim doesn't ship them; you'd have to roll your own Word styles, which
   it wouldn't treat as structure.
-- **[Highlight and shading as independent tracks](#colors-highlight-background-and-font-color)**
-  — highlight and background shading are separate, coexisting colors, each
-  with its own apply / standardize / convert functions that leave the other
-  untouched.
+- **[Highlight and background color as independent tracks](#colors-highlight-background-and-font-color)**
+  — highlight and background color (or shading) are separate, coexisting
+  colors, each with its own apply / standardize / convert functions that
+  leave the other untouched.
 - **[Acronym variants](#colors-highlight-background-and-font-color)** —
   emphasize or highlight just the source letters of an acronym (the **U**
   and **S** in United States) in one keystroke.
@@ -391,27 +391,35 @@ warnings, your custom rules), and regular **Shrink (Mod-8)** and **Regrow
 - **Format Cite from selection (Mod-Shift-X)** uses AI to turn a pasted
   citation or URL into a properly styled cite (see
   [AI features](#11-ai-features)).
-- **Create Reference** copies a formatted reference for the current
-  document to your clipboard.
-- **Lock Highlighting** converts highlighting to light-gray shading in
-  place, freeing the highlight layer so you can re-highlight from scratch.
-  With nothing selected it locks the whole card your cursor is in; with a
-  selection it locks just the selection. (With no selection and no card under
-  the cursor it does nothing — it won't lock an entire pocket/hat/block.)
-  Unlike Create Reference it edits the card directly, adds no heading, and
-  does not turn the text gray — the card stays fully editable. (Any shading
-  you'd already applied is left as-is.)
+- **Create Reference** copies the selected card text to your clipboard as
+  a "for reference" excerpt: a `<<CITE FOR REFERENCE>>` heading line,
+  body text reduced by 3pt, and highlights converted to a quiet grey
+  background. Every step is customizable under **Settings → Editing →
+  Create Reference** — skip the heading or reshape it (bracket style,
+  whether the cite appears, or a fully custom label with `%Cite%` marking
+  where the cite goes), keep the original text size (or change how much
+  it shrinks), choose what highlights become (grey background, a
+  background in the same color, kept, or removed), and the Gray-50% body
+  text option.
+- **Lock Highlighting** converts highlighting to a light-gray background
+  color in place, freeing the highlight layer so you can re-highlight from
+  scratch. With nothing selected it locks the whole card your cursor is in;
+  with a selection it locks just the selection. (With no selection and no
+  card under the cursor it does nothing — it won't lock an entire
+  pocket/hat/block.) Unlike Create Reference it edits the card directly,
+  adds no heading, and does not turn the text gray — the card stays fully
+  editable. (Any background color you'd already applied is left as-is.)
 
 ### Colors: highlight, background, and font color
 
-CardMirror directly supports both **highlighting** and **shading**.
-Highlighting and shading appear the same but operations affecting one don't
-affect the other, allowing you to perform bulk edits on your document that
-leave some things unaffected. As an example, you might want to recut an
-opponent's card and keep their highlighting, but in a different color from
-the color you'd normally read; you can do this by turning their highlighting
-into shading so it isn't affected by "standardize highlighting" in the
-future.
+CardMirror directly supports both **highlighting** and **background
+color**. Highlighting and background color appear the same but operations
+affecting one don't affect the other, allowing you to perform bulk edits on
+your document that leave some things unaffected. As an example, you might
+want to recut an opponent's card and keep their highlighting, but in a
+different color from the color you'd normally read; you can do this by
+turning their highlighting into background color so it isn't affected by
+"standardize highlighting" in the future.
 
 Each of the three color controls is a **split button**: the main button
 applies the active color, and the small arrow opens a 16-swatch picker.
@@ -424,7 +432,7 @@ paint, until you pick a color again.
 
 - **Highlight (F11)** — toggles the active highlight on the selection.
   Supports all 15 Word highlight colors.
-- **Background / shading (Mod-F11)** — a separate background color that
+- **Background color (Mod-F11)** — a separate background color that
   can coexist with a highlight; takes any color.
 - **Font color** — applies a text color; the "Automatic" swatch removes
   it.
@@ -460,7 +468,7 @@ color to all of them at once.
 
 - **Insert Table** (Format menu) drops in a table; further menu items add
   or delete rows and columns and merge or split cells. Tables round-trip
-  to Word with their borders and shading intact.
+  to Word with their borders and background colors intact.
 - **Insert Image** (Format menu) inserts an image from a file; you can
   also paste one from the clipboard. Right-click an image to **edit its
   alt text** (or have AI write it) and to **generate a table from the
@@ -1099,7 +1107,7 @@ you're offline.
 |---------|---------------|--------------|
 | **Format Cite** | Mod-Shift-X on a selection | Turns a pasted citation or URL into a properly styled cite, with the cite mark on the author and date. |
 | **Repair Text** | Mod-Shift-R on a selection | Fixes OCR / PDF extraction errors (dropped ligatures, `rn`/`m`, mid-word hyphenation, run-together words) without changing the wording. Corrections apply in place, one at a time with a highlight; the whole repair is a single undo. |
-| **Repair Formatting** | Mod-Alt-R on a selection | Normalizes an imported card's formatting to Verbatim's four-layer scheme (underline / emphasis / highlighting / shading) — fixing bold or italics standing in for emphasis, direct underlining, bold-underline, and underlining lost to an unsupported style. It never changes your text. |
+| **Repair Formatting** | Mod-Alt-R on a selection | Normalizes an imported card's formatting to Verbatim's four-layer scheme (underline / emphasis / highlighting / background color) — fixing bold or italics standing in for emphasis, direct underlining, bold-underline, and underlining lost to an unsupported style. It never changes your text. |
 | **Translate** | Mod-Shift-T on a selection | Translates the selection and copies it to the clipboard, leaving your document unchanged. Uses Anthropic when AI is on; otherwise falls back to a free, keyless backend, so it works even with AI off. |
 | **Ask AI about selection** | Mod-Shift-Q on a selection | Asks Claude a question about the selection — including any images in it (up to five pictures are sent to the model), with the surrounding card as context; the answer lands as an AI note. Works on a selected image on its own, too ("what does this chart show?"). Or type **@AI** in any comment or note — including its first message — to summon the AI right there; once a thread has an AI reply, further replies continue the conversation. |
 | **Generate alt text** | Right-click an image | Writes an alt-text description and inserts it under the image; offers to keep or regenerate if the image already has alt text. |
@@ -1139,7 +1147,8 @@ entire repair undoes in a single step. Requires AI features.
 Select body text and press **Mod-Alt-R** to normalize a card's formatting
 to Verbatim's four-layer scheme: **underline** for the broad pass,
 **emphasis** for what stands out within it, **highlighting** for what's
-read aloud, and **shading** to set off some of that highlighting. It fixes
+read aloud, and **background color** to set off some of that highlighting.
+It fixes
 the classic ways an imported card breaks down — bold or italics standing
 in for emphasis, direct underlining used instead of the named underline
 style, bold-underline used for all underlining, and underlining destroyed
@@ -1682,8 +1691,29 @@ Typing helpers and the behavior of the cutting and condense commands
   should leave at Normal size.
 - **F9 toggle-off also clears direct formatting** — toggling underline
   off also strips direct formatting in the range.
-- **Create Reference uses Gray-50% text** — render a Reference's body
-  text in gray; the heading line stays black.
+
+**Create Reference**
+
+- **Include the FOR REFERENCE heading** — start the copied excerpt with
+  the `<<CITE FOR REFERENCE>>` heading line (on by default). The three
+  settings below shape that line and are disabled while it's off.
+- **Heading delimiter** — which bracket pair wraps the heading:
+  `<< >>` (default), `[ ]`, `[[ ]]`, `< >`, `{ }`, or `{{ }}`.
+- **Include the cite in the heading** — whether the card's cite appears
+  (the SMITH 24 in `<<SMITH 24 FOR REFERENCE>>`).
+- **Custom heading text** — replace the FOR REFERENCE label with your
+  own. Type `%Cite%` where the cite should go — e.g. `FROM %Cite%`
+  gives `<<FROM SMITH 24>>`; without `%Cite%` the cite is
+  prepended as usual. Leave empty for the default label.
+- **Reduce text size** / **Reduce text size by (points)** — whether the
+  excerpt's text shrinks, and by how many points (default 3; never below
+  1pt).
+- **Highlights become** — what happens to highlighted text in the
+  excerpt: a grey background (default), a background in the same color
+  as the highlight (like the Highlight to Background command), kept as
+  highlights, or removed.
+- **Use Gray-50% body text** — render the excerpt's body text in gray;
+  the heading line stays black.
 
 **Standardize exceptions**
 
@@ -1756,9 +1786,9 @@ remove one, **↺** to restore its default. A few window-level shortcuts
   distinguishable under red-green and blue-yellow color-vision deficiencies.
   Works with both light and dark themes; any colors you set under **Color
   overrides** still win. This preset changes CardMirror's interface colors
-  only — highlights and shading stored in documents are untouched. For
-  those, use the **Override highlight/shading color** settings below and the
-  status-bar color names setting above.
+  only — highlights and background colors stored in documents are
+  untouched. For those, use the **Override highlight/background color**
+  settings below and the status-bar color names setting above.
 - **Distinguish annotations by underline shape** — add a shape-coded
   underline to in-document annotation ranges so you can tell them apart
   without relying on their tint colors: comments dotted, flashcards
@@ -1774,9 +1804,11 @@ remove one, **↺** to restore its default. A few window-level shortcuts
 - **Highlight override colors** — up to three ordered colors; the
   most-common highlight in the doc maps to the first, the next to the
   second, the rest to the last.
-- **Override shading color in display** — the same, for shading marks.
-- **Shading override colors** — the colors used for the above.
-- **Show highlight & shading names in the status bar** — the status bar
+- **Override background color in display** — the same, for background
+  color.
+- **Background override colors** — the colors used for the above.
+- **Show highlight & background color names in the status bar** — the
+  status bar
   reports the actual stored color names for the text at your cursor
   (e.g. `Hl: Yellow · Sh: none`). Highlight hues often carry meaning in
   shared files; this gives you that meaning as text — useful if colors
@@ -1803,7 +1835,7 @@ everyone, apply direct formatting in the document itself).
   glyphs.
 - **Per-style colors.** Set the color of Analytics, Undertags, and other
   styles for your own viewing.
-- **Accessibility overrides.** Remap highlight and shading colors,
+- **Accessibility overrides.** Remap highlight and background colors,
   override document text color, and pick dyslexia-friendly body fonts
   (Atkinson Hyperlegible, Lexend, OpenDyslexic, and others). CardMirror
   also forces readable contrast on highlighted and shaded text

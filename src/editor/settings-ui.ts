@@ -799,6 +799,14 @@ class SettingsModal {
       row.appendChild(text);
       row.appendChild(buildColorEditor(meta.key as keyof typeof SETTINGS_DEFAULTS));
       return row;
+    } else if (meta.kind === 'createReferenceHighlightMode') {
+      row.appendChild(text);
+      row.appendChild(buildCreateReferenceHighlightModeEditor());
+      return row;
+    } else if (meta.kind === 'createReferenceDelimiter') {
+      row.appendChild(text);
+      row.appendChild(buildCreateReferenceDelimiterEditor());
+      return row;
     } else if (meta.kind === 'standardizeHighlightException') {
       row.appendChild(text);
       row.appendChild(buildHighlightExceptionEditor());
@@ -2572,6 +2580,49 @@ function buildVoiceDashStyleEditor(): HTMLElement {
   }
   select.addEventListener('change', () => {
     settings.set('voiceDashStyle', select.value as typeof current);
+  });
+  return select;
+}
+
+function buildCreateReferenceHighlightModeEditor(): HTMLElement {
+  const select = document.createElement('select');
+  select.className = 'pmd-body-font-select';
+  const current = settings.get('createReferenceHighlightMode');
+  const options: Array<{ value: typeof current; label: string }> = [
+    { value: 'shading', label: 'Grey background (default)' },
+    { value: 'convert', label: 'Background of the same color' },
+    { value: 'keep', label: 'Kept as highlights' },
+    { value: 'remove', label: 'Removed' },
+  ];
+  for (const o of options) {
+    const opt = document.createElement('option');
+    opt.value = o.value;
+    opt.textContent = o.label;
+    opt.selected = o.value === current;
+    select.appendChild(opt);
+  }
+  select.addEventListener('change', () => {
+    settings.set('createReferenceHighlightMode', select.value as typeof current);
+  });
+  return select;
+}
+
+function buildCreateReferenceDelimiterEditor(): HTMLElement {
+  const select = document.createElement('select');
+  select.className = 'pmd-body-font-select';
+  const current = settings.get('createReferenceDelimiter');
+  // Same mirror pairs as "Condense with warning"; each option shows
+  // the wrapped heading so the choice reads at a glance.
+  const opens: Array<typeof current> = ['[', '[[', '<', '<<', '{', '{{'];
+  for (const open of opens) {
+    const opt = document.createElement('option');
+    opt.value = open;
+    opt.textContent = `${open}FOR REFERENCE${condenseWarningCloseFor(open)}`;
+    opt.selected = open === current;
+    select.appendChild(opt);
+  }
+  select.addEventListener('change', () => {
+    settings.set('createReferenceDelimiter', select.value as typeof current);
   });
   return select;
 }

@@ -21,6 +21,24 @@ see `DETAILED_CHANGELOG.md`.
 - **Search palette tooltips.** When a result's file name, heading, or
   folder path is too long to fit its row, hovering it now shows the full
   text in a tooltip. Results that fit show no tooltip.
+- **Create Reference is now customizable.** A new **Create Reference**
+  section in Settings → Editing controls each step of the copied excerpt:
+  include or skip the heading line and shape it — bracket style, whether
+  the cite appears, or a fully custom label with `%Cite%` marking where
+  the cite goes; keep the original text size or choose how many points it
+  shrinks by (default 3); and decide what happens to highlights — grey
+  background (default), a background in the same color as the highlight,
+  kept as highlights, or removed. The existing Gray-50% body text option
+  moved into the same section.
+
+### Changed
+
+- **"Background color" everywhere.** Settings and documentation now say
+  "background color" (the Word name) instead of "shading" — e.g. the
+  accessibility settings are now **Override background color in display**
+  and **Show highlight & background color names in the status bar**.
+  Searching the settings for "shading" still finds them. A couple of
+  accessibility setting descriptions were also tightened.
 
 ## 0.1.0-beta.6 — 2026-07-02
 

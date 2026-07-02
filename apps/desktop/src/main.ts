@@ -10,9 +10,9 @@
  *     renderer as `'menu-command'` events, where they get routed
  *     through the same ribbon-command registry as keyboard
  *     shortcuts and ribbon buttons.
- *
- * Phase 3 scope (this file's job): native file I/O + menus. Phase 4
- * (autosave) and Phase 5 (packaged builds) layer on top.
+ *   - Host cross-window state: speech-doc registry, dropzone shelf,
+ *     Quick Cards library, duplicate-open guard, crash-recovery
+ *     journals, and auto-update.
  */
 
 import {
@@ -42,11 +42,10 @@ import { startFastPasteBridge, stopFastPasteBridge } from './fast-paste-bridge.j
 
 const DEV_SERVER_URL = 'http://localhost:5173';
 
-// macOS scroll-perf tuning. Belt-and-suspenders settings retained
-// from the alpha.2 → alpha.3 perf investigation; the root cause
-// was resolved by bumping Electron 33 → 42 (Chromium 130 → 148)
-// rather than by any one of these switches, but each is cheap,
-// well-understood, and worth keeping in place.
+// macOS scroll-perf tuning. Belt-and-suspenders: none of these
+// switches was the root fix for the historical scroll stalls (the
+// Electron 33 → 42 / Chromium 130 → 148 bump was), but each is
+// cheap and well-understood.
 //
 // `enable-zero-copy` lets the GPU upload raster tiles directly
 // from main memory instead of double-buffering through the CPU —
@@ -56,9 +55,9 @@ const DEV_SERVER_URL = 'http://localhost:5173';
 // bucket still get full hardware acceleration.
 // `enable-skia-graphite` opts into Chromium's newer Skia GPU
 // backend (Dawn → Metal on macOS). On Chromium 148 (Electron 42)
-// this is default-on for Apple platforms — the switch is now a
-// no-op, but kept explicit to defend against any future default
-// flip and to document the path we depend on.
+// this is default-on for Apple platforms — the switch is a no-op,
+// kept explicit to defend against any future default flip and to
+// document the path we depend on.
 //
 // MUST run before `app.whenReady()` — Chromium reads switches at
 // gpu-process startup.
@@ -247,12 +246,11 @@ function createWindow(initialDoc?: InitialDocPayload): BrowserWindow {
     width: 1400,
     height: 900,
     // Explicit 0×0 minimum: Electron + Chromium will otherwise
-    // advertise its own default minimum to the WM (which, on some
-    // Linux compositors, sits at ~800×600 — exactly the old value
-    // we used to set here). Pinning both to 0 advertises "no
-    // minimum" so tiling WMs and split-screen layouts can shrink
-    // the window arbitrarily; the renderer's CSS / JS handles
-    // narrow-viewport degradation from there.
+    // advertise its own default minimum to the WM (~800×600 on some
+    // Linux compositors). Pinning both to 0 advertises "no minimum"
+    // so tiling WMs and split-screen layouts can shrink the window
+    // arbitrarily; the renderer's CSS / JS handles narrow-viewport
+    // degradation from there.
     minWidth: 0,
     minHeight: 0,
     title: 'CardMirror',
@@ -712,11 +710,11 @@ ipcMain.handle(
 );
 
 // ── Cached .cmir file index (command-palette file search) ───────────
-// The palette used to walk the search-root tree on every open. We now
-// cache the listing — with per-file mtime + size, which the future
-// content index will use to reparse only changed files — in memory and
-// on disk (`{userData}/cmir-file-index.json`), returning instantly and
-// revalidating in the background. Persists across launches.
+// The search-root listing — with per-file mtime + size, which a future
+// content index can use to reparse only changed files — is cached in
+// memory and on disk (`{userData}/cmir-file-index.json`): reads return
+// instantly from cache and revalidate in the background. Persists
+// across launches.
 
 interface CmirFileEntry {
   path: string;
@@ -881,7 +879,7 @@ ipcMain.handle(
 // Silent "Save Send Doc" / "Save Marked Cards" write. The renderer has already
 // resolved the destination (a fixed folder, or the source file's own folder),
 // the final filename, AND passes the source document's own path as
-// `siblingHandle`; main just joins, guards against clobbering the source, and
+// `siblingHandle`; main joins, guards against clobbering the source, and
 // writes. Returns the literal string 'collision' whenever the resolved target
 // would overwrite the source document — in EITHER destination mode (e.g. a
 // custom/empty prefix at the same folder + format, or a fixed folder that
@@ -1082,9 +1080,9 @@ ipcMain.handle('host:write-learn-store', (_event, json: string) => {
 // blank). Main owns the pending-map keyed by window id.
 
 ipcMain.handle('host:spawn-window', async (_event, payload: InitialDocPayload | null) => {
-  // Defensive normalization of `payload.bytes` — IPC may have
-  // transferred it as a Buffer / typed array. Store as-is; the
-  // renderer will normalize at read time too.
+  // `payload.bytes` may arrive as a Buffer / typed array depending on
+  // the IPC transfer; stored as-is — the renderer normalizes at read
+  // time.
   const newWin = createWindow(payload ?? undefined);
   // If the spawn carries an on-disk path, claim it for the new
   // window right away so a concurrent open in a third window
@@ -1151,10 +1149,9 @@ const MODE_SWITCH_CLOSE_TIMEOUT_MS = 10000;
 // True while a mode switch is closing the other windows. Backstop
 // against two concurrent rounds: if two windows each initiated, each
 // would treat the OTHER's surviving host as a window to close, so they
-// would close each other and leave nothing open. The renderer now
-// gates the switch to the initiating window only (remote settings
-// changes don't trigger it); this guard catches anything that slips
-// past.
+// would close each other and leave nothing open. The renderer gates
+// the switch to the initiating window only (remote settings changes
+// don't trigger it); this guard catches anything that slips past.
 let modeSwitchInProgress = false;
 
 // Docs journaled by the windows that close for a mode switch. Each
@@ -1845,10 +1842,10 @@ function buildMenu(): Menu {
   const viewMenu: MenuItemConstructorOptions = {
     label: 'View',
     submenu: [
-      // Plain reload keeps its menu entry but DROPS the Cmd/Ctrl+R accelerator:
-      // a stray Cmd+R mid-edit reloaded the renderer and read like a crash/data
-      // loss. Intentional reloads go via this click or Force Reload (Cmd+Shift+R),
-      // which is unlikely to be hit by accident.
+      // No Cmd/Ctrl+R accelerator on plain Reload: a stray Cmd+R mid-edit
+      // reloads the renderer and reads like a crash / data loss. Intentional
+      // reloads go via this click or Force Reload (Cmd+Shift+R), which is
+      // unlikely to be hit by accident.
       { label: 'Reload', click: () => BrowserWindow.getFocusedWindow()?.webContents.reload() },
       { role: 'forceReload' },
       { role: 'toggleDevTools' },
@@ -2162,12 +2159,11 @@ function startAutoUpdate(): void {
       });
     });
   }
-  // The actual at-launch check now fires from the renderer's
-  // boot path (gated on the `checkForUpdatesOnLaunch` setting +
-  // `host.isFirstWindow()`) via the `host:trigger-auto-update-check`
-  // IPC handler. Subsequent windows in the same session skip the
-  // check entirely. The persistent event handlers above stay
-  // wired so the "Update ready" dialog still fires when the
+  // The at-launch check fires from the renderer's boot path (gated
+  // on the `checkForUpdatesOnLaunch` setting + `host.isFirstWindow()`)
+  // via the `host:trigger-auto-update-check` IPC handler; subsequent
+  // windows in the same session skip it. The persistent event handlers
+  // above stay wired so the "Update ready" dialog still fires when the
   // download completes.
 }
 

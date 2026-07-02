@@ -103,8 +103,8 @@ const COMMENTS_WIDTH_MAX = 560;
  *  `--pmd-comments-width` custom property on the document element.
  *  CSS picks it up via `width: var(--pmd-comments-width, 320px)` on
  *  `.pmd-comments-column`. Mirror of `applyNavWidthCss` in
- *  `nav-panel.ts`. Called on boot (from `index.ts`) to apply the
- *  persisted setting and during the resize drag. */
+ *  `nav-panel.ts`. Applied on construction (persisted setting), on
+ *  settings changes, and during the resize drag. */
 export function applyCommentsWidthCss(px: number): void {
   const clamped = Math.max(COMMENTS_WIDTH_MIN, Math.min(COMMENTS_WIDTH_MAX, px));
   document.documentElement.style.setProperty('--pmd-comments-width', `${clamped}px`);
@@ -186,13 +186,13 @@ export class CommentsColumn {
   private readonly root: HTMLElement;
   /** Inner container that holds the threads + empty-state + toggle.
    *  Lives inside `root` so the resize handle (also a child of
-   *  `root`, but a sibling of this) can survive the `innerHTML = ''`
-   *  wipes that `render()` does on every redraw. */
+   *  `root`, but a sibling of this) survives the `innerHTML = ''`
+   *  wipes `render()` does in its no-view / empty paths. */
   private readonly content: HTMLElement;
   private getView: () => EditorView | null;
-  /** When a thread's textarea was last focused, we'd otherwise blow
-   *  it away on every re-render. Track which thread is currently
-   *  being typed-in so we re-focus + restore the text on rebuild. */
+  /** Re-renders would otherwise blow away a focused reply textarea.
+   *  Tracks which thread is being typed in so rebuilds re-focus and
+   *  restore the text. */
   private activeReplyThreadId: string | null = null;
   private activeReplyText = '';
   private suppressBlurReset = false;
@@ -269,13 +269,9 @@ export class CommentsColumn {
     this.root = root;
     this.getView = getView;
     this.getDocId = getDocId;
-    // Inner content container — render() rebuilds children INSIDE
-    // this. Order matters: install the resize handle BEFORE the
-    // content container so the handle stays in DOM order as a
-    // sibling that render() never touches. Without this indirection
-    // render()'s `innerHTML = ''` on the root wipes the handle on
-    // every doc keystroke (since render() fires from
-    // dispatchTransaction).
+    // Inner content container — render() only ever rebuilds children
+    // INSIDE this. Install the resize handle first so it stays a
+    // sibling that render()'s wipes never touch.
     applyCommentsWidthCss(settings.get('commentsColumnWidth'));
     settings.subscribe((s) => {
       applyCommentsWidthCss(s.commentsColumnWidth);
@@ -303,9 +299,8 @@ export class CommentsColumn {
    *  (set on `:root` so any future selector that references it
    *  resolves consistently), and persisted via the
    *  `commentsColumnWidth` setting. Drag clamps to
-   *  COMMENTS_WIDTH_MIN…COMMENTS_WIDTH_MAX; further clamping in
-   *  the settings sanitizer defends against persisted values
-   *  outside the range from older builds. */
+   *  COMMENTS_WIDTH_MIN…COMMENTS_WIDTH_MAX; the settings sanitizer
+   *  clamps out-of-range persisted values too. */
   private installResizeHandle(): void {
     const handle = document.createElement('div');
     handle.className = 'pmd-comments-resize-handle';
@@ -559,11 +554,6 @@ export class CommentsColumn {
     view.dispatch(upsertFlashcardRangeTr(view.state, { cardId, from, to, kind }));
   }
 
-  /** Re-render the column from the current plugin state + doc.
-   *  Two phases: build the cards into the DOM (positions are still
-   *  default at this point), then `layoutCards` measures each card's
-   *  natural height and assigns a `top` aligned with the start of
-   *  its anchored range. */
   /** Idle-callback handle for `scheduleRender`. */
   private renderTimer: IdleHandle | null = null;
 
@@ -656,12 +646,8 @@ export class CommentsColumn {
       // otherwise deleting the LAST decoration-anchored annotation (note /
       // flashcard / AI thread) leaves its blue emphasis painted until the
       // column is toggled off. (Comments instead clear via the highlight
-      // plugin's position-mapping when their mark is edited away.)
-      // The active-emphasis sync at the end of render() is skipped by this
-      // early bail, so clear any lingering active highlight here too —
-      // otherwise deleting the LAST decoration-anchored annotation (note /
-      // flashcard / AI thread) leaves its blue emphasis painted until the
-      // column is toggled off. Guard on the PLUGIN's own active range, not
+      // plugin's position-mapping when their mark is edited away.) Guard
+      // on the PLUGIN's own active range, not
       // `lastActiveRangeKey`: the range-clear dispatch above triggers a
       // re-entrant render whose `setActiveAnnotationRangeTr(null)` is dropped
       // (re-entrant dispatches are ignored) yet still resets the key to '',
@@ -816,8 +802,8 @@ export class CommentsColumn {
     }
   }
 
-  /** Retained as a no-op for the multi-pane shell, which calls it on
-   *  pane scroll. Model 1 is a flow list — nothing to reposition on
+  /** No-op kept for the multi-pane shell, which calls it on pane
+   *  scroll. Model 1 is a flow list — nothing to reposition on
    *  scroll (the column scrolls its own content). */
   relayoutCards(): void {
     /* intentionally empty */
@@ -839,10 +825,10 @@ export class CommentsColumn {
     card.addEventListener('click', (e) => {
       const target = e.target as HTMLElement | null;
       if (target && target.closest('textarea, input, button')) return;
-      // Clicking the already-active card collapses it — and crucially
-      // does NOT re-scroll. (Previously it re-fired scrollToRange, which
-      // jumped the doc to the card's text on every click of an open
-      // card.) Only a fresh activation scrolls to the anchored text.
+      // Clicking the already-active card collapses it WITHOUT
+      // re-scrolling (a scroll here would jump the doc on every click
+      // of an open card). Only a fresh activation scrolls to the
+      // anchored text.
       if (this.activeThreadId === threadId) {
         this.dismissActive();
         return;
@@ -855,9 +841,6 @@ export class CommentsColumn {
     return card;
   }
 
-  /** (Re)fill a card's inner content for the current thread state.
-   *  Replaces children in place — the element persists so its `top`
-   *  keeps animating and the ResizeObserver stays attached. */
   /** Card-level header for a thread card (comment / AI): the type chip on
    *  the left, then (pushed right) the date and — when `onDelete` is
    *  given (expanded / pending) — a thread-delete ✕. Mirrors the
@@ -1019,7 +1002,7 @@ export class CommentsColumn {
   /** Render / update the collapsible "Unanchored (n)" section pinned at
    *  the bottom of the pane (flashcards whose anchor didn't resolve —
    *  a foreign edit broke them, or they're linked to the file but not
-   *  yet grounded to text). Positioned by `layoutCards`. */
+   *  yet grounded to text). Appended at the end of the flow list. */
   private renderUnanchoredSection(
     unanchored: CardAnchor[],
     unanchoredAi: AiThread[] = [],
@@ -1272,14 +1255,13 @@ export class CommentsColumn {
     return block;
   }
 
-  /** A turn in an AI thread. The opening question (`isRoot`) renders
-   *  un-indented like a comment root; answers + follow-ups indent as
-   *  replies. AI turns carry a purple avatar (via `pmd-comment-ai`); the
-   *  card-level "AI" chip already marks the thread, so turns aren't
-   *  chipped. No per-turn delete — the header ✕ removes the whole thread. */
-  /** Render a local-thread turn (AI thread or note). When `onEdit` is
-   *  given (notes), an inline edit button is shown; AI threads omit it
-   *  (you don't edit a model conversation). */
+  /** Render a local-thread turn (AI thread or note). The opening turn
+   *  (`isRoot`) renders un-indented like a comment root; later turns
+   *  indent as replies. AI turns carry a purple avatar (`pmd-comment-ai`);
+   *  the card-level "AI" chip already marks the thread, so turns aren't
+   *  chipped. When `onEdit` is given (notes), an inline edit button is
+   *  shown; AI threads omit it (you don't edit a model conversation).
+   *  No per-turn delete — the header ✕ removes the whole thread. */
   private renderAiComment(
     c: LocalComment,
     isRoot: boolean,
@@ -1890,8 +1872,8 @@ export class CommentsColumn {
 
   /** `local` → match a local AI thread's turn (persona name + derived
    *  initials + AI chip); default → match a comment-thread AI reply
-   *  (fixed 'AI' initials + `(AI)`-suffixed name for docx round-trip), so
-   *  the placeholder doesn't visually jump when the response arrives. */
+   *  (fixed `'AI'` badge initials), so the placeholder doesn't visually
+   *  jump when the response arrives. */
   private renderAiThinkingPlaceholder(local = false): HTMLElement {
     const block = document.createElement('div');
     block.className = 'pmd-comment-reply pmd-comment-ai pmd-comment-ai-thinking';
@@ -2120,11 +2102,9 @@ export class CommentsColumn {
   private renderComment(thread: Thread, comment: Comment, isRoot: boolean): HTMLElement {
     const block = document.createElement('div');
     block.className = isRoot ? 'pmd-comment-root' : 'pmd-comment-reply';
-    // Purple-badge styling is driven by `isAiComment` now (initials
-    // + name-suffix detection), not by the `kind` field which
-    // doesn't round-trip through docx. The inline "AI" tag that
-    // used to sit next to the author name is gone — redundant
-    // with the `(AI)` suffix that's now baked into the name.
+    // Purple styling keys off `isAiComment` (initials + legacy
+    // name-suffix detection), not the `kind` field, which doesn't
+    // round-trip through docx.
     if (isAiComment(comment)) block.classList.add('pmd-comment-ai');
 
     const header = document.createElement('header');
@@ -2161,8 +2141,8 @@ export class CommentsColumn {
         ),
       ),
     );
-    // Thread-level delete lives in the card header now; only replies keep
-    // a per-turn ✕ (to delete just that reply).
+    // Thread-level delete lives in the card header; replies keep a
+    // per-turn ✕ to delete just that reply.
     if (!isRoot) {
       const del = document.createElement('button');
       del.type = 'button';
@@ -2418,9 +2398,8 @@ export class CommentsColumn {
     }
   }
 
-  /** Focus the brand-new thread's reply input so the user can
-   *  start typing their first comment immediately after the
-   *  "add comment" action runs. */
+  /** Focus a thread's reply input so the user can start typing
+   *  immediately (e.g. right after "add comment" creates a thread). */
   focusReplyForThread(threadId: string): void {
     this.activeReplyThreadId = threadId;
     this.activeReplyText = '';
@@ -2528,8 +2507,8 @@ function formatDate(iso: string): string {
 }
 
 function cssEscape(s: string): string {
-  // Minimal CSS escape for our slug-shaped thread ids; sufficient
-  // since allocated ids are stringified integers.
+  // Minimal CSS escape: escapes every non-[a-zA-Z0-9_-] char — enough
+  // for numeric thread ids and `fc:`/`ai:`/`note:` synthetic ids.
   return s.replace(/[^a-zA-Z0-9_-]/g, (ch) => `\\${ch}`);
 }
 

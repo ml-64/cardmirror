@@ -492,7 +492,7 @@ describe('importer — marks from rPr', () => {
     const marks = importInline('<w:b w:val="0"/>');
     expect(marks.some((m) => m.type.name === 'bold')).toBe(false);
     // Preserved as bold_off so it round-trips AND renders (un-bolded word
-    // inside a bold-by-default tag), rather than being silently dropped.
+    // inside a bold-by-default tag).
     expect(marks.some((m) => m.type.name === 'bold_off')).toBe(true);
   });
 
@@ -1315,6 +1315,6 @@ describe('round-trip: import → export → import', () => {
   });
 });
 
-// Type alias used by the importInline helper above (declared here so it's
-// hoisted via TypeScript type-only ordering rules).
+// Type alias used by the importInline helper above (type-only names may
+// be referenced before their declaration).
 type _Mark = ReturnType<typeof schema.marks['bold']['create']>;

@@ -584,10 +584,10 @@ async function benchEdit(
 //
 // Deliberately NOT penalized by long-task time. The benchmark's own battery
 // (cut / condense / shrink / the mark sweeps) is itself captured as long tasks,
-// so subtracting that total punished the suite for doing the very work it exists
-// to run — and punished slower hardware most, which is how the old formula
-// bottomed out at 0. Perceived jank still reaches the score through the scroll's
-// 1%-low frame rate. longTasks stays in the results for information only.
+// so subtracting that total would punish the suite for the very work it exists
+// to run — slower hardware worst. Perceived jank still reaches the score
+// through the scroll's 1%-low frame rate. longTasks stays in the results for
+// information only.
 
 /** Frame rate → 0–100 against a 60fps "smooth enough" target (capped, so a
  *  high-refresh display isn't rewarded for exceeding smoothness). */
@@ -604,8 +604,8 @@ function latencySubScore(actualMs: number, refMs: number): number {
 
 // Reference times (ms) at/under which a component earns full marks. Tunable —
 // set near a healthy desktop's numbers so typical machines land high and only
-// genuine slowness drags the grade down. (Dial in once we have real run data
-// from a few machines.)
+// genuine slowness drags the grade down. Not yet calibrated against real run
+// data from a range of machines.
 const EDIT_REF_MS = 600;
 const NAV_REF_MS = 250;
 const RELAYOUT_REF_MS = 250;

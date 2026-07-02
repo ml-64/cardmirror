@@ -11,7 +11,7 @@
  * the setting drives the current window's behavior, and opening a known
  * doc restores its remembered state from here. Only Electron docs have
  * a stable string path; web `FileSystemFileHandle`s aren't serializable,
- * so web docs simply never match (autosave stays its default-off).
+ * so web docs never match (autosave stays its default-off).
  *
  * Stores only paths that are ON — a path absent from the set means off
  * (the default), so the store stays small and self-pruning-ish.

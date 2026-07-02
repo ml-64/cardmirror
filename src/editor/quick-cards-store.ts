@@ -259,12 +259,12 @@ async function loadWebCards(): Promise<QuickCard[]> {
   const legacy = readLegacyLocalCards();
   if (legacy.length > 0) {
     void webLibrary.save(legacy); // persist into IndexedDB from here on
-    // localStorage is left intact as a safe fallback; new writes go to IndexedDB.
+    // localStorage is left intact as a safe fallback.
   }
   return legacy;
 }
 
-/** The pre-IndexedDB localStorage backend — read-only now, only for migration. */
+/** Legacy localStorage backend — read only for migration, never written. */
 function readLegacyLocalCards(): QuickCard[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);

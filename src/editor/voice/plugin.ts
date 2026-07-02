@@ -104,10 +104,10 @@ export interface VoiceStatePatch {
   lastRepeatable?: { verb: string; args: Record<string, unknown>; raw: string } | null;
   pendingDisambiguation?: VoicePluginState['pendingDisambiguation'];
   paintSession?: VoicePluginState['paintSession'];
-  /** Explicitly record a jump origin (voice commands suppress the
+  /** Explicitly record a jump origin. Voice commands suppress the
    *  automatic per-transaction recording and push once per utterance —
-   *  audit 2026-06-10: multi-dispatch utterances were recording their
-   *  own intermediate positions, so `go back` landed mid-operation). */
+   *  otherwise multi-dispatch utterances record their intermediate
+   *  positions and `go back` lands mid-operation. */
   pushBack?: number;
 }
 

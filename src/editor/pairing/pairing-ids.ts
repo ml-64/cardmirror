@@ -1,7 +1,7 @@
 /**
  * Pairing identifiers.
  *
- * Note: a machine's shareable pairing CODE is its X25519 public key, minted
+ * A machine's shareable pairing CODE is its X25519 public key, minted
  * and held by the main process (see apps/desktop/src/pairing-crypto.ts) — not
  * generated here. This module only provides local group ids and code
  * normalization for the settings UI.
@@ -25,7 +25,8 @@ function randomChars(n: number): string {
 }
 
 /** Normalize a pasted partner code: trim and collapse internal spaces.
- *  Case is preserved (generated codes are uppercase after the prefix). */
+ *  Case is preserved — the payload after `cmk1.` is base64url, which is
+ *  case-sensitive. */
 export function normalizePairingCode(raw: string): string {
   return raw.trim().replace(/\s+/g, '');
 }

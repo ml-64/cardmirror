@@ -1,7 +1,7 @@
 /**
  * packColumn — the spacing math behind the "Thinking…" pill queue. Pills
  * must never overlap, whether their targets are scrolled off an edge or
- * sitting near it (the transition "sweet spot" that used to pile them up).
+ * sitting near it (the "sweet spot" where clamped targets collide).
  */
 
 import { describe, it, expect } from 'vitest';

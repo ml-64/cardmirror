@@ -2,9 +2,8 @@
  * `normalizeSelectionForSend` — snaps a send selection to a clean run of whole
  * top-level nodes that starts with a structural unit (card / analytic_unit /
  * heading), so the receiving side can place it by outline level without ever
- * splitting a card. Covers the cases worked through in design: within-card,
- * multi-card, boundary straddles, the 75% intro carve-out, headings, and loose
- * paragraphs.
+ * splitting a card. Covers within-card, multi-card, boundary straddles,
+ * the 75% intro carve-out, headings, and loose paragraphs.
  */
 
 import { describe, expect, it } from 'vitest';

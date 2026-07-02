@@ -14,7 +14,7 @@
  * relative to the editor as the doc moves underneath it.
  *
  * When Clod mode is on, the pill cycles through the user's persona
- * activities; otherwise it just reads "Thinking…".
+ * activities; otherwise it reads "Thinking…".
  */
 
 import type { EditorView } from 'prosemirror-view';
@@ -28,7 +28,9 @@ import {
 import { getAiPersona } from '../comments-ui.js';
 import { makeActivityStage, cycleActivityText } from './activity-cycler.js';
 
-/** Cycle interval. Matches the cite-creator's prior local constant. */
+/** Interval between activity-text cycles. Matches `ACTIVITY_TICK_MS`
+ *  in `comments-ui.ts` (which carries the rationale) so activity text
+ *  cycles at the same cadence everywhere. */
 const ACTIVITY_TICK_MS = 4000;
 
 /** Gap (px) between the pill and the editor edges / the selection. */

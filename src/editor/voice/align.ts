@@ -48,6 +48,14 @@ export function mergeSpokenNumbers(words: string[]): string[] {
   return out;
 }
 
+/** Full-document token caches, keyed on doc identity — ProseMirror
+ *  docs are immutable, so reference equality is a sound cache key.
+ *  Measured: a 100k-word doc costs ~39ms to tokenize and every voice
+ *  movement command needs the full token list; a cached repeat is
+ *  ~0.001ms with an identical array. Windowed calls (paint,
+ *  near-pass) are cheap and stay uncached. */
+const fullDocTokenCache = new WeakMap<PMNode, Map<string, TokenSpan[]>>();
+
 /**
  * Tokenize document text into normalized words with positions.
  * Hyphenated compounds are tokenized per `hyphens`: 'joined' emits one
@@ -55,14 +63,6 @@ export function mergeSpokenNumbers(words: string[]): string[] {
  * search runs over both tracks so either spoken form matches, without
  * alternative tokens breaking window adjacency.
  */
-/** Full-document token caches, keyed on doc identity — ProseMirror
- *  docs are immutable, so reference equality is a sound cache key.
- *  Audit 2026-06-10 (PoC-measured): a 100k-word doc costs ~39ms to
- *  tokenize and every voice movement command did it fresh; the cached
- *  repeat is ~0.001ms with an identical array. Windowed calls (paint,
- *  near-pass) are cheap and stay uncached. */
-const fullDocTokenCache = new WeakMap<PMNode, Map<string, TokenSpan[]>>();
-
 export function collectTokens(
   doc: PMNode,
   hyphens: 'joined' | 'split',

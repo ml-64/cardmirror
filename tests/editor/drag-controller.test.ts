@@ -187,10 +187,8 @@ describe('buildMoveTransaction', () => {
   });
 
   it('multi-item drop between two unmoved cards preserves relative order', () => {
-    // Doc: [A][B][C][D][E]. Drag B and D, drop between C and (gap).
-    // The "between C and D's original position" depends on how we
-    // interpret target. Use insertPos = end of C. Expected:
-    // [A][C][B][D][E].
+    // Doc: [A][B][C][D][E]. Drag B and D, drop at the end of C
+    // (start of D). Expected: [A][C][B][D][E].
     const cardA = cardWith('A');
     const cardB = cardWith('B');
     const cardC = cardWith('C');
@@ -281,9 +279,8 @@ describe('buildCopyTransaction', () => {
   });
 
   it('rewrites heading IDs nested inside a copied subtree', () => {
-    // A pocket containing a card containing a tag — copying the pocket
-    // should rewrite IDs on the pocket, the card has none, but the
-    // tag inside should get a fresh id.
+    // Copying a pocket together with its card must rewrite both the
+    // pocket's id and the id of the tag nested inside the card.
     const tagId = newHeadingId();
     const innerCard = schema.nodes['card']!.createChecked(null, [
       schema.nodes['tag']!.create({ id: tagId }, schema.text('inner')),
@@ -293,10 +290,9 @@ describe('buildCopyTransaction', () => {
       { id: pocketId },
       schema.text('pocket'),
     );
-    // Doc shape: [pocketNode, innerCard] — drag the pocket only.
-    // Actually we want a pocket containing nested headings. Schema-
-    // wise pockets contain inline only; cards live at doc level.
-    // Construct: doc = [pocketNode, innerCard], drag both.
+    // Pockets hold inline content only (cards live at doc level), so
+    // "nesting" is by doc order: doc = [pocketNode, innerCard], with
+    // the drag range covering both.
     const doc = makeDoc(pocketNode, innerCard);
     const state = EditorState.create({ doc, schema });
 

@@ -417,9 +417,9 @@ export function parseFormatResponse(
   const dropped: string[] = [];
   const plan: FormatPlan = { map: new Map(), exceptions: [] };
 
-  // Targets tolerate the signature notation the table itself teaches:
-  // "u+hl" (compound string) reads as ["u","hl"] — a live plan was
-  // dropped because the model mirrored the key syntax in a target.
+  // Targets tolerate the compound signature notation the table itself
+  // teaches ("u+hl" reads as ["u","hl"]) — models mirror the key
+  // syntax in targets, and rejecting that would drop the mapping.
   const normalizeTarget = (value: unknown): TargetFlag[] | null => {
     if (!Array.isArray(value)) return null;
     const out = new Set<TargetFlag>();
@@ -611,8 +611,8 @@ export function runRepairFormatting(view: EditorView): void {
         const analysis = analyzeCard(groups[gi]!);
         if (analysis.runs.length === 0) continue;
         // Log what the model SAW (the signature table) and what it
-        // DECIDED (the full plan) — the refinement loop depends on
-        // attributing bad outcomes to analysis vs judgment vs apply.
+        // DECIDED (the full plan) — the refinement loop needs bad
+        // outcomes attributed to analysis vs judgment vs apply.
         const tag = `[repair-fmt] card ${gi + 1}/${groups.length}`;
         for (const [key, s] of analysis.signatures) {
           console.warn(

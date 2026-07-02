@@ -26,23 +26,18 @@ export function newHeadingId(): string {
   return crypto.randomUUID();
 }
 
-/** Walk a doc and reconstruct any heading-typed node that's
- *  missing its `id` attr with a fresh one. Returns the original
- *  node unchanged when nothing needed stamping (so callers can
- *  cheaply chain through hot paths).
+/** Walk a doc and reconstruct any heading-typed node missing its
+ *  `id` attr with a fresh one. Returns the original node unchanged
+ *  when nothing needed stamping, so callers can cheaply chain
+ *  through hot paths.
  *
- *  Used by the cmir loader to repair old files whose tags came
- *  through the pre-alpha.6 F2 schema-fitter bubble-up — that path
- *  let the Fitter synthesize tag nodes from their `attrs.default`
- *  (i.e. `id: null`), bypassing every code-level id-stamping
- *  helper and leaving id-less headings frozen into the doc. An
- *  id-less heading is functionally invisible (nav-pane skips it,
- *  the cursor→nav highlight falls back to the previous tag — the
- *  "cursor appears to be in the card above" symptom), so the
- *  cheapest forward-compatible fix is to stamp them at load. The
- *  same one-shot also catches any future regressions where a new
- *  code path constructs a heading without going through
- *  `newHeadingId()`. */
+ *  The cmir loader runs this to repair pre-alpha.6 files: the F2
+ *  schema-fitter could synthesize tag nodes from `attrs.default`
+ *  (`id: null`), bypassing `newHeadingId()`. An id-less heading is
+ *  functionally invisible — the nav pane skips it and the
+ *  cursor→nav highlight falls back to the previous tag — so we
+ *  stamp at load. This also catches any future code path that
+ *  constructs a heading without `newHeadingId()`. */
 export function stampMissingHeadingIds(doc: PMNode): PMNode {
   return walk(doc);
 }

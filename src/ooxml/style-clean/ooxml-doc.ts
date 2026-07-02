@@ -187,7 +187,7 @@ export class Run {
     setAttr(rStyle, 'val', style.styleId ?? '');
   }
   /** `_has_bold_in_xml`: direct rPr <w:b> (val null or != "0"), else the
-   *  run's style's bold. Note: get-or-add rPr mirrors python's side effect. */
+   *  run's style's bold. The get-or-add of rPr mirrors python's side effect. */
   boldInXml(): boolean {
     const rPr = this.getOrAddRPr();
     const b = directChild(rPr, 'b');

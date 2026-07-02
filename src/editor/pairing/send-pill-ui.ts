@@ -8,7 +8,7 @@
  * when a card is dropped on a target row. Group targets fan the card out
  * to every member.
  *
- * No expansion happens without an active drag — the pill is just a small
+ * No expansion happens without an active drag — the pill is a small
  * button otherwise.
  */
 

@@ -1,6 +1,6 @@
 /**
  * docId stamping/reading on raw `.cmir` bytes — must work over both the
- * new gzip-compressed container and legacy plaintext files, and stamping
+ * gzip-compressed container and legacy plaintext files, and stamping
  * must preserve the input's container format.
  */
 

@@ -56,9 +56,9 @@ export const citeClassifierPlugin: Plugin = new Plugin({
 
 /**
  * What type SHOULD this paragraph be, given its parent context and its
- * inline content? Returns `null` if it's already in a context we don't
- * touch (e.g., card_body inside analytic_unit when content has cite —
- * cite_paragraph isn't allowed there).
+ * inline content? Returns `null` for parent contexts the classifier
+ * doesn't touch (e.g. a `paragraph` inside a `table_cell`, where
+ * `cite_paragraph` isn't legal content).
  */
 function targetTypeFor(node: PMNode, parent: PMNode): string | null {
   const cite = hasCiteMark(node);
@@ -69,7 +69,7 @@ function targetTypeFor(node: PMNode, parent: PMNode): string | null {
   if (parentName === 'doc') {
     return cite ? 'cite_paragraph' : 'paragraph';
   }
-  // Other parents (shouldn't occur for our schema) — don't touch.
+  // Other parents (e.g. `table_cell`) — don't touch.
   return null;
 }
 

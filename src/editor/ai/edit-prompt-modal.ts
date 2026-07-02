@@ -108,6 +108,5 @@ export function openCitePromptEditor(): void {
   };
   document.addEventListener('keydown', onKey);
 
-  // Focus the textarea so the user can start editing immediately.
   requestAnimationFrame(() => textarea.focus());
 }

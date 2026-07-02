@@ -1,10 +1,10 @@
 /**
- * Minimal browser editor — v0.
+ * Editor entry module.
  *
- * Mounts a ProseMirror EditorView with our schema. Lets the user drop a
- * .docx, see it rendered, and export it back. This exists as a visual
- * sanity check while we build the foundation; full editor UX (read mode,
- * navigation panel, send-to-speech, drag-and-drop, etc.) is later work.
+ * Mounts the ProseMirror EditorView with our schema and wires the
+ * surrounding chrome: ribbon commands, open/save flows, autosave +
+ * crash-recovery journaling, speech-doc routing, and the hooks the
+ * multi-pane / mobile shells install to take over per-pane state.
  */
 
 import { EditorState, Plugin, Selection, TextSelection } from 'prosemirror-state';
@@ -265,9 +265,11 @@ const readModeBtn = document.getElementById('read-mode-btn') as HTMLButtonElemen
 const navPaneToggleBtn = document.getElementById('nav-pane-toggle-btn') as HTMLButtonElement | null;
 const navPanePullTab = document.getElementById('nav-pane-pull-tab') as HTMLButtonElement | null;
 const insertImageBtn = document.getElementById('insert-image-btn') as HTMLButtonElement | null;
-// Speech-doc buttons. Only visible in multi-doc mode (CSS-gated on
-// `body.pmd-multi-doc`); the click handlers below route into the
-// shell's ctx implementations, which are no-ops in single-doc.
+// Speech-doc buttons. Visible in multi-doc and multi-window modes
+// (CSS-gated on `body.pmd-multi-doc` / `body.pmd-multi-window`);
+// the click handlers route through the shell's ctx hooks in
+// multi-pane and fall back to the single-doc implementations
+// otherwise.
 const speechNewBtn = document.getElementById('speech-new-btn') as HTMLButtonElement | null;
 const speechMarkBtn = document.getElementById('speech-mark-btn') as HTMLButtonElement | null;
 const speechSendCursorBtn = document.getElementById('speech-send-cursor-btn') as HTMLButtonElement | null;
@@ -326,9 +328,9 @@ function toggleMarkSingleDocAsSpeech(): void {
   }
 }
 
-/** Single-doc send-to-speech. Just hands off to the shared helper,
- *  which decides whether to insert locally (speech doc is in THIS
- *  renderer) or route via main (speech doc is in another window). */
+/** Single-doc send-to-speech. Hands off to the shared helper, which
+ *  decides whether to insert locally (speech doc is in THIS renderer)
+ *  or route via main (speech doc is in another window). */
 function runSingleDocSendToSpeech(sourceView: EditorView, atEnd: boolean): void {
   runSendToSpeech(sourceView, atEnd);
 }
@@ -518,9 +520,9 @@ async function runNewSpeechDocumentSingleDoc(): Promise<void> {
     return;
   }
 
-  // Optional auto-save into the user's configured speech-doc
-  // folder. Skipped silently when the setting is empty (matches
-  // the user's intent that no folder = no automatic save).
+  // Optional auto-save into the configured speech-doc folder.
+  // Skipped silently when the setting is empty (no folder = no
+  // automatic save).
   let handle: string | null = null;
   const defaultFolder = settings.get('defaultSpeechDocFolder').trim();
   if (defaultFolder) {
@@ -553,7 +555,7 @@ async function runNewSpeechDocumentSingleDoc(): Promise<void> {
 }
 
 /** Format a Verbatim-style speech filename: "Speech <round> M-D
- *  H-MMam/pm.<ext>". Extension comes from the configured
+ *  H-MM(AM|PM).<ext>". Extension comes from the configured
  *  `defaultSpeechDocFormat` setting — `.docx` (Verbatim parity) or
  *  `.cmir` (autosave-eligible). */
 function formatSpeechFilename(round: string, format: 'cmir' | 'docx'): string {
@@ -698,9 +700,9 @@ function ensureRepairParagraphBar(): RepairParagraphBar {
   return repairParagraphBar;
 }
 /** Speech-doc command hooks. Installed by the multi-pane shell; in
- *  single-doc mode these stay null and the commands no-op (no
- *  second doc to send TO, and a single doc doesn't gain anything
- *  from a per-doc speech designation). */
+ *  single-doc mode these stay null and the ribbon commands fall
+ *  back to the single-doc implementations (multi-window speech
+ *  routing via the resolver). */
 let multiDocNewSpeechDocument: (() => void) | null = null;
 let multiDocMarkActiveAsSpeech: (() => void) | null = null;
 let multiDocSendToSpeechAtCursor: (() => void) | null = null;
@@ -1556,11 +1558,10 @@ export function runRibbon(id: RibbonCommandId): void {
 /**
  * Open the OS file picker (single image) and insert the chosen
  * file at `targetView`'s current cursor. Same code path the paste-
- * plugin uses for clipboard image paste, just sourced from a
+ * plugin uses for clipboard image paste, sourced from an
  * `<input type="file">` instead of `event.clipboardData`. The
- * input element is detached after use; we don't try to reuse a
- * static one because that complicates the "pick the same file
- * twice" case.
+ * input element is detached after use; reusing a static one would
+ * complicate the "pick the same file twice" case.
  */
 function openImagePicker(targetView: EditorView): void {
   const picker = document.createElement('input');
@@ -1681,7 +1682,7 @@ if (docMenuBtn) {
 }
 
 // Table dropdown — same openDocMenu shape as Doc / Card, lives in
-// the new normal-formatting panel. Sections alphabetical by title.
+// the format-menu panel. Sections alphabetical by title.
 const tableMenuBtn = document.getElementById('table-menu-btn') as HTMLButtonElement | null;
 if (tableMenuBtn) {
   tableMenuBtn.addEventListener('mousedown', (e) => e.preventDefault());
@@ -1709,9 +1710,9 @@ if (tableMenuBtn) {
 
 // Inline formatting toggles — same runRibbon dispatch as Mod-B/Mod-I,
 // so a binding override or future shadow-selection change applies
-// uniformly. Press state isn't reflected on these buttons yet (parity
-// with bold/italic in the cite panel, which also don't show pressed
-// state — defer until we have a generic mark-state plugin).
+// uniformly. Press state isn't reflected on these buttons — they're
+// not in the formatting-panel active-state loop
+// (`refreshFormattingPanelButtonStates`).
 const superscriptBtn = document.getElementById('superscript-btn') as HTMLButtonElement | null;
 if (superscriptBtn) {
   superscriptBtn.addEventListener('mousedown', (e) => e.preventDefault());
@@ -1836,11 +1837,11 @@ function applyFormatNavPaneByType(on: boolean): void {
 }
 applyFormatNavPaneByType(settings.get('formatNavPaneByType'));
 
-// Speech-doc buttons — multi-doc only (CSS hides them in
-// single-doc). All four route into the shell's ctx hooks. The new-
-// speech button uses ribbonContext directly because it works
-// without a view; the other three guard on `view` to match the
-// keymap dispatch path.
+// Speech-doc buttons — shown in multi-doc / multi-window modes
+// (CSS-gated; hidden otherwise). All four route through the ctx
+// commands. The new-speech button uses ribbonContext directly
+// because it works without a view; the other three guard on `view`
+// to match the keymap dispatch path.
 if (speechNewBtn) {
   speechNewBtn.addEventListener('mousedown', (e) => e.preventDefault());
   speechNewBtn.addEventListener('click', () => ribbonContext.newSpeechDocument());
@@ -1858,10 +1859,9 @@ if (speechSendEndBtn) {
   speechSendEndBtn.addEventListener('click', () => runRibbon('sendToSpeechAtEnd'));
 }
 
-// Quick Cards ribbon cluster. Add is live; Search / Tag Picker /
-// Manage are stubbed (toast) until their surfaces land. `mousedown`
-// preventDefault on all four keeps the editor selection intact (Add
-// needs it; harmless for the rest).
+// Quick Cards ribbon cluster: Add, Search, Tag Picker, Manage.
+// `mousedown` preventDefault on all four keeps the editor selection
+// intact (Add needs it; harmless for the rest).
 const qcSearchBtn = document.getElementById('qc-search-btn') as HTMLButtonElement | null;
 const qcTagPickerBtn = document.getElementById('qc-tagpicker-btn') as HTMLButtonElement | null;
 const qcManageBtn = document.getElementById('qc-manage-btn') as HTMLButtonElement | null;
@@ -2029,7 +2029,6 @@ export function threadIdAtCursor(state: EditorState): string | null {
   return null;
 }
 
-// Zoom controls.
 zoomOutBtn.addEventListener('click', () => zoomActiveBy(-10));
 zoomInBtn.addEventListener('click', () => zoomActiveBy(10));
 zoomResetBtn.addEventListener('click', () => zoomActiveReset());
@@ -2370,11 +2369,6 @@ function applyDisplayTypography(t: DisplayTypography): void {
   document.documentElement.style.setProperty('--pmd-emphasis-box-size', `${t.emphasisBoxSize}pt`);
 }
 
-/**
- * Push displayColors into CSS custom properties on the document root
- * so both the editor and the nav pane (which lives outside #editor)
- * inherit the same values. CSS rules consume `var(--pmd-color-*)`.
- */
 /** Resolve the user's theme preference + the "apply theme to
  *  document" toggle into `data-theme` / `data-theme-doc`
  *  attributes on the document root. Light is the absence of a
@@ -2417,6 +2411,23 @@ systemDarkMedia.addEventListener('change', () => {
   }
 });
 
+/** Apply the `showDocNameChip` setting to `<html>`. The chip's CSS
+ *  display is gated on this class — without it, the chip is
+ *  force-hidden with `!important` and the ribbon resizer can't
+ *  override it back on. Off by default.
+ *
+ *  Deliberately does NOT call `updateWindowTitle`: at boot this
+ *  runs before `currentDocFilename`'s module-level declaration
+ *  executes (the apply functions live near the top of the module;
+ *  the per-doc state near the bottom), so reading it through
+ *  `activeFile()` would throw a TDZ ReferenceError. The chip's
+ *  text + `[hidden]` attribute are kept current by
+ *  `updateWindowTitle` on every mount / save / open / focus
+ *  change. */
+function applyShowDocNameChip(on: boolean): void {
+  document.documentElement.classList.toggle('pmd-doc-name-chip-on', on);
+}
+
 /** Apply the `reduceMotion` setting onto the document root as
  *  `data-motion`. CSS rules in `style.css` consume the attribute
  *  and gate animations / transitions. Three states:
@@ -2427,26 +2438,6 @@ systemDarkMedia.addEventListener('change', () => {
  *               flattens animations and transitions.
  *    - 'off'   → `data-motion="normal"`; CSS keeps full motion
  *               even when the OS asks for reduced. */
-/** Apply the `showDocNameChip` setting to `<html>`. The chip's CSS
- *  display is gated on this class — without it, the chip is
- *  force-hidden with `!important` and the ribbon resizer can't
- *  override it back on. Off by default.
- *
- *  Note: we deliberately do NOT call `updateWindowTitle` here.
- *  At boot this function runs BEFORE `currentDocFilename`'s
- *  module-level declaration is initialized (the apply functions
- *  live near the top of the module; the per-doc state lives near
- *  the bottom), and reading it through `activeFile()` would
- *  throw "Cannot access 'currentDocFilename' before
- *  initialization". The chip's text + `[hidden]` attribute are
- *  always set by `updateWindowTitle` via `mountView →
- *  setActiveView` at boot, and by every later save / open /
- *  focus-change, so the chip's state is always current by the
- *  time the user toggles this setting. */
-function applyShowDocNameChip(on: boolean): void {
-  document.documentElement.classList.toggle('pmd-doc-name-chip-on', on);
-}
-
 function applyReduceMotion(pref: 'auto' | 'on' | 'off'): void {
   if (pref === 'on') {
     document.documentElement.setAttribute('data-motion', 'reduce');
@@ -2606,11 +2597,11 @@ function applyUiFont(font: string): void {
 }
 
 function applyLineHeight(_multiplier: number): void {
-  // The runtime override now sets each of the six per-paragraph-type
-  // line-height variables from its corresponding setting, so every
-  // knob in the Settings dialog flows through to the editor surface.
-  // Set on BOTH #editor (single-doc) and documentElement (so the
-  // multi-pane shell's editors inherit them).
+  // Sets each of the six per-paragraph-type line-height variables
+  // from its corresponding setting, so every knob in the Settings
+  // dialog flows through to the editor surface. Set on BOTH #editor
+  // (single-doc) and documentElement (so the multi-pane shell's
+  // editors inherit them).
   const s = settings.all();
   const pairs: [string, string][] = [
     ['--pmd-line-height', String(s.lineHeight)],
@@ -2650,11 +2641,11 @@ function applyParagraphSpacing(): void {
 let lastRibbonOverrides = settings.get('ribbonKeyOverrides');
 let lastKeyboardMacros = settings.get('keyboardMacros');
 // Read-mode state is applied at boot (below) and on doc mount; the
-// subscriber only needs to re-apply it when it ACTUALLY changes. Tracked
+// subscriber only re-applies it when it ACTUALLY changes. Tracked
 // because `applyReadMode` dispatches a transaction that makes the
 // read-mode plugin re-walk the doc to rebuild its hiding decorations —
-// O(doc), so re-running it on every unrelated settings change was the
-// doc-size-dependent settings lag.
+// O(doc), so re-running it on every unrelated settings change would
+// make every settings change lag on big docs.
 let lastReadMode = settings.get('readMode');
 let lastReadModeBorders = settings.get('hideEmphasisBordersInReadMode');
 
@@ -2707,7 +2698,7 @@ settings.subscribe((s) => {
   applyNavPaneVisible(s.navPaneVisible);
   applyFormatNavPaneByType(s.formatNavPaneByType);
   // Body zoom is NOT re-applied on settings change — it's per-editor and
-  // transient now, and `defaultZoomPct` only governs what NEW editors open at,
+  // transient, and `defaultZoomPct` only governs what NEW editors open at,
   // never re-zooms an already-open one. Chrome scale stays a synced global.
   applyChromeScale(s.chromeScalePct);
   applyDisplaySizes(s.displaySizes);
@@ -2777,9 +2768,9 @@ settings.subscribe((s) => {
  *  checks for overflow; if it fits, leaves it visible; otherwise
  *  hides it again. Converges in O(panel count) iterations.
  *
- *  This replaces the brittle media-query approach — we hide
- *  panels only when they LITERALLY don't fit, at any chrome
- *  scale / OS font size / visible-panel-mix combination. */
+ *  Measured, not media-queried: panels hide only when they
+ *  LITERALLY don't fit, at any chrome scale / OS font size /
+ *  visible-panel-mix combination. */
 function initRibbonResizer(): void {
   const ribbon = document.getElementById('ribbon');
   if (!ribbon) return;
@@ -3071,8 +3062,8 @@ applyFormattingPanel(
 // Mod-Z, and other PM/browser defaults that we don't claim pass
 // through untouched.
 // Some keys are un-preventable in some browsers (F11 in Firefox; F5 /
-// F12 in some Chromium builds) — those are an OS/browser issue our
-// future Electron build will sidestep entirely.
+// F12 in some Chromium builds) — a browser limitation the Electron
+// build sidesteps entirely.
 window.addEventListener('keydown', (e) => {
   if (e.defaultPrevented) return;
   // Cheap early bail for typing: no modifier and not an F-key means
@@ -3580,11 +3571,10 @@ function effectiveFontSizeForDisplay(state: EditorState): FontSizeInfo {
     // resolves correctly for both the mid-run case (returns the
     // containing text node's marks) and the boundary case (returns the
     // left-neighbor's marks, matching the "next typed char extends
-    // left" semantics). The earlier `parent.child(idx-1)` lookup
-    // confused these two cases — for a cursor sitting INSIDE an 11pt
-    // run that followed an 8pt run, it returned the 8pt run as the
-    // "before" node, so the chip reported 8pt even though the cursor
-    // wasn't there.
+    // left" semantics). A `parent.child(idx-1)` lookup would confuse
+    // the two cases — for a cursor INSIDE an 11pt run that follows an
+    // 8pt run it returns the 8pt run as the "before" node, so the
+    // chip would report 8pt even though the cursor isn't there.
     const marks = state.storedMarks ?? $pos.marks();
     const fs = marks.find((m) => m.type.name === 'font_size');
     if (fs) return { pt: Number(fs.attrs['halfPoints'] ?? 22) / 2, direct: true };
@@ -3690,7 +3680,7 @@ function applyReadMode(on: boolean): void {
     // its text-hiding decoration set. The meta value IS the
     // desired on/off state — the plugin stores it as its own
     // local state rather than re-reading the global setting,
-    // which made per-pane read mode in multi-doc work.
+    // which is what lets multi-doc keep read mode per-pane.
     view.dispatch(view.state.tr.setMeta(PMD_READ_MODE_TOGGLE, on));
   }
 }
@@ -4112,8 +4102,6 @@ export function buildEditorPlugins(): Plugin[] {
       },
     }),
   ];
-  // Editor spellcheck — viewport-scoped custom checker, gated internally
-  // on the `editorSpellcheck` setting (does nothing when off).
   // Smart quotes — curls typed quotes when the `smartQuotes` setting is on
   // (inert otherwise; the plugin checks the setting per keystroke).
   plugins.push(smartQuotesPlugin());
@@ -4121,6 +4109,8 @@ export function buildEditorPlugins(): Plugin[] {
   // are on (inert otherwise; the plugin checks per keystroke).
   plugins.push(customDashPlugin());
   plugins.push(footnotePopoverPlugin());
+  // Editor spellcheck — viewport-scoped custom checker, gated internally
+  // on the `editorSpellcheck` setting (does nothing when off).
   plugins.push(viewportSpellcheckPlugin());
   // Voice control (SPEC-voice.md §12 item 3): plugin state (mode, pen,
   // utterance atomicity). Desktop-only at runtime; the plugin itself is
@@ -4193,13 +4183,11 @@ function mountView(doc: PMNode, threads: Thread[] = []): void {
       refreshFormattingPanelButtonStates();
       // Doc-walking work (nav rebuild, word count, comments column
       // refresh, comments-plugin orphan GC) is all O(doc) and the
-      // dominant per-keystroke cost on big docs. Debounce so it only
-      // fires once the user pauses typing for 200ms.
-      // Only the doc-walking work (nav rebuild, word count, GC) needs the
-      // debounced flush, and only when the doc actually changed. Skipping
-      // it for selection-only transactions avoids rebuilding the nav's
-      // `<li>`s on every cursor move — a perf win, and it keeps a plain
-      // nav click from re-rendering the outline mid-double-click.
+      // dominant per-keystroke cost on big docs. Debounce it, and run
+      // it only when the doc actually changed: skipping selection-only
+      // transactions avoids rebuilding the nav's `<li>`s on every
+      // cursor move and keeps a plain nav click from re-rendering the
+      // outline mid-double-click.
       if (tx.docChanged && !isBenchmarkActive()) {
         needsCommentsGC = true;
         scheduleHeavyUpdate();
@@ -4271,7 +4259,7 @@ function mountView(doc: PMNode, threads: Thread[] = []): void {
   if (commentsColumn) commentsColumn.render();
   // Editor drop surface — renders drop indicators in the editor when
   // a nav-pane drag is active, and exposes a hit-test the nav drag
-  // handler queries during pointermove. (Phase 3a.)
+  // handler queries during pointermove.
   editorDragSurface.attach(view, editorEl);
   // Publish editor width as `--pmd-card-intrinsic-width` so cards
   // and heading containers (which have `content-visibility: auto`)
@@ -4386,20 +4374,16 @@ const HEAVY_UPDATE_DELAY_MS = 200;
 
 /** Set when a doc-changing transaction has fired since the last
  *  `scheduleHeavyUpdate` flush. Drives the comments-plugin orphan
- *  GC walk — that O(doc) walk used to run in `appendTransaction`
- *  every keystroke; now it runs once per idle period and only when
- *  the doc actually moved. */
+ *  GC walk — O(doc), so it runs once per idle period and only when
+ *  the doc actually moved, never per keystroke. */
 let needsCommentsGC = false;
 
 function scheduleHeavyUpdate(): void {
   if (pendingHeavyUpdate !== null) cancelIdle(pendingHeavyUpdate);
   // Schedule via requestIdleCallback (setTimeout fallback) so the
   // nav / word-count / GC burst runs only when the browser has frame
-  // budget to spare. Previously this fired after a fixed 200ms
-  // setTimeout — for short docs that produced a visible spike every
-  // pause-and-resume since the timer fired regardless of whether
-  // the browser was busy. Idle-callback dispatch eliminates the
-  // collision with paint frames.
+  // budget to spare — a fixed timer would fire regardless of whether
+  // the browser is busy and collide with paint frames.
   pendingHeavyUpdate = scheduleIdle(() => {
     pendingHeavyUpdate = null;
     if (!view) return;
@@ -5042,8 +5026,6 @@ async function pickAndLoadInPlace(): Promise<boolean> {
   }
 }
 
-/** Reopen a recent file in-place via its stored path handle.
- *  Prunes the entry if the file is gone / unreadable. */
 /** Open a `.cmir` by absolute path (the command palette's file search).
  *  Reads the file, then routes through the shared open logic — so it
  *  spawns a NEW window (single-doc) or shows the slot picker
@@ -5265,6 +5247,8 @@ async function routeInitialDocIntoWorkspace(): Promise<boolean> {
   return true;
 }
 
+/** Reopen a recent file in-place via its stored path handle.
+ *  Prunes the entry if the file is gone / unreadable. */
 async function openRecentInPlace(recent: RecentFile): Promise<void> {
   const electron = getElectronHost();
   if (!electron || recent.handle == null) return;
@@ -5383,21 +5367,6 @@ function commitSaveResult(filename: string, handle: unknown | null, format: 'cmi
   });
 }
 
-/** Sync the active filename into both the OS-level title bar (via
- *  `document.title`) AND the in-app filename chip in the ribbon.
- *  The chip is the user-facing source of truth on platforms /
- *  layouts where the OS title isn't visible (tiling WMs without
- *  decorations, Electron windows with `frame: false`, hidden
- *  title-bar themes, etc.). Cheap; called on open / save /
- *  multi-doc focus change.
- *
- *  Title format depends on mode:
- *  - Single-doc:    `${filename} — CardMirror`  (or 'CardMirror' if untitled).
- *  - Multi-pane:    `${names joined by middle-dot} — CardMirror`
- *                   showing every non-empty slot in order — the
- *                   focused slot is already visually identified
- *                   inside the app by the per-pane chip, so the
- *                   title is most useful as a workspace summary. */
 /** Public refresh hook. Multi-pane callers invoke this whenever a
  *  slot's visible doc changes (open, close, save-as rename) so the
  *  OS title — which summarizes every open slot — stays in sync
@@ -5415,6 +5384,15 @@ function pushSingleDocInfo(): void {
   void electronHost.docInfoUpdate(registeredSingleDocUid, currentDocFilename);
 }
 
+/** Sync the active filename into the OS title bar (`document.title`)
+ *  AND the in-app filename chip — the chip is the user-facing source
+ *  of truth where the OS title isn't visible (frameless Electron
+ *  windows, tiling WMs, hidden title-bar themes). Cheap; called on
+ *  open / save / multi-doc focus change. Title format: single-doc
+ *  `${filename} — CardMirror` ('CardMirror' if untitled); multi-pane
+ *  joins every non-empty slot's name — the per-pane chip already
+ *  identifies the focused doc, so the title serves as a workspace
+ *  summary. */
 function updateWindowTitle(): void {
   const focused = activeFile();
   pushSingleDocInfo();
@@ -5803,7 +5781,7 @@ export async function runSaveMarkedCardsFlow(): Promise<boolean> {
     const electron = getElectronHost();
     let result: { name: string; handle?: unknown } | null = null;
     if (electron && destResolvable) {
-      // Reuse the Send Doc silent-write IPC — it just writes bytes to a
+      // Reuse the Send Doc silent-write IPC — it writes bytes to a
       // folder/sibling + filename, agnostic to what the bytes are.
       const silent = await electron.saveSendDoc(
         { folder, siblingHandle: sourceHandle, filename },
@@ -5893,10 +5871,10 @@ export async function runSaveFlow(): Promise<boolean> {
   }
 }
 
-// Floppy = Save (was Save As). The Save command falls through to
-// the Save-As dialog automatically when no handle exists or the
-// host can't do silent in-place saves, so the first save of a new
-// doc still prompts the user for a location and format.
+// Floppy = Save. Falls through to the Save-As dialog automatically
+// when no handle exists or the host can't do silent in-place saves,
+// so the first save of a new doc still prompts for a location and
+// format.
 exportBtn.addEventListener('click', () => {
   void runSaveFlow();
 });
@@ -5922,9 +5900,9 @@ function flashSavedGlyph(el: HTMLElement): void {
   if (existing !== undefined) {
     window.clearTimeout(existing);
   } else {
-    // Preserve the full inner markup, not just text — these buttons now
-    // hold an icon `<span>`, which `textContent` would wipe out so the
-    // glyph never came back after the ✓ flash.
+    // Preserve the full inner markup, not just text — these buttons
+    // hold an icon `<span>`, which a text-only restore would wipe out
+    // (the glyph would never come back after the ✓ flash).
     flashOrigHtml.set(el, el.innerHTML);
   }
   el.textContent = '✓';
@@ -6742,7 +6720,7 @@ async function initSingleDocBoot(): Promise<void> {
   // app session's first window — every single→multi switch closes
   // all the other windows, often including the original first, and
   // firstness never transfers. Gating the mode-switch reopen on
-  // isFirstWindow was why multi→single restored nothing.
+  // isFirstWindow alone would restore nothing after multi→single.
   const modeSwitchPending =
     sessionStorage.getItem(MODE_SWITCH_MARKER_KEY) !== null;
   if (modeSwitchPending) {
@@ -6954,9 +6932,9 @@ async function handleModeSwitch(newValue: boolean): Promise<void> {
     // switch (plus each doc's pre-switch dirty state) — this
     // window's docs AND any collected from the windows we just
     // closed. The post-reload recovery reopens those and ONLY
-    // those — without the list it swept in every journal in the
-    // store, so stale entries from earlier sessions reappeared on
-    // every toggle.
+    // those — without the list it would sweep in every journal in
+    // the store, resurfacing stale entries from earlier sessions
+    // on every toggle.
     sessionStorage.setItem(
       MODE_SWITCH_MARKER_KEY,
       encodeModeSwitchMarker([...docs, ...remoteDocs]),
@@ -7197,7 +7175,7 @@ async function autoRecoverAll(
   // Mode-switch docs that were clean before the switch already
   // match their on-disk files — once reopened, their journals are
   // redundant. Dropping them keeps the store's journals-mean-
-  // unsaved-work invariant: leftovers used to resurface as bogus
+  // unsaved-work invariant: leftovers would resurface as bogus
   // recovery offers AND as stale extra docs on the next switch.
   const dropIfClean = async (uid: string): Promise<void> => {
     if (wasDirty(uid)) return;

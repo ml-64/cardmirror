@@ -111,11 +111,10 @@ describe('settings import (replaceAll)', () => {
 
 // Document-text colors (analytic / undertag) are backed by
 // `displayColors` and shown in BOTH the Appearance and Accessibility
-// pickers. They used to be settable via `customColorOverrides` too,
-// where (applied last) they won — but that left the Appearance picker
-// inert. They're now unified onto displayColors; sanitize migrates any
-// legacy override into displayColors and drops it from the overrides
-// blob.
+// pickers. Legacy configs could also set them via
+// `customColorOverrides` (applied last, so the override won and left
+// the Appearance picker inert); sanitize migrates any such override
+// into `displayColors` and drops it from the overrides blob.
 describe('document-text color migration', () => {
   it('folds a legacy customColorOverrides analytic color into displayColors', () => {
     const s = new SettingsStore();

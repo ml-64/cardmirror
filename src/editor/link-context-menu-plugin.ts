@@ -1,27 +1,15 @@
 /**
- * Right-click context menu for `link` marks. Surfaces four actions
- * on the link the user clicked:
+ * Right-click context menu for `link` marks: Open Link, Copy Link
+ * Address, Edit Link…, Remove Link. Open Link routes through
+ * `ElectronHost.openExternal` on desktop so URLs open in the OS
+ * browser rather than a new BrowserWindow; the web build uses
+ * `window.open` with `noopener,noreferrer`. Edit/Remove operate on
+ * the full contiguous run carrying the clicked mark.
  *
- *   - **Open Link** — opens the URL in the user's default OS
- *     browser. Routes through `ElectronHost.openExternal` on
- *     desktop so the link doesn't pop up inside a new Electron
- *     BrowserWindow; on the web, just `window.open` with
- *     `noopener,noreferrer`.
- *   - **Copy Link Address** — drops the href on the clipboard.
- *     Falls back gracefully on older Firefox / older Safari
- *     where the async Clipboard API isn't available (rare).
- *   - **Edit Link…** — opens the in-app text prompt pre-filled
- *     with the current href; on submit, replaces the link mark
- *     across the full extent of the run.
- *   - **Remove Link** — strips the link mark from the run while
- *     preserving the text.
- *
- * Non-link right-clicks fall through (the existing image
- * context menu wins for image elements; everything else gets
- * the browser's default menu).
- *
- * Visual styling reuses `.pmd-nav-context-menu` so the look
- * matches the nav-pane + image context menus already in the app.
+ * Non-link right-clicks fall through (the image context menu wins
+ * for image elements; everything else keeps the browser default).
+ * Styling reuses `.pmd-nav-context-menu` to match the nav-pane and
+ * image context menus.
  */
 
 import { Plugin } from 'prosemirror-state';

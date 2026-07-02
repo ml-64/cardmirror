@@ -46,8 +46,7 @@ describe('resolveDescriptor', () => {
     // Descriptor for the SECOND occurrence (preceded by "ZZ ").
     const d: AnchorDescriptor = { quote: 'cd', prefix: 'ZZ ', suffix: '', approxPos: 6 };
     const r = resolveDescriptor(doc, d)!;
-    // Second 'cd' starts at PM pos for offset 6 → 'a'(1).. offset6 char left pos.
-    // Verify by text + that it's the later one (from > first occurrence's from).
+    // Verify by text, and that it's the later occurrence (from > first's from).
     expect(doc.textBetween(r.from, r.to)).toBe('cd');
     const first: AnchorDescriptor = { quote: 'cd', prefix: '', suffix: ' ZZ', approxPos: 0 };
     const rFirst = resolveDescriptor(doc, first)!;

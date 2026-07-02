@@ -135,12 +135,10 @@ export class EditorDragSurface implements DragSurface {
     this.unregisterSurface = dragController.registerSurface(this);
     this.unsubscribeDrag = dragController.subscribe((event) => {
       if (event === 'begin') {
-        // Eager render at drag start ensures cross-pane drop
-        // targets (in multi-doc mode) have indicators ready the
-        // moment the pointer enters them. Earlier attempt at
-        // lazy-render-on-first-hitTest left target panes empty in
-        // some cross-pane scenarios. With the two-pass layout-
-        // batched renderIndicators below the cost is moderate.
+        // Eager render at drag start, not lazily on first hitTest:
+        // lazy rendering leaves cross-pane drop targets (multi-doc
+        // mode) without indicators when the pointer enters them. The
+        // layout-batched renderIndicators keeps the cost moderate.
         const session = dragController.getSession();
         if (session) this.renderIndicators(session.items[0]!.level);
       } else if (event === 'end') {
@@ -164,10 +162,10 @@ export class EditorDragSurface implements DragSurface {
     // just container hits): Blink's macOS editing behavior treats
     // Option+Shift+click as word-granularity selection on mousedown,
     // and `user-select: none` does not apply inside contenteditable —
-    // the container-only swallow shipped previously left every other
-    // chord-click selecting words on Mac. The mousedown interceptor
-    // is the belt to pointerdown's braces: selection runs off the
-    // mouse-event stream.
+    // swallowing only container hits leaves every other chord-click
+    // selecting words on Mac. The mousedown interceptor is the belt
+    // to pointerdown's braces: selection runs off the mouse-event
+    // stream.
     hostEl.addEventListener('pointerdown', this.boundOnHostDown, true);
     hostEl.addEventListener('mousedown', this.boundOnHostMouseDown, true);
     this.setupHeadingObservers();
@@ -289,13 +287,12 @@ export class EditorDragSurface implements DragSurface {
     const host = this.host;
 
     // Use each heading's rendered DOM element to derive its CSS top
-    // INSIDE the host (`offsetTop` walks the offsetParent chain).
-    // Previously we used `view.coordsAtPos` (viewport coords) and
-    // transformed back with `host.getBoundingClientRect().top` and
-    // `host.scrollTop`. That worked in single-doc where the host IS
-    // the scroll container, but broke in multi-doc — the scroll
-    // container is the pane *body*, not the host, so the transform
-    // collapsed all indicators near the top of the host's content.
+    // INSIDE the host (`offsetTop` walks the offsetParent chain),
+    // rather than `view.coordsAtPos` plus a viewport→host transform
+    // via `getBoundingClientRect` and `scrollTop`. That transform
+    // assumes the host is the scroll container — true in single-doc,
+    // but in multi-doc the pane *body* scrolls, and the transform
+    // collapses all indicators near the top of the host's content.
     // Offsets sidestep the viewport coordinate space entirely.
     const positions: { insertPos: number; top: number }[] = [];
     const seen = new Set<number>();
@@ -358,8 +355,8 @@ export class EditorDragSurface implements DragSurface {
       }
     }
 
-    // Single-DOM append via a fragment — no layout thrash from the
-    // per-iteration mutations the old loop did.
+    // Single DOM append via a fragment — per-indicator appends would
+    // thrash layout.
     const fragment = document.createDocumentFragment();
     for (const { insertPos, top } of positions) {
       const indicator = document.createElement('div');
@@ -753,8 +750,8 @@ export class EditorDragSurface implements DragSurface {
 
   private getEditorZoom(): number {
     // Read the editor element's EFFECTIVE zoom (single-pane gets it from the
-    // window `--editor-zoom` var; each multi-pane editor sets `zoom` inline), so
-    // drag math is correct now that body zoom is per-editor rather than a global.
+    // window `--editor-zoom` var; each multi-pane editor sets `zoom` inline) —
+    // zoom is per-editor, not global, so drag math must use this element's value.
     if (!this.host) return 1;
     const z = parseFloat(getComputedStyle(this.host).getPropertyValue('zoom'));
     return Number.isFinite(z) && z > 0 ? z : 1;

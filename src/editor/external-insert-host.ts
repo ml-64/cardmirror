@@ -85,11 +85,9 @@ function handle(req: InsertRequest, opts: ExternalInsertHostOpts): InsertResult 
     }
     const view = opts.getFocusedView();
     if (!view || !view.editable) {
-      // No live editor view, or the view exists but read mode has
-      // flipped its `editable` to false (read-mode plugin's gate —
-      // the same gate that swallows F2 keystrokes today).
-      // §4.5 splits these: no view → no-target-doc; view that
-      // exists but is read-only → doc-readonly.
+      // §4.5 splits these: no live editor view → no-target-doc;
+      // view present but read mode has flipped `editable` false
+      // (the read-mode plugin's gate) → doc-readonly.
       if (!view) return { requestId, ok: false, error: 'no-target-doc' };
       return { requestId, ok: false, error: 'doc-readonly' };
     }

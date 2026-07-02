@@ -7,8 +7,8 @@
  * startup-recovery flow reads it back and auto-opens EXACTLY the
  * docs listed — and only those. Journals from other sessions (crash
  * leftovers) are left in the store for the recovery sidebar on the
- * next normal launch; sweeping them into the new layout is how
- * stale docs used to reappear on every toggle.
+ * next normal launch; sweeping them into the new layout would make
+ * stale docs reappear on every toggle.
  *
  * Each entry also records whether the doc had unsaved changes when
  * the switch started. Clean docs already match their on-disk files,

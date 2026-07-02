@@ -4,28 +4,16 @@
  * Owns the in-memory timer state plus persistence (localStorage)
  * plus cross-window sync (BroadcastChannel). UI code subscribes to
  * `subscribeTimer(fn)` and calls the action functions; UI never
- * mutates state directly.
- *
- * State shape (see `TimerState` below):
- *   - `mode`: which clock the big display is showing —
- *     'speech' (transient round timer), 'affPrep', or 'negPrep'.
- *   - `running`: whether the active clock is counting down.
- *   - `runningSince`: epoch ms when the current run started; null
- *     when paused.
- *   - `speechBaseRemainingMs`: speech timer's remaining duration
- *     captured at the last pause (or load-from-preset). When
- *     running, `remaining = base - (now - runningSince)`.
- *   - `affPrepBaseRemainingMs` / `negPrepBaseRemainingMs`: same
- *     idea for each prep clock. Persisted across app restarts;
- *     only the Reset action zeroes them back to the configured
- *     prep total.
- *   - `prepTotalMs`: the configured prep total (drives Reset).
+ * mutates state directly. Three clocks share the big display —
+ * 'speech' (transient round timer) and the persistent 'affPrep' /
+ * 'negPrep' balances, which only Reset refills. Field semantics are
+ * documented on `TimerState` below.
  *
  * Sync: every state mutation goes through `setState`, which writes
- * to localStorage AND posts the new state over a BroadcastChannel.
- * Other windows pick it up and apply it locally. Each window's UI
- * ticks off the same `runningSince + base` so visible remaining
- * stays consistent without a per-tick broadcast.
+ * to localStorage AND posts the new state over a BroadcastChannel;
+ * other windows apply it locally. Each window's UI ticks off the
+ * same `runningSince + base` so visible remaining stays consistent
+ * without a per-tick broadcast.
  */
 
 const STORAGE_KEY = 'cardmirror-timer-state-v1';
@@ -43,6 +31,8 @@ export interface TimerState {
    *  running. When the timer is paused, this is the visible
    *  remaining; when running, live = base - (now - runningSince). */
   speechBaseRemainingMs: number;
+  /** Same snapshot semantics as `speechBaseRemainingMs`, one per
+   *  prep clock. Only Reset refills them to `prepTotalMs`. */
   affPrepBaseRemainingMs: number;
   negPrepBaseRemainingMs: number;
   /** Configured prep total (one Reset → both prep balances refill
@@ -279,11 +269,10 @@ export function configurePrepTotal(prepTotalMs: number): void {
 }
 
 /** Toggle timer-panel visibility. Hiding the panel pauses any
- *  running clock (matching the previous behavior the settings-
- *  driven handler had — we don't want a clock to keep counting
- *  down while the user can't see it). Broadcast over the shared
- *  channel so toggling in one window opens / closes the panel in
- *  every other open window too. */
+ *  running clock — a clock must not keep counting down while the
+ *  user can't see it. Broadcast over the shared channel so toggling
+ *  in one window opens / closes the panel in every other open
+ *  window too. */
 export function setTimerVisible(visible: boolean): void {
   if (state.visible === visible) return;
   if (!visible && state.running) {

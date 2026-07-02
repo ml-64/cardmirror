@@ -571,14 +571,14 @@ class DocxExporter {
         flush();
         runChildren.push('<w:softHyphen/>');
       } else if (ch === '\t') {
-        // Round-trips with the importer's `<w:tab/>` → '\t'. Without this
-        // the tab landed as a literal character inside `<w:t>`.
+        // Round-trips with the importer's `<w:tab/>` → '\t'; otherwise
+        // the tab would land as a literal character inside `<w:t>`.
         flush();
         runChildren.push('<w:tab/>');
       } else if (ch === '\n') {
         // Importer maps `<w:br/>` → '\n'. (A page break also imports as
-        // '\n', so it re-exports as a line break — the break type isn't
-        // preserved in the doc model, but the break itself now is.)
+        // '\n', so it re-exports as a line break — the doc model keeps
+        // the break but not its type.)
         flush();
         runChildren.push('<w:br/>');
       } else {
@@ -728,17 +728,11 @@ class DocxExporter {
     for (const rel of this.rels) {
       // Hyperlink Targets are user-supplied URLs and commonly
       // contain `&` (query-string separators), which is illegal
-      // in raw XML attribute values. Word still opens the doc
-      // (recovery mode) but flags it as corrupted on first
-      // open, which is the symptom that surfaced this bug. The
-      // rId is internally generated and safe; the target is the
-      // only attribute that needs escaping here. Image rels
-      // (below) and the styles / settings rels (above) get
-      // internally-controlled Targets that contain no special
-      // chars, so they don't need it — but we escape image
-      // targets too for symmetry / defense in depth (a media
-      // filename with a special char would have the same
-      // problem).
+      // raw in an XML attribute — Word flags the doc as corrupted
+      // and opens it in recovery mode. The rId is internally
+      // generated and safe. Image / styles / settings Targets are
+      // internally controlled, but image targets (below) are
+      // escaped too as defense in depth.
       inner.push(
         `<Relationship Id="${rel.rId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${escAttr(rel.target)}" TargetMode="External"/>`,
       );
@@ -890,7 +884,6 @@ function buildDrawingXml(opts: {
   );
 }
 
-/** Public API: schema doc → document.xml + rels. */
 /** Build word/footnotes.xml or word/endnotes.xml (+ the part's rels
  *  file when any note run carries a hyperlink). Word requires the
  *  separator (-1) and continuationSeparator (0) entries — omitting
@@ -950,6 +943,8 @@ function buildNotesXml(
   return { xml: parts.join(''), relsXml };
 }
 
+/** Public API: schema doc → docx parts (document.xml + rels, media,
+ *  comments, footnotes/endnotes — see `ExportResult`). */
 export function exportDoc(doc: PMNode, opts: ExportOptions = {}): ExportResult {
   return new DocxExporter().exportDoc(doc, opts);
 }

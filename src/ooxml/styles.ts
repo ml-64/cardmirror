@@ -25,9 +25,9 @@ import { XML_PROLOG } from './xml.js';
 /**
  * The canonical styles.xml content.
  *
- * This is essentially a stripped-down version of the full styles.xml
- * from Debate.dotm — we keep only the styles Verbatim and our editor
- * actually use, which keeps exports clean (stylepox-free by construction).
+ * A stripped-down version of the full styles.xml from Debate.dotm:
+ * only the styles Verbatim and our editor actually use, keeping
+ * exports stylepox-free by construction.
  */
 export const CANONICAL_STYLES_XML = `${XML_PROLOG}
 <w:styles xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="w14">
@@ -399,9 +399,9 @@ export function fallbackNodeType(info: StyleInfo | undefined): string | null {
  *  Modern Verbatim styleIds (`StyleUnderline`, `Style13ptBold`,
  *  etc.) live alongside legacy styleIds shipped by earlier
  *  Verbatim distributions. The legacy names are widespread in
- *  older debate files — a tester's 2013-14 1AC contained 1,760
- *  underlined runs marked with the legacy `StyleBoldUnderline`
- *  styleId that would otherwise be silently dropped on import.
+ *  older debate files (e.g. a 2013-14 1AC with 1,760 underlined
+ *  runs under the legacy `StyleBoldUnderline` styleId) and would
+ *  otherwise be silently dropped on import.
  *
  *  The export side always normalizes back to the modern styleId,
  *  so round-tripping an old file through CardMirror produces a

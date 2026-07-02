@@ -1,9 +1,10 @@
 /**
  * The ribbon-group layout must cover the command registry exactly — every
- * RibbonCommandId in one group, no duplicates, no strays. The app asserts this
- * at boot (`assertGroupsCoverRegistry`), which used to be the *only* guard: a
- * new command with no group crashed the renderer but passed the test suite.
- * (Importing this module also runs that boot assertion.)
+ * `RibbonCommandId` in one group, no duplicates, no strays. The app also
+ * asserts this at boot (`assertGroupsCoverRegistry`), but a boot-only guard
+ * crashes the renderer without failing the test suite; this suite catches an
+ * unplaced command in CI. (Importing this module also runs that boot
+ * assertion.)
  */
 
 import { describe, it, expect } from 'vitest';

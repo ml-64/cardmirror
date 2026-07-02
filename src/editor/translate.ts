@@ -203,8 +203,8 @@ Important guidelines:
 }
 
 /** Output ceiling for Anthropic translations. A translation is roughly
- *  input-sized, and the client's 1024-token default silently cut off
- *  anything past a few paragraphs. 16K tokens (~40K+ characters) covers
+ *  input-sized, and the client's 1024-token default would silently cut
+ *  off anything past a few paragraphs. 16K tokens (~40K+ characters) covers
  *  any realistic selection while staying within non-streaming HTTP
  *  comfort; output tokens only bill as generated, so the headroom is
  *  free on short translations. */

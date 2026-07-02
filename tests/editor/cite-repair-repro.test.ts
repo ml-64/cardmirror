@@ -24,8 +24,8 @@ describe('cite repair: whole-document (from=0) selection', () => {
   // Mirrors test document.cmir: messy multi-paragraph source selected with a
   // whole-doc selection whose `from` is 0 (before the first paragraph — not a
   // valid inline position). The cite lands at position 1; trusting the raw
-  // `from = 0` used to shift every position one left, so the trailing token
-  // lost its last char AND the cite's last char got shunted to its own line.
+  // `from = 0` shifts every position one left — the trailing token loses its
+  // last char AND the cite's last char gets shunted to its own line.
   const BLOCKS = [
     "I'm Claire Cary, a food photographer, recipe developer and blogger based in Boston, MA. Eat With Clarity was born out of my love for food, health, photography, ...",
     'Savory Quinoa Breakfast Bowl', '', 'By', '', 'Claire Cary', '', '5 from 9 votes', 'May 8, 2024',

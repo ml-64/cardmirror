@@ -79,14 +79,12 @@ function unsupportedToast(contentType: string): void {
 
 /** Locate the textblock containing the image (a `paragraph`,
  *  `card_body`, `cite_paragraph`, etc.) so an AI follow-up can be
- *  inserted as a SIBLING of the same type right after it. The
- *  earlier implementation returned a `$pos.after(depth)` position
- *  without considering the parent's schema; when that position
- *  didn't accept the inserted node type, PM's structural fitting
- *  closed-and-reopened ancestors and the insertion drifted to the
- *  bottom of the doc. By inserting a sibling of the SAME type at
- *  the textblock's `after()` position, the node always fits in the
- *  parent and lands where the user expects. */
+ *  inserted as a SIBLING of the same type right after it. Inserting
+ *  a node the parent's schema doesn't accept would let PM's
+ *  structural fitting close-and-reopen ancestors and drift the
+ *  insertion to the bottom of the doc; a sibling of the SAME type
+ *  at the textblock's `after()` position always fits the parent and
+ *  lands where the user expects. */
 function findImageContainerInsertion(
   view: EditorView,
   imagePos: number,
@@ -362,11 +360,11 @@ interface TableSpec { rows: RowSpec[] }
 /** The table JSON schema + formatting rules, shared by the extraction
  *  prompt and the repair prompt so they can never drift apart.
  *
- *  The cells are kept COMPACT — only non-default fields are emitted —
- *  because the old "always include all five keys" shape made large
- *  tables blow past the token limit (every plain cell carried ~80 bytes
- *  of `false`/`1` boilerplate). The validator defaults any missing
- *  field, so `{ "text": "..." }` is a complete plain cell. */
+ *  Cells are kept COMPACT — only non-default fields are emitted —
+ *  because emitting all five keys on every cell (~80 bytes of
+ *  `false`/`1` boilerplate per plain cell) pushes large tables past
+ *  the token limit. The validator defaults any missing field, so
+ *  `{ "text": "..." }` is a complete plain cell. */
 const TABLE_SCHEMA_AND_RULES = `the JSON schema (cells keep ONLY the fields they need):
 {
   "rows": [
@@ -512,10 +510,10 @@ export function runGenerateTable(
       const reply = await callAnthropic({
         apiKey,
         system: TABLE_SYSTEM_PROMPT,
-        // Big headroom — a large table is a lot of JSON, and the old
-        // 4096 cap silently truncated them (stop_reason 'max_tokens',
-        // cut-off JSON that fails to parse). The compact schema above
-        // already shrinks the output a lot; this is the safety margin.
+        // Big headroom — a large table is a lot of JSON, and a low
+        // cap truncates it silently (stop_reason 'max_tokens',
+        // cut-off JSON that fails to parse). The compact schema
+        // above shrinks the output; this is the safety margin.
         maxTokens: 16384,
         messages: [
           {

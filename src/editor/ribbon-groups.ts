@@ -1,19 +1,11 @@
 /**
- * Shared thematic grouping of `RibbonCommandId`s.
+ * Shared thematic grouping of `RibbonCommandId`s — single source of
+ * truth for both the Keyboard Shortcuts reference modal
+ * (`reference-ui.ts`) and the Settings → Keybindings editor
+ * (`keybindings-editor.ts`), so users see the same taxonomy in both.
  *
- * Used by:
- * - The Keyboard Shortcuts reference modal (`reference-ui.ts`) to
- *   render its "cheat sheet" sections.
- * - The Settings → Keybindings editor (`keybindings-editor.ts`) to
- *   group the rebinding rows under the same headings so users see
- *   the same taxonomy in both surfaces.
- *
- * Single source of truth: editing this file changes BOTH surfaces.
- *
- * Drift guard: every `RibbonCommandId` must appear in exactly one
- * group below. If a new command lands in the registry without
- * being categorized, the module-load assertion throws — fail loud
- * instead of silently dropping rows from one or both surfaces.
+ * Every `RibbonCommandId` must appear in exactly one group; the
+ * module-load assertion at the bottom enforces this.
  */
 
 import { RIBBON_COMMAND_IDS, type RibbonCommandId } from './ribbon-commands.js';
@@ -270,11 +262,9 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
   },
 ];
 
-// Drift guard: every `RibbonCommandId` must appear in exactly one
-// group above. If a new command is added to the registry and
-// someone forgets to update RIBBON_GROUPS, this throws at module
-// load time — fail loud instead of silently dropping rows from
-// the cheat sheet AND the rebinding editor.
+// Drift guard: throws at module load when a registry command is
+// uncategorized, duplicated, or unknown — fail loud instead of
+// silently dropping rows from the cheat sheet and rebinding editor.
 (function assertGroupsCoverRegistry(): void {
   const placed = new Set<string>();
   const duplicates: string[] = [];

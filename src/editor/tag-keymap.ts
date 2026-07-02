@@ -1,5 +1,6 @@
 /**
- * Tag boundary editing commands (ARCHITECTURE.md §14.3).
+ * Tag boundary editing commands (ARCHITECTURE.md §12,
+ * "Tag / analytic boundary rules").
  *
  * Five keymap commands that override Backspace, Delete, and Enter
  * inside a `tag` or `analytic`:
@@ -729,10 +730,9 @@ export const enterMidTag: Command = (state, dispatch) => {
 /**
  * Enter at the end of a tag/analytic. Creates a new card_body
  * directly under the head — above any existing cite, undertag, or
- * card body — and moves the cursor into it. Per the §14.3 rule plus
- * the user's clarification, the new paragraph should land "right
- * below the tag." Loosened card / analytic_unit content schemas
- * allow the body to appear in this position.
+ * card body — and moves the cursor into it: the new paragraph lands
+ * right below the tag (§12 boundary rule). The card / analytic_unit
+ * content schemas permit a body in this position.
  */
 export const enterAtTagEnd: Command = (state, dispatch) => {
   const ctx = getTagContext(state);

@@ -11,8 +11,7 @@
  *
  * The `timeout` argument caps how long the work can be deferred past
  * the scheduled moment. requestIdleCallback honors it natively; the
- * setTimeout fallback uses it as the run delay (so behavior matches
- * the pre-idle pattern when the API is unavailable).
+ * setTimeout fallback uses it as the run delay.
  */
 
 export type IdleHandle =

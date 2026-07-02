@@ -130,8 +130,8 @@ describe('find-replace plugin', () => {
     // Five paragraphs each ending in "---1AC". Sort with an anchor
     // between paragraphs 2 and 3 so the document-order-from-cursor rule
     // produces a matches array NOT in doc order: [p3, p4, p5, p1, p2].
-    // Replace All with a longer string previously corrupted every
-    // match except the last-in-display-order — see the bug fix.
+    // Regression: replacing with a longer string must not corrupt any
+    // match when the array isn't in doc order.
     const doc = makeDoc([
       paragraph('one---1AC'),
       paragraph('two---1AC'),
@@ -144,9 +144,8 @@ describe('find-replace plugin', () => {
       schema,
       plugins: [findReplacePlugin()],
     });
-    // Use a categorized sort to verify the array order is what
-    // would have triggered the bug. All matches are 'other' here,
-    // so the categorized branch falls through to document-order-from-cursor.
+    // Categorized sort; all matches are 'other' here, so the categorized
+    // branch falls through to document-order-from-cursor.
     const scout = setQuery(state, '---1AC', { sortMode: 'uncategorized', anchor: 0 });
     const docOrderFroms = findReplaceKey
       .getState(scout)!.matches.map((m) => m.from);
@@ -303,8 +302,8 @@ describe('find-replace plugin', () => {
   });
 
   // Inline images are atoms with nodeSize 1 that contribute nothing to
-  // textContent — scanning that string used to shift every match after
-  // an image one position left per image (audit 2026-06-10).
+  // textContent — a scan over that string would shift every match after
+  // an image one position left per image.
   describe('matches after inline images', () => {
     const TINY_PNG =
       'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';

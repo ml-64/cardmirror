@@ -183,8 +183,7 @@ export function importDoc(
         }
       } else if ('w:sdt' in node) {
         // Block-level content control: unwrap and import its inner
-        // content (was silently dropped). The wrapper carries no
-        // document content of its own.
+        // content — the wrapper carries no document content of its own.
         const content = findChild(childrenOf(node, 'w:sdt'), 'w:sdtContent');
         if (content) collectBlocks(childrenOf(content, 'w:sdtContent'));
       }
@@ -288,7 +287,7 @@ function parseParagraph(pNode: XmlNode, ctx: ImportContext): ParaInfo {
   const pChildren = childrenOf(pNode, 'w:p');
 
   // Look for <w:pPr>/<w:pStyle> for the paragraph style.
-  // Note: <w:pPr>/<w:rPr> describes the paragraph-mark glyph's formatting
+  // <w:pPr>/<w:rPr> describes the paragraph-mark glyph's formatting
   // per OOXML spec 17.7.5.10 — it does NOT propagate to runs in the
   // paragraph. Runs are formatted by their own rPr plus the pStyle's
   // linked character style. We deliberately do not parse pPr/rPr.
@@ -717,8 +716,8 @@ function parseRun(rNode: XmlNode, ctx: ImportContext, out: PMNode[]): void {
     } else if ('w:tab' in c) {
       try { out.push(schema.text('\t', currentMarks())); } catch (_) { /* */ }
     }
-    // <w:br/> with type=page is a hard page break; for now just newline.
-    // <w:br/> without type is line break.
+    // <w:br/>: page-type breaks and plain line breaks both import as a
+    // newline (no hard-page-break support).
     else if ('w:br' in c) {
       try { out.push(schema.text('\n', currentMarks())); } catch (_) { /* */ }
     }
@@ -754,8 +753,7 @@ function parseRun(rNode: XmlNode, ctx: ImportContext, out: PMNode[]): void {
     // Inline pictures: <w:drawing><wp:inline>… or floating
     // <w:drawing><wp:anchor>…. Both wrap a picture referenced via
     // r:embed on an <a:blip>. Without media-parts access we can't
-    // round-trip the image bytes, so the drawing is silently dropped
-    // as before.
+    // round-trip the image bytes, so the drawing is silently dropped.
     else if ('w:drawing' in c) {
       let imgNode = parseDrawing(c, ctx);
       if (imgNode) {
@@ -782,9 +780,8 @@ function parseRun(rNode: XmlNode, ctx: ImportContext, out: PMNode[]): void {
  * with the bytes embedded as base64.
  *
  * Returns null if any required piece is missing — the relId, the rel
- * lookup, the media file in the zip, etc. The result is the same as
- * the pre-existing behavior (drawing dropped) for any case we can't
- * round-trip cleanly.
+ * lookup, the media file in the zip, etc. — so a drawing we can't
+ * round-trip cleanly is dropped.
  */
 function parseDrawing(drawingNode: XmlNode, ctx: ImportContext): PMNode | null {
   if (!ctx.mediaParts) return null;
@@ -906,10 +903,9 @@ function parseRPr(rPr: XmlNode, styles?: StyleMap): ParsedRPr {
       }
       case 'w:b': {
         if (a['w:val'] === '0' || a['w:val'] === 'false') {
-          // Explicit "bold off" — preserve it as a `bold_off` mark so it
+          // Explicit "bold off" — preserved as a `bold_off` mark so it
           // both round-trips AND renders (a word un-bolded inside a tag,
-          // which is bold by default). Previously this was dropped, so the
-          // run rendered bold from the tag's style.
+          // which is bold by default).
           marks.push(schema.marks['bold_off']!.create());
         } else {
           marks.push(schema.marks['bold']!.create());
@@ -1221,11 +1217,9 @@ function resolveNodeType(pStyle: string | null, ctx: ImportContext, pPr: XmlNode
  *
  * Conventions:
  *   - A Tag starts a card.
- *   - The card consumes:
- *     - Optionally one cite_paragraph (heuristic: first Normal after a
- *       Tag is treated as cite_paragraph for v0 always; cleaner heuristic
- *       can replace this later).
- *     - Zero or more card_body paragraphs (subsequent Normals).
+ *   - The card consumes following undertags, then Normals — each
+ *     classified as cite_paragraph (any cite_mark on non-whitespace
+ *     content) or card_body — plus inline tables.
  *   - The card ends at the next heading-level paragraph (Tag, Pocket,
  *     Hat, Block, Analytic) or end of document. An Analytic under a tag
  *     therefore ends the card and starts its own analytic_unit.
@@ -1267,7 +1261,7 @@ function assembleDoc(paragraphs: ParaInfo[]): PMNode {
       }
 
       // Body paragraphs: classify by cite_mark presence (same rule as
-      // in cards), since analytic_unit now allows cite_paragraph too.
+      // in cards); analytic_unit accepts cite_paragraph too.
       // Also absorb inline tables — the analytic_unit schema accepts
       // `table` as a child; without this loop seeing them, every
       // post-analytic table would be ejected back to the doc level
@@ -1436,8 +1430,8 @@ function paragraphToNode(para: ParaInfo): PMNode | null {
   const isHeading = ['pocket', 'hat', 'block', 'tag', 'analytic'].includes(effectiveType);
   const baseAttrs = isHeading ? attrsForHeading(para.headingId) : {};
   const attrs: Record<string, unknown> = { ...baseAttrs };
-  // Indent + spacing apply to every paragraph-like textblock — all 9
-  // OOXML paragraph kinds we model carry both round-trip attrs now.
+  // Every paragraph-like textblock kind carries the indent + spacing
+  // round-trip attrs.
   if (para.indent > 0) attrs['indent'] = para.indent;
   if (para.spacing && Object.keys(para.spacing).length > 0) {
     attrs['spacing'] = para.spacing;

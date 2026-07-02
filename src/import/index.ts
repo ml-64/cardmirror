@@ -13,7 +13,6 @@ export { importDoc } from './importer.js';
 export type { MediaPart, MediaPartsMap } from './importer.js';
 export { importComments } from './comments.js';
 
-/** Map common image extensions to MIME types. */
 const IMAGE_CONTENT_TYPES: Record<string, string> = {
   png: 'image/png',
   jpg: 'image/jpeg',

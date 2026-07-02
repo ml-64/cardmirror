@@ -96,16 +96,17 @@ function applyOne(t: RibbonTooltipTarget): void {
   const kind = t.kind ?? 'button';
   const text = composeTitle(mode, kind, label, shortcut);
 
-  // Never set the native `title` — that's the flaky path we're replacing.
+  // Never set the native `title` — that's the flaky path the custom
+  // renderer exists to avoid.
   t.el.removeAttribute('title');
 
   // Custom-tooltip text (mode-dependent; empty in `none` mode → no tooltip).
   if (text) tipText.set(t.el, text);
   else tipText.delete(t.el);
 
-  // Accessibility: an icon-only button needs a stable accessible name that the
-  // native `title` used to provide — give it the action label, independent of
-  // the visual tooltip mode. Menu items keep their visible text as their name,
+  // Accessibility: with `title` stripped, an icon-only button still needs a
+  // stable accessible name — give it the action label, independent of the
+  // visual tooltip mode. Menu items keep their visible text as their name,
   // so leave their aria alone.
   if (kind !== 'menuItem') {
     if (label) t.el.setAttribute('aria-label', label);

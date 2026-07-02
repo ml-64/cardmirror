@@ -6,7 +6,7 @@
  * content script that, whenever an `<input>` gains focus, crawls the ENTIRE
  * page DOM (a `TreeWalker` plus `getBoundingClientRect` on every candidate) to
  * hunt for login fields and their labels. On a large document that scan takes
- * ~2s and freezes the UI every single time the command palette or find bar
+ * ~2s and freezes the UI every time the command palette or find bar
  * opens (both focus a search box). Electron loads no extensions, so the desktop
  * app never pays this. `autocomplete="off"` alone doesn't help — the managers
  * ignore it — so we also send each vendor's explicit "skip this field" hint,

@@ -130,10 +130,10 @@ export const findReplaceKey = new PluginKey<FindReplaceState>('find-replace');
 // ASCII), digits, `'` U+0027, `'` U+2019. Differs from regex
 // `\w`: underscore `_` is NOT a word character under the spec,
 // and neither is `.` / `,` / hyphen / dash / `'` U+2018. So e.g.
-// searching "don" whole-word no longer matches "don" inside
-// "don't" (apostrophe joins the word), and "user" matches
-// "user_name" (underscore breaks). See
-// `word-selection-behavior.md` Layer 1 for the full rationale.
+// searching "don" whole-word doesn't match inside "don't"
+// (apostrophe joins the word), while "user" matches "user_name"
+// (underscore breaks). See `word-selection-behavior.md` Layer 1
+// for the full rationale.
 
 /** Map a textblock node type name to its match category. The
  *  three doc-level outline heading types collapse to `heading`;
@@ -638,13 +638,8 @@ export function runReplace(replacement: string): Command {
  *  Must iterate from the END of the doc to the START so earlier
  *  replacements don't shift later positions and corrupt them.
  *  `s.matches` is sorted for display (categorized / uncategorized),
- *  NOT in doc order, so we re-sort by doc position here before
- *  iterating. Walking the display order in reverse used to work
- *  back when matches were always returned in doc order, but
- *  categorized sort broke that assumption — one of the visible
- *  symptoms was: Replace All on a categorized list with a
- *  longer-than-original replacement string mangled all but the
- *  last-in-doc match. */
+ *  NOT in doc order, so re-sort by doc position here before
+ *  iterating — reversing the display order is not equivalent. */
 export function runReplaceAll(replacement: string): Command {
   return (state, dispatch) => {
     const s = findReplaceKey.getState(state);

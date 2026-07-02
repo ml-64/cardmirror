@@ -1,9 +1,9 @@
 /**
  * Pinned-files store (file-search warm working set).
  *
- * Small + durable, in `localStorage` — like `recents-store` (which
- * already proves localStorage carries across Electron windows: a pin in
- * one window is seen by another on its next read). Holds:
+ * Small + durable, in `localStorage`, which is shared across Electron
+ * windows (a pin made in one window is seen by another on its next
+ * read). Holds:
  *   - `manualPins`: paths the user pinned by hand (★ / Alt+P). Uncapped.
  *   - `usage`: per-path open/dive counts → powers "frequents".
  *

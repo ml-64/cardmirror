@@ -240,8 +240,8 @@ export function buildReferenceNodes(
     // Use `card_body` for the body paragraphs (rather than the
     // generic `paragraph`). When pasted back into a card, this
     // matches the surrounding paragraph type exactly, so PM doesn't
-    // have to lift the slice to a higher depth — which is what was
-    // scrolling the viewport to a far-off paste landing position.
+    // have to lift the slice to a higher depth — a lift that scrolls
+    // the viewport to a far-off paste landing position.
     outNodes.push(
       schema.nodes['card_body']!.create(null, Fragment.fromArray(transformed)),
     );

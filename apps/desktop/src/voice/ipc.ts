@@ -2,8 +2,8 @@
  * Voice IPC wiring (SPEC-voice.md §12 item 2). One recognition session
  * at a time, owned by the window that started it; that window receives
  * `voice:event` / `voice:level`. Audio flows renderer→main as raw PCM
- * over a fire-and-forget channel and is proxied to a **utilityProcess
- * worker** that owns the recognizer — decode is synchronous FFI work,
+ * over a fire-and-forget channel and is proxied to a **forked worker
+ * process** that owns the recognizer — decode is synchronous FFI work,
  * and isolating it means an engine stall or crash can never block or
  * kill the main process (a vosk grammar-swap abort and lgraph decode
  * bursts both did exactly that when the service ran in-process).
@@ -17,7 +17,7 @@ import type { VoiceStartOptions, VoiceStartResult } from './types';
 let worker: ChildProcess | null = null;
 let ownerWebContentsId: number | null = null;
 /** Owner-lifecycle listeners, removed in stopSession so repeated
- *  starts don't stack handlers (audit 2026-06-10). */
+ *  starts don't stack handlers. */
 let ownerCleanup: (() => void) | null = null;
 
 function libFileName(): string {
@@ -26,18 +26,12 @@ function libFileName(): string {
   return 'libvosk.so';
 }
 
-/**
- * Locate libvosk + model. Search order:
- *  1. CARDMIRROR_VOICE_DIR (expects <dir>/<libvosk> and <dir>/model/)
- *  2. packaged resources (extraResources → resources/voice/)
- *  3. dev fallback: the recognizer spike's downloads in the repo
- */
-/** The base recognition model is no longer bundled in the installer —
- *  it's a one-time download into userData (mirrors the large model), so
- *  most users, who never enable voice, don't carry ~230 MB they'll
- *  never use. libvosk is still bundled (small, and shipping native code
- *  inside the signed artifact avoids Gatekeeper/library-validation
- *  issues that a downloaded .dylib would raise). */
+/** The base recognition model is not bundled in the installer — it's a
+ *  one-time download into userData (like the large model), so the many
+ *  users who never enable voice don't carry ~230 MB they'll never use.
+ *  libvosk IS bundled: it's small, and shipping native code inside the
+ *  signed artifact avoids the Gatekeeper/library-validation issues a
+ *  downloaded .dylib would raise. */
 const BASE_MODEL_NAME = 'vosk-model-en-us-0.22-lgraph';
 const BASE_MODEL_URL = `https://alphacephei.com/vosk/models/${BASE_MODEL_NAME}.zip`;
 
@@ -53,18 +47,17 @@ function baseModelPresent(): boolean {
 
 /** Locate libvosk (bundled) + the base model. Model search order:
  *  1. CARDMIRROR_VOICE_DIR (expects <dir>/<libvosk> and <dir>/model/)
- *  2. userData download (the new default — see BASE_MODEL_NAME)
+ *  2. userData download (the default — see BASE_MODEL_NAME)
  *  3. packaged resources (legacy fat installs; also the dev/`--full`
  *     build) → resources/voice/model/
  *  4. dev fallback: the recognizer spike's downloads in the repo
  *  libvosk is resolved independently (it's always bundled), so a
  *  userData-only model still pairs with the shipped lib.
  *  The two paths are returned independently (null for whichever is
- *  missing) — callers need to tell "model not downloaded yet" (the
+ *  missing) — callers must tell "model not downloaded yet" (the
  *  common, recoverable case: offer the download) apart from "libvosk
- *  missing" (a broken install). An all-or-nothing null here once
- *  collapsed the two and made the download offer unreachable on a
- *  fresh install. */
+ *  missing" (a broken install); an all-or-nothing null would make the
+ *  download offer unreachable on a fresh install. */
 function resolveVoiceAssets(): { libPath: string | null; modelDir: string | null } {
   const libCandidates: string[] = [];
   const modelCandidates: string[] = [];
@@ -86,17 +79,6 @@ function resolveVoiceAssets(): { libPath: string | null; modelDir: string | null
   return { libPath, modelDir };
 }
 
-/**
- * The worker needs a REAL Node runtime: Electron's binary (even with
- * ELECTRON_RUN_AS_NODE) uses Chromium's allocator, which SIGTRAPs on
- * the large dictation model's multi-GB allocations (reproduced
- * 2026-06-10; system Node loads it fine). Resolution order:
- *  1. CARDMIRROR_NODE env
- *  2. shipped runtime (resources/voice/node, fetched at build time)
- *  3. system node on PATH
- * Falling back to electron-as-node still works for the STANDARD model;
- * the large model is then disabled with an explicit flag.
- */
 /** Filesystem path to the forked recognizer worker. In a packaged
  *  build the worker is forked under a REAL Node (execPath: nodeBin),
  *  which has no asar support and so cannot load worker.js from inside
@@ -119,10 +101,21 @@ function downloadedNodePath(): string {
   return path.join(app.getPath('userData'), 'voice-runtime', nodeBinName());
 }
 
+/** The worker needs a REAL Node runtime: Electron's binary (even with
+ *  ELECTRON_RUN_AS_NODE) uses Chromium's allocator, which SIGTRAPs on
+ *  the large dictation model's multi-GB allocations; system Node loads
+ *  it fine. Resolution order:
+ *   1. CARDMIRROR_NODE env
+ *   2. userData download (fetched with the large model)
+ *   3. packaged resources (legacy fat installs; also the dev/`--full`
+ *      build)
+ *   4. system node on PATH
+ *  Falling back to electron-as-node still works for the STANDARD
+ *  model; the large model is then disabled with an explicit flag. */
 function resolveNodeBinary(): string | null {
   const candidates = [
     process.env.CARDMIRROR_NODE,
-    // userData download (fetched with the large model — the new default)
+    // userData download (fetched with the large model)
     downloadedNodePath(),
     // legacy fat install (also the dev/`--full` build)
     path.join(process.resourcesPath, 'voice', nodeBinName()),
@@ -250,7 +243,7 @@ async function downloadAndExtract(
   try {
     fs.mkdirSync(root, { recursive: true });
     // 30-minute overall ceiling — a stalled download must not pin
-    // downloadInFlight forever (audit 2026-06-10).
+    // `downloadInFlight` forever.
     const res = await fetch(url, {
       redirect: 'follow',
       signal: AbortSignal.timeout(30 * 60 * 1000),
@@ -282,8 +275,8 @@ async function downloadAndExtract(
     if (!sender.isDestroyed()) {
       sender.send('voice:download-progress', { model: label, pct: 100, extracting: true });
     }
-    // Async extraction — execFileSync of a 1.8 GB zip froze the whole
-    // main process (audit 2026-06-10).
+    // Async extraction — `execFileSync` of a 1.8 GB zip freezes the
+    // whole main process.
     const { execFile } = await import('node:child_process');
     const run = (cmd: string, args: string[]) =>
       new Promise<void>((resolve, reject) =>
@@ -420,9 +413,9 @@ export function registerVoiceIpc(): void {
         });
       });
       if (!started.ok) {
-        // Audit 2026-06-10: this used to call stopSession()
-        // unconditionally — if a NEWER session had already replaced
-        // `worker`, the stale failure path killed the new session.
+        // Tear down the session only if this child still owns it — a
+        // NEWER session may have replaced `worker`, and this stale
+        // failure path must not kill it.
         if (worker === child) stopSession();
         else child.kill();
         return started;
@@ -439,9 +432,8 @@ export function registerVoiceIpc(): void {
       });
       child.on('exit', (code) => {
         // Crash isolation: the editor survives; the session just ends —
-        // and the renderer is TOLD (audit 2026-06-10: it used to keep
-        // capturing into a dead session with the pill stuck on
-        // "listening").
+        // and the renderer is TOLD, so it doesn't keep capturing into a
+        // dead session with the pill stuck on "listening".
         if (worker === child) {
           console.error(`voice: worker exited (code ${code})`);
           if (!sender.isDestroyed()) {
@@ -456,7 +448,7 @@ export function registerVoiceIpc(): void {
       sender.once('destroyed', onGone);
       // Reload/navigation keeps the same webContents id but loses the
       // renderer-side session — without these the worker (and a loaded
-      // multi-GB model) ran on with no consumer (audit 2026-06-10).
+      // multi-GB model) would run on with no consumer.
       sender.once('did-start-navigation', onGone);
       sender.once('render-process-gone', onGone);
       ownerCleanup = () => {
@@ -487,7 +479,7 @@ export function registerVoiceIpc(): void {
 
   // True native key synthesis for voice "press <key>" — DOM-dispatched
   // KeyboardEvents are untrusted and can't drive default actions in
-  // real inputs (audit 2026-06-10).
+  // real inputs.
   const SEND_KEYS: Record<string, string> = {
     enter: 'Return', tab: 'Tab', escape: 'Escape', up: 'Up', down: 'Down',
     left: 'Left', right: 'Right', space: 'Space', backspace: 'Backspace',
@@ -515,8 +507,8 @@ export function registerVoiceIpc(): void {
     downloadLargeModel(event.sender),
   );
 
-  // Base recognition model (the one voice control needs to run) — now a
-  // first-use download rather than a bundled asset.
+  // Base recognition model (the one voice control needs to run) — a
+  // first-use download, not a bundled asset.
   ipcMain.handle('host:voice-base-model-info', async () => ({
     present: baseModelPresent(),
     downloading: downloadInFlight,

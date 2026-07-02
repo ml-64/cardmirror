@@ -5,8 +5,7 @@
  * innermost container (card or analytic_unit). If we find one, the
  * payload includes its tag / analytic / cite_paragraphs alongside
  * the selected text. If the selection lives at doc level, the
- * payload is selection-only — the AI just sees the text the user
- * asked about, with no surrounding card context.
+ * payload is selection-only (no surrounding card context).
  */
 
 import type { EditorState } from 'prosemirror-state';
@@ -98,10 +97,10 @@ export function buildExplainContext(state: EditorState): ExplainContext | null {
 
   // Walk depth ancestors from innermost outward looking for
   // a card or analytic_unit. We use $from rather than $to —
-  // an unusual selection that straddles container boundaries
-  // doesn't really fit the explainer flow; we take the
-  // container of the start point and trust the AI to handle the
-  // rest from the included selection text.
+  // a selection that straddles container boundaries doesn't fit
+  // the explainer flow; we take the container of the start point
+  // and trust the AI to handle the rest from the included
+  // selection text.
   const $pos = state.doc.resolve(from);
   let container: PMNode | null = null;
   for (let d = $pos.depth; d >= 0; d--) {

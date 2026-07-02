@@ -2,8 +2,8 @@
  * Layer 2 — Word-style mouse-selection state machine.
  *
  * Implements the mouse-side of the word-selection spec
- * (`~/Downloads/word-selection-behavior.md` Layer 2). Three click
- * gestures with distinct anchor + granularity behavior:
+ * (`word-selection-behavior.md` Layer 2). Three click gestures
+ * with distinct anchor + granularity behavior:
  *
  *   - Single click: anchor = a point, granularity = character.
  *     Dynamic — extending past the anchor's own unit upgrades to
@@ -79,10 +79,10 @@ interface SelectionAnchor {
   /** True for double-click anchors — granularity is fixed and the
    *  anchor unit is never shrunk below its initial extent. */
   fixed: boolean;
-  /** Selection meta flag — set on every transaction this plugin
-   *  dispatches so the dispatchTransaction interceptor below can
-   *  tell us-vs-other apart and invalidate the anchor when an
-   *  external transaction moves the selection. */
+  /** Freshness counter. Bumped on every selection this plugin
+   *  dispatches; set to -1 by the `apply` hook when an external
+   *  transaction moves the selection, so `effectiveAnchor` re-derives
+   *  instead of reusing this anchor. */
   fingerprint: number;
 }
 
@@ -90,9 +90,9 @@ let nextFingerprint = 1;
 let currentAnchor: SelectionAnchor | null = null;
 
 /** Marker used to tag selection-setting transactions that this
- *  plugin dispatches. The state-watching transaction below treats
- *  any selection-changing transaction WITHOUT this tag as an
- *  external update, which invalidates `currentAnchor`. */
+ *  plugin dispatches. The `apply` hook below treats any
+ *  selection-changing transaction WITHOUT this tag as an external
+ *  update, which invalidates `currentAnchor`. */
 const SEL_FROM_PLUGIN = 'pmd:word-selection-plugin';
 
 export const wordSelectionPlugin: Plugin = new Plugin({
@@ -108,16 +108,11 @@ export const wordSelectionPlugin: Plugin = new Plugin({
       return null;
     },
     apply(tr, _value) {
-      // Any selection-changing transaction not from this plugin
-      // makes our `currentAnchor` potentially stale. We don't
-      // need to invalidate eagerly — `effectiveAnchor()` re-
-      // derives from the live PM selection on next use. Storing
-      // the marker as plugin state would be cleaner but the
-      // module-level state is sufficient and matches the
-      // simpler shape.
+      // A selection change not tagged by this plugin means
+      // `currentAnchor` no longer matches the live selection. Mark
+      // it stale so `effectiveAnchor` re-derives from the PM
+      // selection the next time shift+click fires.
       if (tr.selectionSet && tr.getMeta(SEL_FROM_PLUGIN) === undefined) {
-        // Mark currentAnchor as stale — `effectiveAnchor` will
-        // re-derive when shift+click next fires.
         if (currentAnchor) currentAnchor.fingerprint = -1;
       }
       return null;

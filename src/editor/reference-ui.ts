@@ -2,9 +2,9 @@
  * Keyboard-shortcut reference modal. A read-only "cheat sheet" view
  * of the ribbon's bound F-keys / Mod-keys, grouped conceptually.
  *
- * The thematic grouping is now shared with the Settings →
- * Keybindings editor — see `ribbon-groups.ts`. The drift-guard
- * assertion lives there too, so both surfaces stay in sync.
+ * The thematic grouping is shared with the Settings → Keybindings
+ * editor — see `ribbon-groups.ts`. The drift-guard assertion lives
+ * there too, so both surfaces stay in sync.
  */
 
 import {
@@ -143,9 +143,7 @@ class ReferenceModal {
 
     this.dialog.appendChild(body);
 
-    // Apply the persisted search (if the modal was reopened with a
-    // query already typed) so the rebuilt rows reflect it without
-    // requiring the user to re-type.
+    // Re-apply the persisted search so the rebuilt rows reflect it.
     this.applyFilter();
   }
 

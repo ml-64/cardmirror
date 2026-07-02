@@ -108,11 +108,11 @@ export class Segmenter {
       this.silentMs = 0;
       this.tLastVoiced = now;
       this.lastVoicedAudioMs = this.audioMs;
-      // Jam detection (audit 2026-06-10): a mid-session noise-floor
-      // rise (AC, fans) keeps every chunk above the gate — no pause is
-      // ever seen, so no utterance can complete and the session is
-      // stuck until restart. Twenty seconds of unbroken "speech" is not
-      // speech; recalibrate the gate from recent levels.
+      // Jam detection: a mid-session noise-floor rise (AC, fans) keeps
+      // every chunk above the gate — no pause is ever seen, so no
+      // utterance can complete and the session is stuck until restart.
+      // Twenty seconds of unbroken "speech" is not speech; recalibrate
+      // the gate from recent levels.
       if (this.audioMs - this.firstVoicedAudioMs > 20_000) {
         const sorted = [...this.recentRms].sort((a, b) => a - b);
         const median = sorted[Math.floor(sorted.length / 2)] as number;

@@ -1,18 +1,15 @@
 /**
  * Right-click context menu for image nodes inside the editor.
  *
- * Currently surfaces two AI-driven actions:
- *   - "Generate alt text from image (AI)"
- *   - "Generate table from image (AI)"
+ * Items: "Edit alt text…" (manual, no network), plus two AI actions —
+ * "Generate alt text from image (AI)" and "Generate table from image
+ * (AI)". The AI items are gated on `aiFeaturesEnabled` and an
+ * Anthropic API key; when unmet they render disabled with a tooltip
+ * explaining why, so the affordance stays discoverable.
  *
- * Both are gated on `aiFeaturesEnabled` and the user having an
- * Anthropic API key set; the menu items render as disabled with a
- * tooltip explaining why when those preconditions aren't met, so the
- * affordance is discoverable even before the user has wired AI up.
- *
- * The menu reuses the styling + close-on-outside-click plumbing
- * already in `nav-panel.ts`'s context menu (`.pmd-nav-context-menu`)
- * so it looks consistent across surfaces.
+ * Reuses `nav-panel.ts`'s context-menu styling and
+ * close-on-outside-click plumbing (`.pmd-nav-context-menu`) for
+ * cross-surface consistency.
  */
 
 import { Plugin } from 'prosemirror-state';
@@ -46,15 +43,11 @@ export const imageContextMenuPlugin: Plugin = new Plugin({
   },
 });
 
-/** Walk the PM view-desc tree to find the doc position of the
- *  given DOM element. PM exposes `posAtDOM` which does this
- *  cleanly; we ask for the position right BEFORE the image so
- *  `doc.nodeAt(pos)` returns the image node itself. */
+/** Doc position of the image element. `posAtDOM(el, 0)` maps offset 0
+ *  inside `el` — for an atomic inline image, the node's own start —
+ *  so `doc.nodeAt(pos)` returns the image node itself. */
 function posOfImageElement(view: EditorView, el: HTMLElement): number | null {
   try {
-    // `posAtDOM(el, 0)` returns the doc position corresponding to
-    // offset 0 inside `el`. For an atomic inline image that's the
-    // image's own start position — exactly what we want.
     return view.posAtDOM(el, 0);
   } catch {
     return null;
@@ -156,12 +149,9 @@ function closeImageContextMenu(): void {
   window.removeEventListener('keydown', maybeCloseImageContextMenu, { capture: true });
 }
 
-/** Manual alt-text edit, accessed from the image's right-click menu.
- *  Opens a multi-line prompt pre-filled with the current alt text;
- *  on submit, writes the new value back to `image.attrs.alt`. The AI
- *  alt-text path is a separate menu item — this one is the simple,
- *  no-network "type or paste a description" affordance and is the
- *  reason editing alt text doesn't require an Anthropic key. */
+/** Manual alt-text edit: multi-line prompt pre-filled with the current
+ *  value, written back to `image.attrs.alt` on submit. No network and
+ *  no Anthropic key needed — the AI path is a separate menu item. */
 async function editAltText(
   view: EditorView,
   imagePos: number,
@@ -176,10 +166,9 @@ async function editAltText(
     okLabel: 'Save',
   });
   if (next === null) return;
-  // Verify the image is still at this position before mutating — the
-  // user could have edited the doc while the modal was open (e.g.,
-  // via a keybinding). If the node moved, abort silently rather than
-  // mutating the wrong node.
+  // The doc may have changed while the modal was open (e.g., via a
+  // keybinding); if the image is no longer at `imagePos`, abort rather
+  // than mutate the wrong node.
   const live = view.state.doc.nodeAt(imagePos);
   if (!live || live.type.name !== 'image') return;
   const tr = view.state.tr.setNodeMarkup(imagePos, undefined, {

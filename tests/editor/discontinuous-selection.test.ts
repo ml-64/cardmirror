@@ -97,7 +97,8 @@ describe('discontinuous (manual shadow) selection', () => {
     const view = makeView();
     const s = bodyStart(view.state.doc);
     setManualShadowSelection(view, [{ from: s, to: s + 5 }]);
-    // Mid-drag preview elsewhere — the existing match must survive (the flicker fix).
+    // Mid-drag preview elsewhere — the existing match must survive
+    // (dropping it would flicker the selection during every drag).
     setShadowPending(view, { from: s + 11, to: s + 16 });
     const mid = similarSelectionKey.getState(view.state)!;
     expect(mid.matches).toEqual([{ from: s, to: s + 5 }]);

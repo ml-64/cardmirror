@@ -52,12 +52,12 @@ export const WORD_SHADING_COLORS: readonly WordColor[] = WORD_HIGHLIGHT_COLORS.m
 );
 
 /**
- * Note: Verbatim's `HighlightToBackgroundColor` macro produces shading
- * with RGB `D2D2D2`, which is *close to* but not identical to Word's
- * `lightGray` / "Gray 25%" at `C0C0C0`. New shading we apply uses the
- * Word-standard value; existing D2D2D2 in imported docs renders at
- * exact hex because the schema preserves the actual color attr (the
- * palette is for picking, not for normalizing existing data).
+ * Verbatim's `HighlightToBackgroundColor` macro produces shading with
+ * RGB `D2D2D2` — close to but not identical to Word's `lightGray` /
+ * "Gray 25%" at `C0C0C0`. New shading we apply uses the Word-standard
+ * value; existing `D2D2D2` in imported docs renders at exact hex
+ * because the schema preserves the actual color attr (the palette is
+ * for picking, not for normalizing existing data).
  */
 
 const HIGHLIGHT_NAME_SET = new Set(WORD_HIGHLIGHT_COLORS.map((c) => c.name));

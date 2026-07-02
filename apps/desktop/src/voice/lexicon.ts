@@ -154,7 +154,7 @@ export function buildLexicon(): LexiconEntry[] {
   });
   // Compound card ordinals 21–99 ("card twenty one") — debate files
   // routinely have far more than twenty cards. Users also naturally
-  // prefix with "go to" (live transcript), so both forms exist.
+  // prefix with "go to", so both forms exist.
   const TENS: Array<[string, number]> = [
     ['twenty', 20], ['thirty', 30], ['forty', 40], ['fifty', 50],
     ['sixty', 60], ['seventy', 70], ['eighty', 80], ['ninety', 90],
@@ -255,18 +255,17 @@ const MAX_VOCAB_PHRASES = 6000;
 export function docVocabGrammar(lexicon: LexiconEntry[], docText: string): string[] {
   const quoteVerbs = lexicon.filter((x) => x.quote).map((x) => x.phrase);
   const phrases = new Set<string>();
-  // Normalize to the model's vocabulary space (audit 2026-06-10):
-  // curly apostrophes → ascii (the editor produces "don’t"; the model
-  // knows "don't"), and diacritics stripped (café → cafe) — otherwise
-  // those words silently vanish from the grammar.
+  // Normalize to the model's vocabulary space: curly apostrophes →
+  // ascii (the editor produces "don’t"; the model knows "don't"), and
+  // diacritics stripped (café → cafe) — otherwise those words silently
+  // vanish from the grammar.
   const normalized = docText
     .toLowerCase()
     .replace(/[’‘]/g, "'")
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '');
-  // Digit tokens get spoken-word alternates so quotes can SAY them
-  // (test-run finding 2026-06-10: "take twenty six" was undecodable —
-  // the grammar only contained "26").
+  // Digit tokens get spoken-word alternates so quotes can say them —
+  // "take twenty six" is undecodable when the grammar only holds "26".
   const UNITS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
   const TEENS = ['ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
   const TENS_W = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];

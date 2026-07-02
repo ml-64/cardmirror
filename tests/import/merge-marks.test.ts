@@ -6,9 +6,9 @@
  * the importer parses each run's own `<w:rPr>` independently. Properties
  * declared on `<w:pPr>/<w:rPr>` do not propagate to runs.
  *
- * (We tried inheritance briefly during development and it caused mass
- * over-formatting on real docs that have `<w:pPr><w:rPr><w:u/></w:rPr></w:pPr>`
- * for paragraph-mark formatting only — see DECISIONS.md.)
+ * (Inheriting pPr/rPr into runs causes mass over-formatting on real
+ * docs that use `<w:pPr><w:rPr><w:u/></w:rPr></w:pPr>` for
+ * paragraph-mark formatting only — see DECISIONS.md.)
  */
 
 import { describe, expect, it } from 'vitest';

@@ -149,9 +149,9 @@ function entryPos(target: { pos: number; node: PMNode }): number {
 function setCursor(view: ViewLike, dispatch: (tr: Transaction) => void, pos: number): void {
   const clamped = Math.max(0, Math.min(pos, view.state.doc.content.size));
   // TextSelection.near tolerates block-gap positions (e.g. a container
-  // boundary from top/bottom math) instead of throwing — audit
-  // 2026-06-10: a RangeError here escaped the IPC callback and left the
-  // utterance unsealed.
+  // boundary from top/bottom math) instead of throwing — a RangeError
+  // here would escape the IPC callback and leave the utterance
+  // unsealed.
   dispatch(
     view.state.tr
       .setSelection(TextSelection.near(view.state.doc.resolve(clamped)))
@@ -266,11 +266,10 @@ export async function applyVoiceCommand(
       .filter((c) => c.base <= MAX_AVG_DISTANCE || (c.to > nearFrom && c.from < nearTo));
     if (!kept.length) return { status: 'none' };
     const best = kept[0] as QuoteCandidate;
-    // Picker rule (test-run finding 2026-06-10: "duplicates sometimes
-    // fire the picker, sometimes don't"): two or more equally good
-    // matches ONSCREEN → offer the pick, every time. Offscreen
-    // duplicates still resolve silently to the nearest — no doc sweep,
-    // and badges on offscreen spans would be invisible anyway.
+    // Picker rule: two or more equally good matches ONSCREEN → offer
+    // the pick, every time. Offscreen duplicates resolve silently to
+    // the nearest — no doc sweep, and badges on offscreen spans would
+    // be invisible anyway.
     const vis = deps.visibleRange?.() ?? { from: nearFrom, to: nearTo };
     const comparable = kept.filter(
       (c) => c.base <= best.base + COMPARABLE_BASE_MARGIN && c.to > vis.from && c.from < vis.to,
@@ -344,10 +343,10 @@ export async function applyVoiceCommand(
       }
       break;
     case 'strip': {
-      // Removal-only (test-run finding 2026-06-10: routing through the
-      // toggle ADDED the pen's mark to unmarked selections). Presence-
-      // gated, then explicit removeMark of the pen's mark names —
-      // context resolution covered by removing both underline variants.
+      // Removal-only — routing through the toggle would ADD the pen's
+      // mark to unmarked selections. Presence-gated, then explicit
+      // removeMark of the pen's mark names — context resolution covered
+      // by removing both underline variants.
       if (!(ok = requireSelection(view, deps))) break;
       const names = PEN_MARK_NAMES[pen.name];
       const present = names.some((nm) => {
@@ -370,8 +369,8 @@ export async function applyVoiceCommand(
     case 'stripAll': {
       // Spec §5: "remove ALL formatting marks". F12/clearToNormal
       // deliberately preserves highlight/shading (F12_STRIP lists);
-      // voice strip-all removes those too on a selection (test-run
-      // finding 2026-06-10) — voice is a superset, not a mirror.
+      // voice strip-all removes those too on a selection — a superset,
+      // not a mirror.
       ok = runRibbon(view, deps, 'clearToNormal', dispatch);
       if (ok && !view.state.selection.empty) {
         const s2 = view.state.selection;
@@ -889,7 +888,6 @@ export async function applyVoiceCommand(
       if (input) {
         typeIntoUiInput(input, args.quote ?? '');
       } else {
-        // No UI input focused — type into the document.
         dispatch(view.state.tr.insertText(args.quote ?? '').scrollIntoView());
       }
       echoText = `type «${args.quote}»`;
@@ -912,7 +910,7 @@ export async function applyVoiceCommand(
     case 'more':
     case 'voiceHelp':
       // Honest rejection until these exist — playing the success earcon
-      // for a no-op erodes trust (audit 2026-06-10).
+      // for a no-op erodes trust.
       deps.ui.hint(`"${verb === 'voiceHelp' ? 'voice help' : verb}" isn't available yet`);
       ok = false;
       break;

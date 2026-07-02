@@ -1,6 +1,6 @@
 /**
- * AI Repair Text — mirror of the "Card Formatting Tools" Repair Text tool,
- * redesigned to emit a LIST OF FIXES rather than the whole corrected text.
+ * AI Repair Text — mirror of the "Card Formatting Tools" Repair Text tool.
+ * The model emits a LIST OF FIXES rather than the whole corrected text.
  *
  * Why diffs, not whole text: repair is a minimal-intervention task (fix OCR
  * / PDF extraction artifacts, change nothing else). Round-tripping the full
@@ -8,7 +8,7 @@
  * wastes output tokens on text that's 99% unchanged. Instead the model
  * returns `{ fixes: [{ find, replace }] }`, each `find` a verbatim
  * substring of the selection; we locate each in the doc and apply it in
- * place. The model literally cannot touch anything it doesn't name.
+ * place. The model cannot touch anything it doesn't name.
  *
  * Locating: we flatten the selection to text with `\n` between blocks (so
  * the model doesn't read paragraph boundaries as run-together words) plus a
@@ -75,7 +75,7 @@ export interface RepairFix {
 /** Heuristic salvage for the model's most common JSON slip: an
  *  UNESCAPED double quote (or literal newline) inside a string value —
  *  debate evidence is full of quotation marks, and one missed escape
- *  used to kill the whole response. Walks the string tracking
+ *  would otherwise kill the whole response. Walks the string tracking
  *  inside-string state; an interior `"` not followed (after
  *  whitespace) by a structural character is escaped. Exported for
  *  testing. */
@@ -325,7 +325,7 @@ function locateNormalized(
   // CASE-SENSITIVELY (the comparison is model-internal, so the model's
   // context-case misquotes agree with themselves) — otherwise a fix
   // whose whole point is a case change ("Of" → "of") folds to an empty
-  // middle and gets discarded as a no-op (live miss 2026-06-10).
+  // middle and gets discarded as a no-op (observed in live use).
   // Case-preserving folds share indices with the case-folded ones
   // unless a locale oddity changes length under lowercasing — then
   // fall back to the case-folded comparison.
@@ -376,8 +376,8 @@ function locateNormalized(
 }
 
 /** Last resort when even the folded search misses: the model sometimes
- *  MISQUOTES its context a word away from the actual edit — live case
- *  2026-06-10: find "of re sis tance literature" for a doc that reads
+ *  MISQUOTES its context a word away from the actual edit — observed
+ *  live: find "of re sis tance literature" for a doc that reads
  *  "of THE re sis tance literature". Trim whole context words off the
  *  find's ends (within the agreeing prefix/suffix only, so the edit
  *  middle is untouched) and retry, smallest trim first. Fixes arrive
@@ -443,7 +443,7 @@ function locateTrimmed(
  *  forward from the previous match, falling back to a global search), and
  *  map it to a non-overlapping doc range. A verbatim miss retries in
  *  folded space (smart quotes/dashes/invisibles — the things models
- *  fail to echo verbatim; live-confirmed 2026-06-10 as the dominant
+ *  fail to echo verbatim, and in live use the dominant
  *  "could not place" cause on imported cards). Returns the located
  *  edits plus the count that couldn't be placed. Exported for testing. */
 export function locateFixes(
@@ -471,8 +471,8 @@ export function locateFixes(
     // Reduce the verbatim match to its differing MIDDLE — the actual
     // correction. The agreeing context never needs editing, and using
     // edit-sized ranges lets fixes with overlapping context windows
-    // coexist (live finding 2026-06-10: a detected "self- help" fix
-    // was dropped because another fix's context covered it).
+    // coexist (observed live: a detected "self- help" fix dropped
+    // because another fix's context covered it).
     let p = 0;
     const fLen = fix.find.length;
     const rLen = fix.replace.length;
@@ -617,7 +617,7 @@ async function fetchFixes(
     system: DEFAULT_REPAIR_PROMPT,
     messages: [{ role: 'user', content: flat.text }],
     // A long OCR'd card can legitimately need dozens of fixes, each
-    // carrying context — 4096 used to cut the JSON off mid-array
+    // carrying context — a 4096 cap cuts the JSON off mid-array
     // (parse error). Output tokens only bill as generated.
     maxTokens: 16000,
     temperature: 0,
@@ -640,10 +640,9 @@ async function fetchFixes(
 
 /** Apply a pass's located fixes in ONE transaction, flashing every
  *  replacement at once — matching Repair Formatting's batch behavior
- *  (the per-fix walk was retired 2026-06-10 by request; the two passes
- *  read as two blinks). Kept OFF the undo history; `collapseToSingleUndo`
- *  records the whole repair as one step at the end. Returns the
- *  selection bounds mapped through the pass. */
+ *  (the two passes read as two blinks). Kept OFF the undo history;
+ *  `collapseToSingleUndo` records the whole repair as one step at
+ *  the end. */
 function applyPass(
   view: EditorView,
   located: readonly LocatedFix[],

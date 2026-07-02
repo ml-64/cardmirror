@@ -2,9 +2,9 @@
  * Crash-recovery sidebar.
  *
  * Word-style left panel that shows journal entries left over from
- * a previous session. Each row lets the user **Open** the draft
- * (load it into the editor for inspection) or **Discard** it
- * (delete the journal). Drafts the user neither opens nor discards
+ * a previous session. Each row lets the user **Save** the draft to
+ * disk, **Open** it in the editor for inspection, or **Discard** it
+ * (delete the journal). Drafts the user neither saves nor discards
  * stay in the journal store and reappear on the next launch.
  *
  * Unlike a modal, the sidebar coexists with the editor — the user
@@ -14,7 +14,7 @@
  * normal width.
  *
  * Promise-based: resolves when the user closes the sidebar (or
- * after every entry has been opened / discarded).
+ * once every entry has been saved or discarded).
  */
 
 import type { JournalEntry } from './host/index.js';

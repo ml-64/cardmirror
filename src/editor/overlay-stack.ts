@@ -4,8 +4,8 @@
  * Several full-screen overlays (the Learn and Quick-Card dialogs) attach
  * their own document-level, capture-phase Escape listener. When two are
  * open at once, a single Escape press fires every listener — `stopProp-
- * agation` doesn't stop sibling listeners on the same node — so the whole
- * stack collapsed at once.
+ * agation` doesn't stop sibling listeners on the same node — so without
+ * coordination the whole stack collapses at once.
  *
  * Each participating overlay pushes a token when it opens and pops it when
  * it closes (pair the pop with the same `removeEventListener` cleanup), and

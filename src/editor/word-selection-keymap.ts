@@ -426,10 +426,8 @@ function isInsideWordOrPunctUnit(map: ClassMap, offset: number): boolean {
  *    paragraph.
  *  - Down (`to-end`): collapse to the START of the paragraph AFTER the
  *    one holding the selection's end — i.e. just past the paragraph
- *    break, the same place a Down would continue to. (It used to stop
- *    at the selection-end paragraph's END, an extra stop before the
- *    next paragraph.) A following Down then continues to the paragraph
- *    after that.
+ *    break, the same place a Down would continue to. A following Down
+ *    then continues to the paragraph after that.
  *
  *  Down edge cases:
  *  - `$to.parentOffset === 0`: after Ctrl+Shift+Down, `$to` sits at the

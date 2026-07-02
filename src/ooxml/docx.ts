@@ -30,7 +30,7 @@ const utf8Encoder = new TextEncoder();
  *  part-name → bytes Map. Insertion order is preserved through
  *  `toBuffer`, so a loaded file re-serializes with its original part
  *  order. Reads/writes are synchronous internally; the async method
- *  signatures are kept so callers are untouched. */
+ *  signatures are part of the public API. */
 export class Docx {
   private constructor(private parts: Map<string, Uint8Array>) {}
 
@@ -56,22 +56,19 @@ export class Docx {
     docx.writeText('word/styles.xml', CANONICAL_STYLES_XML);
     docx.writeText('word/_rels/document.xml.rels', DOCUMENT_RELS_XML);
     docx.writeText('word/document.xml', EMPTY_DOCUMENT_XML);
-    // Verbatim-recognition surface. Setting <w:attachedTemplate> in
+    // Verbatim-recognition surface: <w:attachedTemplate> in
     // word/settings.xml with a Target ending in "/Debate.dotm" makes
     // Verbatim's per-doc visibility callback
     // (Ribbon.GetRibbonVisibility, registered on every group in
     // customUI14.xml) return True, so the Debate ribbon activates
-    // when a Verbatim user opens our export — without them having
-    // to click "Verbatimize" first. Verified by experiment to be
-    // sufficient: Word doesn't validate the file exists at the
-    // stored path, it just basename-matches the URI. Both Windows
-    // and Mac Verbatim installs read the same XML shape and
-    // activate identically. The methodology (extract Verbatimize'd
-    // doc, diff against unverbatimized, narrow the recognition
-    // surface, sweep URI shapes to pick the most portable Target)
-    // lives in `reference-docs/experiment-verbatimize.mjs`
-    // (gitignored — local diagnostic for re-running if Verbatim's
-    // recognition mechanism ever shifts).
+    // when a Verbatim user opens our export without clicking
+    // "Verbatimize" first. Verified experimentally: Word doesn't
+    // validate that a file exists at the stored path, it
+    // basename-matches the URI, and Windows and Mac Verbatim
+    // installs read the same XML shape. The methodology for
+    // re-deriving this if Verbatim's recognition ever shifts lives
+    // in `reference-docs/experiment-verbatimize.mjs` (gitignored
+    // local diagnostic).
     docx.writeText('word/settings.xml', SETTINGS_XML);
     docx.writeText('word/_rels/settings.xml.rels', SETTINGS_RELS_XML);
     return docx;
@@ -117,10 +114,8 @@ export class Docx {
   /** Write the CardMirror `docId` as a custom document property
    *  (`docProps/custom.xml`) — verified to survive a real Word round-trip.
    *  Adds the part, its content-type override, and a package relationship.
-   *  Idempotent-ish: if a custom.xml already exists we replace it (we only
-   *  store the one property). When a `custom.xml` already exists we MERGE
-   *  into it — preserving any other custom properties the user/Word set —
-   *  rather than overwriting the whole part. */
+   *  Merges into an existing `custom.xml`, replacing any prior `cmirDocId`
+   *  while preserving other custom properties the user or Word set. */
   async writeDocId(docId: string): Promise<void> {
     const prop = (pid: number): string =>
       `<property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="${pid}" name="cmirDocId"><vt:lpwstr>${escText(docId)}</vt:lpwstr></property>`;
@@ -175,7 +170,7 @@ export class Docx {
     return m ? m[1]! : null;
   }
 
-  /** Serialize to bytes (for writing to disk or sending across a wire). */
+  /** Serialize the zip to bytes. */
   async toBuffer(): Promise<Uint8Array> {
     return zipSync(Object.fromEntries(this.parts), { level: 6 });
   }
@@ -231,8 +226,8 @@ const EMPTY_DOCUMENT_XML = `${XML_PROLOG}
 
 // `word/settings.xml` — minimum Verbatim-recognition payload: a
 // single <w:attachedTemplate> element. The r:id resolves against
-// `word/_rels/settings.xml.rels` (NOT document.xml.rels — that's a
-// common confusion, and was the bug in the v6/v7 experiment).
+// `word/_rels/settings.xml.rels`, NOT document.xml.rels — an easy
+// mix-up.
 const SETTINGS_XML = `${XML_PROLOG}
 <w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <w:attachedTemplate r:id="rId1"/>

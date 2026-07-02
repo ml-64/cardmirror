@@ -82,7 +82,8 @@ describe('FLASHCARD_SYSTEM_PROMPT', () => {
   });
 
   it('forbids compound cards and gives the binary-grading reason', () => {
-    // Atomicity is the rule the user saw violated — keep it forceful.
+    // Atomicity is the rule generation has violated in practice, so the
+    // prompt states it forcefully — pin the strong phrasing.
     expect(FLASHCARD_SYSTEM_PROMPT).toMatch(/single fact or idea/i);
     expect(FLASHCARD_SYSTEM_PROMPT).toMatch(/binary Remembered\/Forgot/i);
     expect(FLASHCARD_SYSTEM_PROMPT).toMatch(/SEPARATE cards/);

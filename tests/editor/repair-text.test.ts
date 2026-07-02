@@ -232,8 +232,8 @@ describe('placement on formatted cards (failure repro)', () => {
 
   it('a CASE-ONLY fix places via the fallback (case folds for search, not for the diff)', () => {
     // Live miss 2026-06-10: find "appropriation Of its\nfoundationalist"
-    // fixing "Of"→"of". Case-folding the find→replace diff erased the
-    // edit (empty middle → discarded as no-op). The diff is now
+    // fixing "Of"→"of". Case-folding the find→replace diff would erase
+    // the edit (empty middle → discarded as no-op), so the diff is
     // case-sensitive while the search stays case-insensitive.
     const doc = makeDoc(
       para('an appropriation Of its'),

@@ -3,12 +3,11 @@
  *
  * As you type the last hyphen of the configured trigger (`---` classic, or
  * `--`), it's replaced with the configured dash output (en/em dash, with or
- * without surrounding spaces). The `--` trigger fires on the second hyphen —
- * historically not offered because such a rule "could never tell a
- * forthcoming --- apart", but as an explicit setting the ambiguity is
- * resolved by the user's choice. In `--` mode the rule refuses to fire
- * mid-hyphen-run (e.g. after pasted hyphens), so it only converts a clean
- * pair.
+ * without surrounding spaces). The `--` trigger fires on the second hyphen,
+ * so it cannot tell a forthcoming `---` apart — acceptable only because the
+ * user opts into that trigger explicitly. In `--` mode the rule refuses to
+ * fire mid-hyphen-run (e.g. after pasted hyphens), so it only converts a
+ * clean pair.
  *
  * Word-parity revert: pressing Backspace immediately after the substitution
  * restores the literal trigger (rather than deleting a character). The pending
@@ -35,7 +34,7 @@ export function dashOutput(): string {
 }
 
 /** A pending Backspace-revert: the dash output sits at [from, to); Backspace
- *  there restores the literal `---`. */
+ *  there restores the literal trigger. */
 interface CustomDashState {
   undo: { from: number; to: number } | null;
 }
@@ -81,7 +80,7 @@ export function customDashPlugin(): Plugin<CustomDashState> {
         }
         const output = dashOutput();
         const start = from - need;
-        // Replace the two existing hyphens + the one being typed with the output.
+        // Replace the preceding hyphens + the one being typed with the output.
         const tr = state.tr.insertText(output, start, to);
         const end = start + output.length;
         tr.setSelection(TextSelection.create(tr.doc, end));

@@ -1,7 +1,7 @@
 /**
  * Read-aloud word counting.
  *
- * The "read-aloud" predicate, per the user spec:
+ * The "read-aloud" predicate:
  *   - All text inside a `tag` paragraph
  *   - All text inside an `analytic` paragraph
  *   - Text carrying the `cite_mark` mark (typically inside `cite_paragraph`)

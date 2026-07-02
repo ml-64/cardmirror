@@ -61,11 +61,11 @@ export class VoiceController {
   private vocabTimer: ReturnType<typeof setInterval> | null = null;
   private lastVocabText: string | null = null;
   private active = false;
-  /** Re-entrancy guard (audit 2026-06-10): toggle() awaits several
-   *  times before `active` flips, so a double Ctrl-Shift-V used to race
-   *  two starts — duplicate capture streams (hot mic leak), stacked
-   *  vocab timers, zombie state. The generation counter also cancels an
-   *  in-flight start when stop() lands mid-way. */
+  /** Re-entrancy guard: `toggle()` awaits several times before `active`
+   *  flips, so a double Ctrl-Shift-V would otherwise race two starts —
+   *  duplicate capture streams (hot mic leak), stacked vocab timers.
+   *  The generation counter also cancels an in-flight start when
+   *  `stop()` lands mid-way. */
   private starting = false;
   private generation = 0;
   /** Input value before live dictation partials started revising it. */
@@ -134,9 +134,9 @@ export class VoiceController {
     }
     if (!res.ok) {
       this.pill.setListening(false);
-      // The base model is a first-use download now, not a bundled
-      // asset — so "missing" is the common, recoverable case: offer to
-      // fetch it rather than showing a dead-end error.
+      // The base model is a first-use download, not a bundled asset —
+      // "missing" is the common, recoverable case: offer to fetch it
+      // rather than showing a dead-end error.
       if (res.error === 'voice-model-missing') {
         void this.offerBaseModelDownload(host);
         return;
@@ -259,12 +259,11 @@ export class VoiceController {
   }
 
   /** First-run flow when the base recognition model isn't downloaded
-   *  yet. Confirm, kick off the background download, and — per an
-   *  explicit UX call — DON'T auto-start when it lands (a multi-minute
-   *  download outlasts the user's attention; a surprise hot mic is
-   *  worse than a second key press). Instead inform them, unmissably,
-   *  that it's ready. Live progress is available in Settings → the
-   *  voice section. */
+   *  yet. Confirm, kick off the background download, and DON'T
+   *  auto-start when it lands — a multi-minute download outlasts the
+   *  user's attention, and a surprise hot mic is worse than a second
+   *  key press. Instead inform them, unmissably, that it's ready. Live
+   *  progress is shown in Settings → the voice section. */
   private async offerBaseModelDownload(host: VoiceHostApi): Promise<void> {
     if (!host.voiceDownloadBaseModel || !host.voiceBaseModelInfo) {
       showToast(
@@ -321,8 +320,7 @@ export class VoiceController {
 
   private handleEvent(event: VoiceEvent | VoiceEndedEvent, deps: DispatchDeps): void {
     // Out-of-band session termination (worker crash): stop everything
-    // and SAY so — a dead session must never look like a listening one
-    // (audit 2026-06-10).
+    // and SAY so — a dead session must never look like a listening one.
     if (event.kind === 'ended') {
       this.stop();
       showToast(`Voice stopped: ${event.reason}`, { durationMs: 2600 });
@@ -333,7 +331,7 @@ export class VoiceController {
     void this.routeEvent(view, event, deps)
       .catch((err) => {
         // A throw must not leave the loop looking dead — echo + earcon
-        // and keep the session alive (audit 2026-06-10).
+        // and keep the session alive.
         console.error('voice: command failed', err);
         this.pill?.setEcho(`(error) ${event.raw ?? ''}`, false);
         this.pill?.earconReject();
@@ -397,8 +395,8 @@ export class VoiceController {
       case 'rejection':
         this.pill?.setEcho(`(${event.reason}) "${event.raw}"`, false);
         // Out-of-grammar = stray speech; with an open mic it's routine,
-        // so it stays visual-only (owner call, 2026-06-09). Low-conf /
-        // invalid-utterance mean "heard you, refused" — those beep.
+        // so it stays visual-only. Low-conf / invalid-utterance mean
+        // "heard you, refused" — those beep.
         if (event.reason !== 'out-of-grammar') this.pill?.earconReject();
         patchVoiceState(view, {
           appendLog: { utteranceId: event.utteranceId, kind: 'rejection', text: event.raw },

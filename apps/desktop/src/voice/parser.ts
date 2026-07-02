@@ -205,8 +205,8 @@ export class CommandParser {
 
 /**
  * Lenient reserved-phrase matching for dictation escapes (§7, §10):
- * tolerate a leading noise word and [unk] residue. "end"/"and" taught
- * us exact equality loses real exits.
+ * tolerate a leading noise word and [unk] residue. The "end"/"and"
+ * homophone makes exact equality lose real exits.
  */
 export function matchReserved(escapeText: string, reserved: string[]): string | null {
   const heard = stripUnk(escapeText);
@@ -214,11 +214,11 @@ export function matchReserved(escapeText: string, reserved: string[]): string | 
   for (const phrase of reserved) {
     if (heard === phrase || heard.endsWith(' ' + phrase)) return phrase;
   }
-  // Tail-word-alone fallback, WHITELISTED to "typing" only (audit
-  // 2026-06-10): the generic version made dictating a lone "paragraph",
-  // "line", "that", or "sleep" execute a command instead of inserting
-  // the word. "typing" keeps the lenient recall the "end/and" homophone
-  // forced, and is not a word debaters dictate alone.
+  // Tail-word-alone fallback, WHITELISTED to "typing" only: a generic
+  // version would make dictating a lone "paragraph", "line", "that",
+  // or "sleep" execute a command instead of inserting the word.
+  // "typing" keeps the lenient recall the "end"/"and" homophone
+  // requires, and is not a word debaters dictate alone.
   const lastWord = heard.split(' ').at(-1) ?? '';
   if (lastWord === 'typing') {
     const tailMatches = reserved.filter((p) => p.endsWith(' typing'));

@@ -45,14 +45,12 @@ import {
   READ_MODE_DRAG_META,
 } from './reading-marker.js';
 
-/** Meta key used to flip read mode on or off for a specific view.
- *  The meta value is the *desired* state — `true` turns read mode
- *  on, `false` turns it off. (Earlier this was a boolean
- *  "recompute" flag and the plugin re-read the global
- *  `settings.readMode` itself, but that broke once multi-doc made
- *  read mode per-pane state — the global setting stays `false`
- *  while individual panes flip on, and the plugin's text-hiding
- *  decorations never got emitted.) */
+/** Meta key that flips read mode on or off for a specific view.
+ *  The meta value is the *desired* state — `true` on, `false` off.
+ *  The state is carried explicitly rather than re-read from the
+ *  global `settings.readMode`: read mode is per-pane under
+ *  multi-doc, so the global setting can stay `false` while an
+ *  individual pane is on. */
 export const PMD_READ_MODE_TOGGLE = 'pmdReadModeToggle';
 
 interface ReadModeState {

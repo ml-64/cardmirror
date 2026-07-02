@@ -2,9 +2,9 @@
 
 /**
  * NavigationPanel.destroy() — the multi-pane shell creates one panel
- * per open doc and (audit 2026-06-10) used to tear down the view but
- * never the panel: the settings/drag subscriptions kept every closed
- * pane's panel alive for the session, pinning its full doc snapshot.
+ * per open doc; destroy must release the settings/drag subscriptions
+ * and the doc snapshot, or a closed pane's panel stays alive for the
+ * session, pinning its full doc.
  */
 
 import { describe, expect, it } from 'vitest';

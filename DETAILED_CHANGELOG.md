@@ -90,6 +90,23 @@ in each release, see `CHANGELOG.md`.
   the default composition, each option axis, cite collection, the
   heading-assembly rules, and the empty-selection guard.
 
+- **Code comment audit** (140 files across `src/`, `apps/desktop/src/`,
+  `tests/`, `scripts/`, `dev/`; comments only — no user-facing impact).
+  A 52-agent audit rationalized the comments accumulated across AI
+  sessions: 554 rewritten, 38 deleted (net −475 lines). Removed
+  change-narration documenting transitions whose earlier state no longer
+  exists, conversation echoes ("per user…", dated session markers),
+  stranded/misattached JSDoc, and restating-the-code noise; enforced
+  consistent formatting and terminology (code identifiers in backticks,
+  user-facing features by their UI names). Unverifiable-but-plausible
+  claims (perf measurements, platform anecdotes, Word/Verbatim domain
+  knowledge) were kept deliberately. Verified three ways: every changed
+  file minifies byte-identically to its pre-audit version (esbuild,
+  comments stripped), an adversarial reviewer pass per shard restored
+  over-trimmed load-bearing info (7 restorations, 17 drift fixes), and
+  typecheck + the full suite stay green. Excluded: `card-cutter-*`
+  files, generated `icons.css`, CI-owned `pairing-build.ts`.
+
 - **Terminology: "shading" → "background color" in user-facing text**
   (`settings.ts`, `MANUAL.md`).
   Per maintainer direction, user-facing text uses Word's name for the

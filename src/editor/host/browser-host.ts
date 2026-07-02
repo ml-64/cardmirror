@@ -255,11 +255,10 @@ export class BrowserHost implements Host {
   /** Settles the currently-pending openOnce (as null), if any. A
    *  pending open can hang forever — a dismissed picker on a browser
    *  without the `cancel` event, or an `input.click()` that silently
-   *  did nothing because its user activation had expired. Opens used
-   *  to QUEUE behind an in-flight promise, so one hung open wedged
-   *  every future open across every entry point (Ctrl-O, menu, home
-   *  screen all share this method); a new attempt now supersedes the
-   *  stuck one instead. */
+   *  did nothing because its user activation had expired. A new
+   *  attempt supersedes the stuck one rather than queueing behind it,
+   *  so one hung open can't wedge every future open (Ctrl-O, menu,
+   *  and home screen all share this method). */
   private abortPendingOpen: (() => void) | null = null;
 
   async openFile(opts: OpenFileOptions = {}): Promise<OpenedFile | null> {
@@ -303,9 +302,7 @@ export class BrowserHost implements Host {
   private openOnce(opts: OpenFileOptions): Promise<OpenedFile | null> {
     const input = this.ensureFileInput();
     // Reapply the accept attribute from the caller's filters on
-    // every open — different call sites may want different filters
-    // (the ribbon Open accepts both formats; a hypothetical
-    // "import .docx only" command could pass just docx).
+    // every open — different call sites may pass different filters.
     // On iOS a custom-extension `accept` greys out the very files we want
     // (`.cmir`), so drop it there and let any file be picked — the format is
     // validated downstream. Other browsers honor the extension filter fine.
@@ -353,16 +350,12 @@ export class BrowserHost implements Host {
         }
       };
 
-      // `cancel` is the modern (Chrome 113+, Firefox 91+, Safari
-      // 16.4+) signal that the user closed the picker without
-      // picking anything. Before it existed we polled focus + a
-      // 200ms timeout, which raced the `change` event when the
-      // browser was slow to populate `input.files` after the dialog
-      // closed (especially when the dialog was opened by a button
-      // click rather than a keyboard shortcut — different focus
-      // path through the activeElement). The cancel event removes
-      // the race; if the browser is old enough to lack it, the
-      // promise just stays pending on cancel — minor leak, no
+      // `cancel` (Chrome 113+, Firefox 91+, Safari 16.4+) signals
+      // that the user closed the picker without picking anything.
+      // Unlike a focus + timeout heuristic, it can't race a slow
+      // `change` event (browsers may populate `input.files` well
+      // after the dialog closes). On browsers that lack the event,
+      // the promise stays pending on cancel — a minor leak, but no
       // false null resolve that drops a real selection.
       const onCancel = (): void => {
         if (settled) return;

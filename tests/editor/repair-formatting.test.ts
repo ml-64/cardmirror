@@ -137,7 +137,7 @@ describe('analyzeCard', () => {
 
   // Live miss 2026-06-10: an all-bold-underline card (pattern 3) was
   // mapped b+u → em — the model failed to notice the ABSENCE of plain
-  // underlining. The fact is now computed and stated in the request.
+  // underlining. The request states that fact explicitly.
   it('states the all-underlining-is-bold fact when no plain underline exists', () => {
     const doc = makeDoc(
       card(tag('TAG'), body(t('plain lead '), t('bold underlined', m('bold'), m('underline_mark')))),
@@ -161,7 +161,7 @@ describe('analyzeCard', () => {
 
   // Live miss: a size-encoded (pattern-4) card with NO underlining had the
   // shrunk MAJORITY text underlined and the base-size text stripped — the
-  // model inverted the size direction. The FACTS now state the base size,
+  // model inverted the size direction. The FACTS state the base size,
   // the shrunk share, and the direction explicitly, and never claim "all
   // underlining is bold" for a card that has no underlining at all.
   it('states the size-encoded direction for a pattern-4 card with no underline', () => {

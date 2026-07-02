@@ -1,5 +1,6 @@
 /**
- * Verbatim ribbon structural-style hotkeys (F4–F7).
+ * Verbatim ribbon commands: structural hotkeys (F4–F7), character
+ * styles (F8–F11), gap fixing, keymap/alias registry, paste helpers.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -806,7 +807,7 @@ function selectionAcross(
     if (from === -1 && findFrom(node)) from = p + 1;
     // Land `to` at the END of the matched block's content. Use Math.max so
     // an inner text node (which also matches a textContent predicate) can't
-    // pull `to` back to the block's start — a boundary at offset 0 now reads
+    // pull `to` back to the block's start — a boundary at offset 0 reads
     // as "this block is not selected" and is excluded from the restyle.
     if (findTo(node)) to = Math.max(to, p + node.nodeSize - 1);
     return true;
@@ -950,7 +951,7 @@ describe('setUndertag', () => {
         cardBody('body'),
       ]),
     ]);
-    // cursor inside the cite_paragraph
+    // Cursor inside the cite_paragraph.
     let pos = -1;
     doc.descendants((n, p) => {
       if (n.type.name === 'cite_paragraph' && pos === -1) pos = p + 1;
@@ -1151,7 +1152,7 @@ describe('re-pressing a structural style resets indent + font-size + font-color 
     expect(head.type.name).toBe('pocket');
     expect(head.attrs['id']).toBe('p1');
     expect(head.attrs['indent']).toBe(0);
-    expect(head.attrs['spacing']).toEqual(SPACING); // spacing preserved
+    expect(head.attrs['spacing']).toEqual(SPACING);
     expect(hasFontSize(next!.doc)).toBe(false);
     expect(hasFontColor(next!.doc)).toBe(false);
   });
@@ -1629,7 +1630,7 @@ describe('applyCite (F8)', () => {
     );
     const next = apply(state, applyCite());
     expect(next).not.toBeNull();
-    // Both bodies are cited; tags are NOT (they were skipped).
+    // Both bodies are cited; the tags are skipped.
     expect(citeMarkIdsForText(next!.doc, 'first body')).toBe(true);
     expect(citeMarkIdsForText(next!.doc, 'second body')).toBe(true);
     expect(citeMarkIdsForText(next!.doc, 'T1')).toBe(false);
@@ -2283,7 +2284,6 @@ describe('applyEmphasis (F10)', () => {
       base.tr.setSelection(TextSelection.create(base.doc, from, from + 2)),
     );
     const next = apply(state, applyEmphasis());
-    // Idempotent — mark still present.
     expect(emphMarkOnText(next!.doc, 'hi')).toBe(true);
   });
 
@@ -2295,11 +2295,8 @@ describe('applyEmphasis (F10)', () => {
 // ---- emphasizeAcronym (Alt-F10) ----
 
 describe('emphasizeAcronym (Alt-F10)', () => {
-  // Returns the set of character indices WITHIN A TARGET BLOCK's
-  // textblock content that carry emphasis_mark. Walks just the
-  // children of the textblock whose textContent matches `target`,
-  // so the result is local-to-block offsets — independent of
-  // surrounding doc structure.
+  // Character offsets, local to the textblock whose textContent
+  // equals `target`, that carry `emphasis_mark`.
   function emphPositionsInBlock(
     doc: import('prosemirror-model').Node,
     target: string,
@@ -3141,10 +3138,10 @@ describe('buildPlainTextSlice (F2 Paste Text)', () => {
 
     it('plain-paste into a tag with trailing newline no longer creates a multi-paragraph slice (regression test for the "skipping around on paste" / scroll-to-bottom bug)', () => {
       // Triple-click in a browser commonly yields "Article Title\n".
-      // Before the fix: buildPlainTextSlice("Article Title\n") returned
-      // a 2-paragraph slice, which when replaceSelection'd into a tag
-      // split the surrounding card at the newline boundary and the
-      // viewport jumped to the doc-end.
+      // Without normalization, buildPlainTextSlice would return a
+      // 2-paragraph slice that, replaceSelection'd into a tag, splits
+      // the surrounding card at the newline boundary and jumps the
+      // viewport to the doc-end.
       const normalized = normalizeClipboardTextForPaste('Article Title\n', 'tag');
       const slice = buildPlainTextSlice(normalized);
       expect(slice.content.childCount).toBe(1);
@@ -3276,7 +3273,7 @@ describe('tryPasteSplitContainer (paste tag/analytic into a container body)', ()
       cardBody('b'),
       cardBody('c'),
     );
-    // cursor at end of 'b' (the middle body)
+    // Cursor at end of 'b' (the middle body).
     const state = stateInBody(card, 'b', 1);
     const tr = tryPasteSplitContainer(state, tagSlice('NewTag'));
     const next = state.apply(tr!);
@@ -3328,8 +3325,8 @@ describe('tryPasteSplitContainer (paste tag/analytic into a container body)', ()
   });
 
   it('a whole copied card pasted at the END of a card lands as its own card', () => {
-    // The reported case: paste a card at the end of another card. The pasted
-    // card must NOT be absorbed/demoted.
+    // Paste a card at the end of another card: the pasted card must
+    // NOT be absorbed/demoted.
     const card = cardWith(tag('Dest'), cardBody('foobar'));
     const state = stateInBody(card, 'foobar', 'foobar'.length);
     const slice = new Slice(Fragment.fromArray([tag('Pasted'), cardBody('body')]), 0, 0);
@@ -3462,11 +3459,11 @@ describe('F8/F9/F10 apply strips direct formatting', () => {
   });
 
   it('applyEmphasis (F10): strips bold but PRESERVES highlight on apply', () => {
-    // Per 2026-05-13: applying a named character style (cite /
-    // emphasis / underline) keeps the highlight color — the user
-    // wants to know "this is the argument-text" regardless of the
-    // typographic re-skin. Toggle-off behaviors still strip
-    // highlight when the user opts in.
+    // Applying a named character style (cite / emphasis / underline)
+    // keeps the highlight color — highlights mark "this is the
+    // argument-text" regardless of the typographic re-skin.
+    // Toggle-off behaviors still strip highlight when the user
+    // opts in.
     const bold = schema.marks['bold']!.create();
     const hl = schema.marks['highlight']!.create({ color: 'yellow' });
     const text = schema.text('important', [bold, hl]);
@@ -3877,9 +3874,8 @@ describe('convertAnalyticsToTags', () => {
       state0.tr.setSelection(TextSelection.create(state0.doc, selPos)),
     );
     let next: EditorState | null = null;
-    // Selection is empty (collapsed). Per our spec, empty selection
-    // means doc-wide — so this isn't a useful test of the
-    // "intersect-selection" branch. Set a NON-empty selection.
+    // An empty selection means doc-wide scope, so expand to a
+    // non-empty selection to exercise the intersect-selection branch.
     const expanded = state.apply(
       state.tr.setSelection(TextSelection.create(state.doc, selPos, selPos + 1)),
     );
@@ -4139,7 +4135,7 @@ describe('fixFormattingGaps', () => {
     fixFormattingGaps(effectivePt)(state, (tr) => { next = state.apply(tr); });
     expect(next).not.toBeNull();
     const chars = marksByChar(next!.doc);
-    // every char including the space carries underline_mark.
+    // Every char including the space carries underline_mark.
     for (const c of chars) {
       expect(c.marks.has('underline_mark')).toBe(true);
     }
@@ -4175,10 +4171,10 @@ describe('fixFormattingGaps', () => {
     }
   });
 
-  // After `addMark` replaces the last bookend's color with the
-  // first's, PM merges the now-uniformly-marked runs into a single
-  // text node — so we can't find "just the space" anymore. Walk
-  // every char and check the resulting mark/color at each position.
+  // After a bridge, the gap carries the first bookend's marks, so
+  // PM merges it with that bookend into a single text node — "just
+  // the space" can't be found as its own node. Walk to the char's
+  // doc position and read the mark/color there.
   function colorAt(
     doc: import('prosemirror-model').Node,
     markName: 'highlight' | 'shading',
@@ -4198,10 +4194,9 @@ describe('fixFormattingGaps', () => {
     return result;
   }
 
-  // Highlight + shading bridges are now contingent on the gap
-  // qualifying via a named-style pair. We add underline_mark to the
-  // bookends so the gap qualifies; the color-bridge then fires per
-  // its own first-bookend-wins rule.
+  // Highlight / shading bridge whenever BOTH bookends carry the
+  // mark, taking the FIRST bookend's color on a mismatch. The
+  // underline on the bookends bridges independently.
   it('bridges highlight using the first bookend color when colors differ (qualifying bookends)', () => {
     const u = schema.marks['underline_mark']!.create();
     const doc = makeDoc(p(
@@ -4234,10 +4229,9 @@ describe('fixFormattingGaps', () => {
   });
 
   it('bridges highlight even when neither bookend carries a named-style mark', () => {
-    // Under the unified intersection rule, every shared mark on the
-    // bookends gets bridged regardless of named-style — there's no
-    // qualifying gate anymore. Two highlight-only bookends → gap
-    // gets highlight.
+    // Every mark shared by both bookends is bridged — there is no
+    // named-style prerequisite. Two highlight-only bookends → the
+    // gap gets highlight.
     const doc = makeDoc(p(
       withHighlight('aaa', 'yellow'),
       schema.text(' '),
@@ -4252,8 +4246,8 @@ describe('fixFormattingGaps', () => {
 
   it('strips a stale named-style mark from a gap whose bookends do not share it', () => {
     // Cleanup behavior: bookends are plain text, but the gap carries
-    // a stale underline_mark (perhaps from earlier editing). The new
-    // unified rule strips it.
+    // a stale underline_mark. Marks the bookends don't share are
+    // stripped from the gap.
     const doc = makeDoc(p(
       schema.text('foo'),
       schema.text(' ', [schema.marks['underline_mark']!.create()]),
@@ -4486,12 +4480,10 @@ describe('fixFormattingGaps', () => {
   });
 
   it('does not touch bookends even on same-style bridge (range is gap-only)', () => {
-    // Sanity check that the gap-only range applies even for matching
-    // bookends — addMark on the bookends would be idempotent for same-
-    // attr marks, but for highlight with mismatched colors it would
-    // change the last bookend's color. We bridge only the gap.
-    // Bookends need a named-style mark for the gap to qualify; we use
-    // underline_mark on both so the gap qualifies via same-mark rule.
+    // Sanity check that the bridge range is gap-only — addMark over
+    // the bookends would be idempotent for same-attr marks, but for
+    // highlight with mismatched colors it would repaint the last
+    // bookend with the first's color.
     const u = schema.marks['underline_mark']!.create();
     const doc = makeDoc(p(
       schema.text('foo', [u, schema.marks['highlight']!.create({ color: 'yellow' })]),
@@ -4525,12 +4517,11 @@ describe('fixFormattingGaps', () => {
   });
 
   it('bridges both gaps in `<emp>foo</emp> <u>a</u> <emp>bar</emp> (single-char interior word)`', () => {
-    // With consumed-bookend `/g` semantics, "foo a" matches first,
-    // consumes through the "a", and the regex resumes after — so the
-    // second gap (between "a" and "bar") never gets a chance. The
-    // lookahead-based regex fixes this: only the first bookend +
-    // gap are consumed; the second bookend stays available to start
-    // the next match. So both gaps should bridge.
+    // The gap regex matches the right bookend with a lookahead, so
+    // only the first bookend + gap are consumed and the single-char
+    // "a" can start the next match. A regex that consumed both
+    // bookends would eat "foo a" and never see the second gap
+    // (between "a" and "bar"). Both gaps must bridge.
     const u = schema.marks['underline_mark']!.create();
     const e = schema.marks['emphasis_mark']!.create();
     const doc = makeDoc(p(
@@ -4572,11 +4563,11 @@ describe('fixFormattingGaps', () => {
   });
 
   it('does NOT clear font_size on gaps that do not qualify', () => {
-    // First bookend has underline; second bookend is shrunken plain
-    // text (only font_size, no named-style). Gap has its own
-    // font_size:16. Without the gating fix, the gap's font_size
-    // would get cleared even though no named-style bridge applies.
-    // With gating, the gap stays untouched.
+    // First bookend has underline; second is shrunken plain text
+    // (font_size only, no named style). The bookends share no mark,
+    // so nothing bridges, and the gap's font_size:16 already matches
+    // the target (the smaller-effective-pt bookend's explicit size)
+    // — the command is a no-op.
     const doc = makeDoc(p(
       schema.text('foo', [schema.marks['underline_mark']!.create()]),
       schema.text(' ', [schema.marks['font_size']!.create({ halfPoints: 16 })]),
@@ -4696,7 +4687,7 @@ describe('command palette aliases', () => {
   it('show/hide visibility commands also answer to "toggle"', () => {
     // The reverse direction (toggle-labeled → "show"/"hide") is covered
     // by the lowercase guard; here we assert the show/hide ⇄ toggle
-    // bridge the user asked for exists on the two visibility commands.
+    // bridge exists on the two visibility commands.
     expect(RIBBON_COMMAND_ALIASES.toggleCommentsVisible).toContain('toggle comments');
     expect(RIBBON_COMMAND_ALIASES.toggleNavPane).toEqual(
       expect.arrayContaining(['toggle navigation pane', 'toggle nav pane']),
@@ -4735,8 +4726,8 @@ describe('cycleTheme command', () => {
 });
 
 // ── deleteCurrentHeading command ─────────────────────────────────────
-// New bindable command; the structure-deletion logic itself is covered
-// by delete-current-heading.test.ts. Here we lock down the registry
+// The structure-deletion logic itself is covered by
+// delete-current-heading.test.ts. Here we lock down the registry
 // plumbing (mirrors selectCurrentHeading) and the ctx dispatch.
 describe('deleteCurrentHeading command', () => {
   it('is registered with a label and is unbound by default', () => {

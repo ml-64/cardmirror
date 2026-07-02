@@ -3,7 +3,7 @@
  * Mock pairing relay — dev-only store-and-forward for CardMirror's
  * cross-machine card sharing. Implements the EXACT HTTP contract that the
  * real scouting-assistant `/relay` router will later expose, so the client
- * never changes when the production backend lands (see the plan, §5/§7).
+ * never changes when the production backend lands (PAIRING_V2_PLAN.md §5/§7).
  *
  * Directed addressing: every message is stored under its `recipientCode`.
  * A device only ever GETs messages addressed to its own code and never

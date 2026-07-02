@@ -70,8 +70,8 @@ describe('buildLegacyHeadingMap', () => {
       expect(map(3)).toBe(4);
     });
     it('returns 5 for a deep outline level — the value the Heading4 cap clamps', () => {
-      // This is the case the recent cap fix guards: outline level 4 → 5, but the
-      // injected canonical styles top out at Heading4, so the caller clamps it.
+      // Outline level 4 → 5, but the injected canonical styles top out
+      // at Heading4, so the caller clamps it.
       expect(map(4)).toBe(5);
       expect(map(9)).toBe(5);
     });

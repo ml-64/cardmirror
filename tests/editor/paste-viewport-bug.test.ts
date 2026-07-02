@@ -1,5 +1,6 @@
 /**
- * Probe tests for the "viewport rockets to doc end" report.
+ * Probe + regression tests for the "viewport rockets to doc end"
+ * report.
  *
  * User report (from Discord): pasting text that contains a line
  * break, while there's a tag (F7) somewhere above the paste
@@ -8,15 +9,14 @@
  * report: pasting, then moving the cursor above the paste, then
  * pressing F7 ALSO rockets the cursor to the bottom.
  *
- * Working hypothesis: the absorb-plugin's
- * `replaceWith(0, doc.content.size, rebuilt)` mass-rewrite
- * misroutes the selection through PM's default mapping (the
- * association-right convention pushes positions inside the
- * replaced range to AFTER the inserted content — i.e., doc end).
- *
- * These tests don't try to FIX the bug — they exercise variations
- * adjacent to the report and surface where the cursor lands in
- * each case, so we can confirm the repro and bound the scope.
+ * Root cause: a wholesale `replaceWith(0, doc.content.size, ...)`
+ * doc rewrite maps positions inside the replaced range to AFTER
+ * the inserted content (PM's association-right convention) — i.e.
+ * doc end. The absorb plugin avoids this with narrow per-region
+ * steps (see `absorb-plugin.ts`); `clearToNormal` re-anchors the
+ * selection manually. The "baseline" tests here snapshot the raw
+ * misbehavior; the "fix" tests lock in the corrected cursor
+ * placement.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -93,7 +93,7 @@ function paste(state: EditorState, text: string): EditorState {
 }
 
 /** Apply a plain-text paste the way F2 / `applyPlainPasteFromText`
- *  now does it: try `tryPasteAsCardBodies` first so the slice's
+ *  does: try `tryPasteAsCardBodies` first so the slice's
  *  paragraphs land as card_body nodes inside the card directly,
  *  fall back to `replaceSelection` only when the cursor isn't in a
  *  card_body / the slice isn't multi-paragraph. */
@@ -163,9 +163,6 @@ describe('paste viewport-bug probe', () => {
     const after = paste(state, 'first line\nsecond line');
 
     const report = cursorReport(after);
-    // Surface the result — the test asserts what we observe, then
-    // the assertion comment notes whether the placement is the
-    // bug.
     expect({
       structure: docTypeShape(after.doc),
       text: after.doc.textContent,
@@ -226,12 +223,12 @@ describe('paste viewport-bug probe', () => {
   // Scenario C: pasted content lifts to doc level → absorb fires
   // ──────────────────────────────────────────────────────────────
   //
-  // This is the absorb-firing case I suspect is the trigger. When
-  // PM lifts pasted content out of a card_body context to doc
+  // When PM lifts pasted content out of a card_body context to doc
   // level (because the slice has openStart=openEnd=1 + paragraph
   // children that don't fit cleanly), the absorb plugin's
-  // appendTransaction does a `replaceWith(0, doc.content.size,
-  // rebuilt)` and the selection mapping could push to doc end.
+  // `appendTransaction` rewrites the doc to re-claim the orphans —
+  // the cursor must survive that rewrite without mapping to doc
+  // end.
 
   it('paste 3-line text into card_body — does anything orphan out to doc level?', () => {
     const doc = makeDoc([
@@ -398,15 +395,6 @@ describe('paste viewport-bug probe', () => {
       }
     `);
   });
-
-  // ──────────────────────────────────────────────────────────────
-  // Scenario G: probe absorb directly with hand-built orphan doc
-  // ──────────────────────────────────────────────────────────────
-  //
-  // Confirm the mapping-pushes-cursor-to-end hypothesis without
-  // going through paste at all. Build a doc with orphan
-  // paragraphs after a card; cursor inside one of the orphans;
-  // run absorb's appendTransaction; check the new cursor.
 
   // ──────────────────────────────────────────────────────────────
   // Scenario E1: paste leaves doc-level orphans, then F7 on a
@@ -658,11 +646,9 @@ describe('paste viewport-bug probe', () => {
     );
     const cursorBefore = cursorReport(state);
 
-    // Trigger absorb by applying a no-op (well, marginal) edit so
-    // appendTransaction runs. Actually `state.apply` only runs
-    // appendTransactions on docChanged transactions; cursor moves
-    // alone don't trigger. Force absorb by doing a tiny insertText
-    // somewhere safe (end of "body").
+    // appendTransaction only runs for docChanged transactions
+    // (cursor moves alone don't trigger it), so force absorb with
+    // a tiny insertText somewhere safe (end of "body").
     const bodyEnd = posInside(state.doc, (n) => n.isText && n.text === 'body', 4);
     const after = state.apply(state.tr.insertText('!', bodyEnd));
 
@@ -719,11 +705,9 @@ describe('paste viewport-bug probe', () => {
     if (!afterF7) throw new Error('setTag did not dispatch');
     state = afterF7;
 
-    // Enter: simulate by inserting a card_body after the tag and
-    // moving the cursor inside it. Easiest way: use PM's split
-    // command. But that requires a textblock context — the
-    // cursor is in the tag now. For the probe, just append a
-    // card_body manually to mimic post-Enter shape.
+    // Simulate Enter by appending an empty card_body and moving
+    // the cursor inside it (PM's split command needs a textblock
+    // context, and the cursor sits in the tag).
     const cardEnd = state.doc.firstChild!.nodeSize;
     const tr = state.tr.insert(
       cardEnd - 1,
@@ -808,20 +792,10 @@ describe('paste viewport-bug probe', () => {
   });
 
   // ──────────────────────────────────────────────────────────────
-  // Scenario B-fit: probe what happens if the multi-paragraph
-  // slice is PRE-converted to card_bodies before replaceSelection.
-  // ──────────────────────────────────────────────────────────────
-  //
-  // Confirms the hypothesis that PM's bubble-up-to-card behavior
-  // in scenario B is driven by the slice having paragraph (not
-  // card_body) children. If we feed it a card_body slice, the
-  // split should stay inside the card.
-
-  // ──────────────────────────────────────────────────────────────
   // Scenario B-FIX: route through `tryPasteAsCardBodies`, which
-  // is what the paste handler now calls before letting PM's
-  // default fire. Same setup as scenario B; expected: the
-  // phantom-empty-tag card is gone.
+  // the paste handler calls before letting PM's default fire.
+  // Same setup as scenario B; expected: the phantom-empty-tag
+  // card is gone.
   // ──────────────────────────────────────────────────────────────
 
   it('B-FIX: tryPasteAsCardBodies keeps the split inside the card', () => {
@@ -893,6 +867,14 @@ describe('paste viewport-bug probe', () => {
     });
   });
 
+  // ──────────────────────────────────────────────────────────────
+  // Scenario B-fit: the multi-paragraph slice PRE-converted to
+  // card_bodies before replaceSelection. Confirms that PM's
+  // bubble-up-to-card behavior in scenario B is driven by the
+  // slice having paragraph (not card_body) children: fed a
+  // card_body slice, the split stays inside the card.
+  // ──────────────────────────────────────────────────────────────
+
   it('B-fit: feeding a card_body slice keeps the split inside the card', () => {
     const doc = makeDoc([
       cardWith(tag('TAG'), cardBody('aaa'), cardBody('bbb')),
@@ -931,11 +913,11 @@ describe('paste viewport-bug probe', () => {
   });
 
   // ──────────────────────────────────────────────────────────────
-  // Scenario F12: clearToNormal (F12) on a tag — the same
-  // wholesale-replaceWith pattern that the absorb plugin
-  // originally had. Without a manual setSelection after the
-  // replace, the cursor maps to the END of the lifted content
-  // (the "cursor shot to doc end after F12" report on Discord).
+  // Scenario F12: `clearToNormal` (F12) on a tag. Its dissolve path
+  // replaces the enclosing container wholesale; without its manual
+  // `setSelection` after the `replaceWith`, the cursor maps to the END
+  // of the lifted content (the reported "cursor shot to doc end
+  // after F12").
   // ──────────────────────────────────────────────────────────────
 
   it('F12 on tag with trailing bodies — cursor should land in the new paragraph, not at the end of the lifted bodies', () => {
@@ -1096,8 +1078,8 @@ describe('paste viewport-bug probe', () => {
   // node it has on hand is the middle line, which it converts to a
   // tag. Visible artifact: a debater pastes "X\nY\nZ" into a
   // card_body and "Y" comes out bold with the tag's before/after
-  // margins. The rich-paste path avoids this with
-  // `tryPasteAsCardBodies`; F2 didn't until this fix.
+  // margins. Both the rich-paste path and F2 avoid this by routing
+  // through `tryPasteAsCardBodies` first.
 
   it('F2 baseline (no absorb plugin): 3-line plain-paste into EMPTY card_body — does PM synthesize a phantom card with an empty tag?', () => {
     // The paste-plugin's tryPasteAsCardBodies comment specifically
@@ -1279,8 +1261,7 @@ describe('paste viewport-bug probe', () => {
     // The user-reported "cursor lands on the line below = the next
     // card's tag" scenario. After the 2-line paste, PM has the
     // slice's last paragraph merge with the after-cursor content
-    // (which is empty since the cursor is at end-of-body). We need
-    // to see exactly where the selection lands.
+    // (which is empty since the cursor is at end-of-body).
     const doc = makeDoc([
       cardWith(tag('SRC'), cardBody('end of src')),
       cardWith(tag('NEXT'), cardBody('next body')),
@@ -1318,9 +1299,9 @@ describe('paste viewport-bug probe', () => {
   });
 
   it('F2 baseline (WITH absorb): single-line paste at END of last card_body, ANOTHER card follows', () => {
-    // What if F2 paste is just one line ending in newline? The
-    // user says "if pasted ends in a line break, cursor on a new
-    // line is fine." So a paste of "X\n" should leave the cursor
+    // A single line ending in a newline. The report says "if
+    // pasted ends in a line break, cursor on a new line is
+    // fine." So a paste of "X\n" should leave the cursor
     // on a fresh empty line — but not on the next card's tag.
     const doc = makeDoc([
       cardWith(tag('SRC'), cardBody('end of src')),
@@ -1367,8 +1348,9 @@ describe('paste viewport-bug probe', () => {
       makeState(doc).tr.setSelection(TextSelection.create(doc, cursor)),
     );
 
-    // Use the OLD F2 path (direct replaceSelection) to capture the
-    // bubble-up behavior we're fixing.
+    // Direct `replaceSelection` (bypassing `tryPasteAsCardBodies`)
+    // captures the raw bubble-up behavior, for contrast with the
+    // F2-path test below.
     const after = paste(state, 'X\nY\nZ');
 
     expect({

@@ -59,8 +59,8 @@ describe('exported docx structural validity', () => {
   it.skipIf(fixtures.length === 0)(
     'round-tripping a real doc still produces well-formed XML',
     async () => {
-      // Smallest fixture by file size is the cheapest smoke check;
-      // any one of the available fixtures works.
+      // One fixture is enough for a smoke check; discovery sorts by
+      // filename, so this is the alphabetically first one.
       const fixture = fixtures[0]!;
       const buf = await readFile(fixture.fullPath);
       const bytes = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);

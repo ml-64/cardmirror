@@ -132,11 +132,6 @@ function idleYield(timeout = 500): Promise<void> {
   return new Promise((resolve) => scheduleIdle(() => resolve(), timeout));
 }
 
-/** Parse the pinned/recent files that aren't warm yet (or are stale by
- *  mtime), one at a time, yielding to idle before each parse so it never
- *  blocks a keystroke. Prunes rotated-out pins first.
- *  Cheap on repeat passes — already-fresh files are skipped. `keepGoing`
- *  lets a caller bail early (e.g. the palette closed). */
 /** Parse a listed file's bytes into a schema doc — `.docx` through the
  *  importer, `.cmir` through the native reader. The in-file object search
  *  (the Tab dive + the background warm pass) is otherwise format-agnostic:
@@ -150,6 +145,11 @@ async function parseFileDoc(
   return parseNative(bytes).doc;
 }
 
+/** Parse the pinned/recent files that aren't warm yet (or are stale by
+ *  mtime), one at a time, yielding to idle before each parse so it never
+ *  blocks a keystroke. Prunes rotated-out pins first.
+ *  Cheap on repeat passes — already-fresh files are skipped. `keepGoing`
+ *  lets a caller bail early (e.g. the palette closed). */
 async function runWarmPass(
   electron: NonNullable<ReturnType<typeof getElectronHost>>,
   fileList: FileEntry[],
@@ -216,12 +216,12 @@ export function prewarmQuickCardFiles(): void {
   if (!electron) return;
   const roots = settings.get('fileSearchRoots');
   if (!roots.length) return;
-  // Layer 1 — the file LIST. Kick the per-root scan off in MAIN immediately,
-  // NOT on renderer-idle. `listCmirFiles` is just async IPC; the recursive walk
-  // / disk-index load runs in the main process, so it doesn't compete with the
-  // renderer's launch render. Starting at t≈0 (rather than up to ~2s later, once
-  // the renderer first goes idle) means the index is ready even if the user
-  // opens the command bar a second after launch — the case that was still cold.
+  // Layer 1 — the file LIST. Kick the per-root scan off in main immediately,
+  // not on renderer-idle: `listCmirFiles` is only async IPC (the recursive walk
+  // / disk-index load runs in the main process), so it doesn't compete with the
+  // renderer's launch render. Starting at t≈0, rather than up to ~2s later when
+  // the renderer first goes idle, keeps the index ready even when the command
+  // bar opens a second after launch.
   const lists = Promise.all(
     roots.map((r) => electron.listCmirFiles(r).then(toFileEntries).catch(() => [] as FileEntry[])),
   );
@@ -339,8 +339,6 @@ function commandKeyDisplay(id: RibbonCommandId): string {
   return first ? formatKeyForDisplay(first) : '';
 }
 
-/** Command source — any ribbon command (everything bindable), matched
- *  on its label; triggers the command on Enter. */
 /** Word-equivalence groups for command search: if a command's label contains
  *  any word in a group, queries phrased with the OTHER words in that group also
  *  match it (e.g. "Repair OCR/PDF Text" via "fix" / "restore"; "Remove
@@ -351,6 +349,8 @@ const SYNONYM_GROUPS: readonly (readonly string[])[] = [
   ['delete', 'remove'],
 ];
 
+/** Command source — any ribbon command (everything bindable), matched
+ *  on its label, aliases, and synonyms; Enter runs it. */
 function searchCommandSource(query: string): PaletteResult[] {
   const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
   // Searchable text = label + any aliases, so a query phrased like an
@@ -535,12 +535,12 @@ function fileObjectResult(o: FileObject): PaletteResult {
   };
 }
 
-/** Short left-aligned badge for a result row. */
 /** Results rendered per page: the initial window, and how many more each
  *  "show more" click (or arrowing past the end) adds. Searches rank the
  *  FULL list; this only bounds how much DOM is built at once. */
 const RESULT_PAGE_SIZE = 100;
 
+/** Short left-aligned badge for a result row. */
 function badgeText(r: PaletteResult): string {
   switch (r.source) {
     case 'quickcard':
@@ -832,7 +832,7 @@ class QuickCardSearchUI {
       const query = this.input.value;
       if (query.trim() === '') {
         // Empty query → the file's outline (nav-pane-style hierarchy):
-        // indented by level, collapsible, shown in full (no 50-cap).
+        // indented by level, collapsible, shown in full.
         // Cites never appear here — they aren't headings — so the
         // overview isn't doubled; they surface once you type a query.
         this.results = this.buildOutlineResults();
@@ -1606,9 +1606,8 @@ function renderTagPicker(host: HTMLElement, onChange: () => void, onDismiss: () 
         onDismiss();
         break;
       case 'Tab':
-        // Tab no longer toggles back out — only Escape dismisses. Keeps
-        // the "Tab in, Esc out" model consistent with file search; we
-        // still preventDefault so focus can't escape the picker.
+        // Only Escape dismisses ("Tab in, Esc out", consistent with file
+        // search); preventDefault so focus can't escape the picker.
         e.preventDefault();
         break;
       case 'ArrowDown':

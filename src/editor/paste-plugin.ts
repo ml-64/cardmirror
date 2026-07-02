@@ -8,13 +8,12 @@
  *    (Chrome's "Paste" chip, Firefox's "Paste" popup — Mozilla doesn't
  *    even offer a permanent grant), so a Verbatim-style "F2 pastes
  *    plain text" can't be a single-keystroke action in a browser.
- *    Instead F2 toggles a plugin-state flag; the next real `paste`
- *    event (a user-initiated Ctrl/Cmd+V) consumes the flag, strips
- *    all formatting, inserts the clipboard's `text/plain` content,
- *    and disarms. If `condenseOnPaste` is on (matches the F3 default
- *    condense), runs that immediately after. Pressing F2 again
- *    before the paste toggles the flag back off. The status-bar UI
- *    shows the armed state.
+ *    Instead F2 toggles a plugin-state flag; while armed, every real
+ *    `paste` event (a user-initiated Ctrl/Cmd+V) strips all
+ *    formatting and inserts the clipboard's `text/plain` content.
+ *    If `condenseOnPaste` is on (matches the F3 default condense),
+ *    runs that immediately after. F2 again (or the ribbon button)
+ *    disarms. The status-bar UI shows the armed state.
  *
  * 2. **A structural-led paste splits the destination container.** When the
  *    clipboard leads with structural content — a `tag` / `analytic` head, a
@@ -85,9 +84,9 @@ export function buildPlainTextSlice(text: string): Slice {
  *  in our schema. Plain-paste into these MUST flatten any
  *  internal newlines to spaces — pasting "Article Title\n" (a
  *  triple-click selection in the browser often carries that
- *  trailing newline) used to split the surrounding card at the
- *  newline boundary because the resulting multi-paragraph slice
- *  forced PM to break out of the single-line parent. */
+ *  trailing newline) would otherwise split the surrounding card
+ *  at the newline boundary, because the multi-paragraph slice
+ *  forces PM to break out of the single-line parent. */
 const SINGLE_LINE_PASTE_PARENTS = new Set<string>([
   'tag',
   'cite_paragraph',
@@ -142,7 +141,7 @@ const CARD_FITTABLE_PASTE = new Set<string>([
 
 /** Fit an arbitrary body node into a `card`'s content rule
  *  (`card_body | undertag | cite_paragraph | table`). A bare `paragraph`
- *  (common from external HTML) — or a stray `analytic`, which is no longer
+ *  (common from external HTML) — or a stray `analytic`, which is not
  *  legal card content — becomes a `card_body`; the rest pass through.
  *  (Structural-led pastes route analytics into their own analytic_unit via
  *  `groupStructuralNodes`, so an analytic shouldn't reach here; the coercion is
@@ -265,10 +264,8 @@ export function applyPlainPasteFromText(
   },
 ): void {
   if (!text) return;
-  // Mirror the in-handler normalization for the Electron F2 / menu
-  // path. Single-line target parents (tag / cite_paragraph /
-  // undertag / analytic) collapse internal whitespace; multi-line
-  // parents pass through unchanged.
+  // Same normalization as the armed-paste handler, for the Electron
+  // F2 / menu path.
   const normalized = normalizeClipboardTextForPaste(
     text,
     view.state.selection.$from.parent.type.name,
@@ -279,12 +276,11 @@ export function applyPlainPasteFromText(
   // the slice's paragraphs to card_body nodes so PM's Fitter
   // doesn't bubble the split up to the card level. Without this,
   // a 3+ line F2 paste mid-card_body lifts the middle paragraphs
-  // out as doc-level orphans (which the absorb plugin claims back
-  // — but on the way there, the user can see "lines becoming
-  // tags" / extra spacing artifacts in some configurations, and
-  // the cursor mapping bounces through the lift+re-absorb dance
-  // instead of landing cleanly at the end of the pasted content).
-  // Same template the rich-paste path uses (handlePaste below).
+  // out as doc-level orphans — the absorb plugin claims them back,
+  // but with visible artifacts and a cursor mapping that bounces
+  // through the lift+re-absorb instead of landing at the end of
+  // the pasted content. Same template as the rich-paste path
+  // (handlePaste below).
   let tr = tryPasteAsCardBodies(view.state, slice);
   if (!tr) tr = view.state.tr.replaceSelection(slice);
   tr.setStoredMarks([]);
@@ -791,7 +787,7 @@ const CARD_CONTENT_SLOTS = new Set<string>([
 
 /**
  * Fit a paste of card content (`cite_paragraph` / `undertag` / body) at the
- * cursor, per the agreed card-paste matrix:
+ * cursor, per the card-paste matrix:
  *  - NEVER breaks the card; pasted block types are preserved.
  *  - Body text is absorbed INLINE into a `card_body` / `cite_paragraph`, and a
  *    same-type paste (cite→cite, undertag→undertag) merges; otherwise the block

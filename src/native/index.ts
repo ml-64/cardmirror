@@ -23,8 +23,8 @@
  *     "threads": [ ...Thread[] ]   // optional
  *   }
  *
- * Plain JSON, pretty-printed for git-friendliness and inspectability.
- * Future enhancements (binary frame for images, compression, etc.)
+ * On disk: minified JSON, gzip-compressed (legacy plaintext files
+ * still parse). Future enhancements (binary frame for images, etc.)
  * can ride formatVersion bumps; v1 keeps it simple.
  */
 
@@ -77,11 +77,11 @@ export interface SerializeNativeOptions {
 }
 
 /** Build the minified-JSON envelope both serialize variants gzip-wrap.
- *  Minified because the pretty-print whitespace was only for human
- *  inspection, which gzip defeats anyway (`gunzip file.cmir | jq`
- *  restores it on demand). Compression yields ~10× smaller files; the
- *  gzip magic (0x1F 0x8B) lets `parseNative` tell new files from legacy
- *  plaintext ones (which begin with `{`). */
+ *  Minified: gzip makes pretty-printing pointless for inspection
+ *  (`gunzip file.cmir | jq` restores it on demand). Compression yields
+ *  ~10× smaller files; the gzip magic (0x1F 0x8B) lets `parseNative`
+ *  tell compressed files from legacy plaintext ones (which begin
+ *  with `{`). */
 function buildNativeEnvelope(doc: PMNode, opts: SerializeNativeOptions): Uint8Array {
   const file: NativeFile = {
     format: FORMAT_ID,
@@ -140,7 +140,7 @@ export function parseNative(bytes: Uint8Array): ParseNativeResult {
   let parsed: unknown;
   try {
     // Compressed files (gzip magic) inflate first; legacy plaintext files
-    // (begin with `{`) pass straight through. Everything below is unchanged.
+    // (begin with `{`) pass straight through.
     const raw = isGzip(bytes) ? gunzip(bytes) : bytes;
     const text = new TextDecoder().decode(raw);
     parsed = JSON.parse(text);

@@ -64,8 +64,8 @@ function buildSnippet(
   const localStart = match.from - blockStart;
   const localEnd = match.to - blockStart;
   // One-char leaf placeholder so offsets stay position-aligned past
-  // inline images (same fix as the plugin's scan); U+FFFC renders as
-  // the standard object-replacement glyph in the snippet.
+  // inline images (same trick as the plugin's scan); U+FFFC renders
+  // as the standard object-replacement glyph in the snippet.
   const text = block.textBetween(0, block.content.size, undefined, '￼');
   const beforeStart = Math.max(0, localStart - SNIPPET_PAD);
   const afterEnd = Math.min(text.length, localEnd + SNIPPET_PAD);
@@ -338,8 +338,8 @@ export class FindReplaceBar {
       return;
     }
     // Same match list (only the active index changed) and the rows are still
-    // present: just move the active highlight. Rebuilding every row + a snippet
-    // per match is O(N) and was the main per-step cost on huge searches.
+    // present: only move the active highlight. Rebuilding every row + a snippet
+    // per match is O(N) — the dominant per-step cost on huge searches.
     if (
       s.matches === this.lastRenderedMatches &&
       this.resultsList.querySelector('.pmd-find-result-row')
@@ -692,11 +692,10 @@ export class FindReplaceBar {
         this.syncNavHits();
       }, 150);
     };
-    // PM doesn't expose a "state-changed" event on the view, but
-    // input + focus events fire after dispatch in practice. Pair
-    // with a microtask after each user-driven dispatch from inside
-    // the bar. This handler covers the case of edits inside the
-    // editor while the bar is open.
+    // PM doesn't expose a "state-changed" event on the view;
+    // `input` + `keyup` on the editor DOM fire after dispatch in
+    // practice and cover edits made in the editor while the bar is
+    // open. Bar-driven dispatches call the sync methods directly.
     dom.addEventListener('input', handler);
     dom.addEventListener('keyup', handler);
     this.unsubscribeView = () => {

@@ -1,12 +1,11 @@
 /**
  * Easter-egg configurator dialog reached by shift+right-clicking
- * the "Enable Clod mode" checkbox in Settings. Ported from the
- * user's prior `ClodCustomizationDialog` in Card Formatting Tools.
+ * the "Enable Clod mode" checkbox in Settings.
  *
- * Tabs: one per time period (Morning / Day / Evening / Night) for
- * editing the activity pool, plus one "Time periods" tab for
- * editing the hour boundaries that decide which pool is active.
- * Saves go through the standard settings store.
+ * Tabs: Persona (name + pronouns), one per time period
+ * (Morning / Day / Evening / Night) for editing the activity pool,
+ * and "Time periods" for the hour boundaries that decide which pool
+ * is active. Saves go through the standard settings store.
  */
 
 import { settings } from '../settings.js';
@@ -295,7 +294,6 @@ export function openClodConfigurator(): void {
   document.body.appendChild(overlay);
   activate('persona');
 
-  // Escape closes too.
   const onKey = (e: KeyboardEvent): void => {
     if (e.key === 'Escape') {
       document.removeEventListener('keydown', onKey);

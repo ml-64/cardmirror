@@ -232,7 +232,7 @@ export interface SpawnWindowPayload {
   /** When true, the spawned window self-marks the new doc as the
    *  speech doc after mounting + registering its view. Used by
    *  the New Speech Document flow so the freshly-spawned window
-   *  becomes the routing target for subsequent ` send-to-speech. */
+   *  becomes the routing target for subsequent send-to-speech. */
   markAsSpeech?: boolean;
   /** When true, the spawned window mounts the doc DIRTY instead of
    *  the default clean. Used by the mode-switch reopen for docs

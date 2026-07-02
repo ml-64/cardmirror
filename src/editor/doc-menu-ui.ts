@@ -1,12 +1,9 @@
 /**
  * "Doc" dropdown menu — Verbatim parity. A grouped popover of
- * document-level utilities (currently just standardize-highlighting /
- * standardize-shading, sectioned under "Highlighting" so additional
- * groups can land here as we ship more Verbatim functions). Anchored
- * to the Doc button in the ribbon; positioned via fixed coordinates
- * derived from the anchor's bounding rect so it stays flush
- * regardless of page scroll / browser zoom — same approach the color
- * pickers use.
+ * document-level utilities anchored to the Doc button in the ribbon.
+ * Positioned via fixed coordinates derived from the anchor's bounding
+ * rect (same approach as the color pickers) so it stays flush
+ * regardless of page scroll / browser zoom.
  */
 
 import type { EditorView } from 'prosemirror-view';
@@ -24,8 +21,6 @@ export interface DocMenuItem {
    *  per the user's `ribbonTooltipMode`). Menu items never repeat
    *  the label in the tooltip; only the shortcut. */
   commandId?: RibbonCommandId;
-  /** Returns whether the action ran (currently informational only;
-   *  the menu always closes after click). */
   run: (view: EditorView) => void;
 }
 

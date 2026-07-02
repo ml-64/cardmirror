@@ -1,8 +1,8 @@
 /**
  * Dropzone bubble — cross-window scratch shelf for dragged content.
  * A single instance, anchored to the editor's bottom-left corner
- * (positioned by `positionDropzone` in index.ts — NOT the nav pane,
- * whose bottom edge sat in the outline's auto-scroll zone).
+ * (positioned by `positionDropzone` in index.ts — not the nav pane,
+ * whose bottom edge sits in the outline's auto-scroll zone).
  *
  * The whole element morphs between two states:
  *   - Closed: small grey pill in the editor's bottom-left corner
@@ -53,7 +53,8 @@ interface DropzoneMountOptions {
 
 export class DropzoneController {
   /** The morphing element — small pill when closed, expanded panel
-   *  when open. Anchored at the bottom of the nav pane via CSS. */
+   *  when open. Anchored to the editor's bottom-left by
+   *  `positionDropzone` (index.ts). */
   private root!: HTMLDivElement;
   /** List area inside the root, only visible when open. */
   private listEl!: HTMLUListElement;
@@ -361,8 +362,8 @@ export class DropzoneController {
       // tag. Headings map via TYPE_TO_LEVEL; card / analytic_unit drag at
       // tag level (4, like the native container drag); anything else
       // (loose paragraph / unknown) is generic content that can go
-      // anywhere, so it gets the deepest level. (At level 0 the surfaces
-      // gated all indicators out, so the drag had no target.)
+      // anywhere, so it gets the deepest level. (Level 0 would gate
+      // every indicator out, leaving the drag no target.)
       level: dropzoneDragLevel(type),
       label: item.label,
       prebuilt: slice,

@@ -421,10 +421,6 @@ export class ElectronHost implements Host {
     };
   }
 
-  /** Read a file at a known path without a picker. Returns null
-   *  when the path is missing / unreadable (caller prunes the
-   *  stale recent). ElectronHost-only — the home screen guards
-   *  on host kind before calling. */
   /** Absolute path of a dropped File (drag-to-open). '' when it can't be
    *  resolved (no real path, or the bridge call fails). */
   getPathForFile(file: File): string {
@@ -435,6 +431,10 @@ export class ElectronHost implements Host {
     }
   }
 
+  /** Read a file at a known path without a picker. Returns null
+   *  when the path is missing / unreadable (caller prunes the
+   *  stale recent). ElectronHost-only — the home screen guards
+   *  on host kind before calling. */
   async readFileAtPath(filePath: string): Promise<{
     name: string;
     bytes: Uint8Array;

@@ -96,9 +96,8 @@ const PAIRING_RECEIVE_FLASHES: PairingReceiveFlash[] = ['once', 'off', 'repeat']
  * field becomes a CSS custom property on `#editor` (e.g. `--pmd-size-
  * cite: 13pt`); CSS rules consume the variables.
  *
- * Defaults match Verbatim's defaults for parity with current docs:
- *   pocket=26, hat=22, block=16, tag=13, analytic=13, cite=13,
- *   underline=11, emphasis=11, undertag=12, normal=11.
+ * Defaults (`DEFAULT_DISPLAY_SIZES`) match Verbatim's for parity with
+ * existing docs.
  */
 export interface DisplaySizes {
   normal: number;
@@ -135,8 +134,7 @@ const DEFAULT_DISPLAY_SIZES: DisplaySizes = {
  * Per-style paragraph spacing — the blank space BEFORE and AFTER a
  * paragraph (its top/bottom margin), in points. A display setting like
  * line spacing: it overrides how the editor renders, independent of the
- * doc's own spacing. Keys are `<style>Before` / `<style>After`. Defaults
- * match the spacing the editor shipped with (the old hard-coded margins).
+ * doc's own spacing. Keys are `<style>Before` / `<style>After`.
  */
 export const PARAGRAPH_SPACING_KEYS = [
   'bodyBefore', 'bodyAfter',
@@ -168,9 +166,8 @@ export { DEFAULT_PARAGRAPH_SPACING };
  * Styles tab — whether each named style is bold, italic, underlined,
  * boxed, plus the box thickness. Each flag becomes a class toggle on
  * `#editor` (e.g. `pmd-emphasis-bold`); CSS rules predicated on the
- * class enable the typography. Default values match Verbatim's
- * defaults, except `emphasisBox` (defaulting to true here to match the
- * existing always-on box rendering).
+ * class enable the typography. Defaults match Verbatim's, except
+ * `emphasisBox` (true — CardMirror renders emphasis boxed by default).
  */
 export interface DisplayTypography {
   citeUnderlined: boolean;
@@ -225,7 +222,6 @@ export interface KeyboardMacro {
   text: string;
 }
 
-/** Schema for all editor settings. Add new fields here with sensible defaults. */
 /** "New paragraph on Enter" choices — 'normal' means the default Enter
  *  behavior for that context; the rest name a structural style. */
 export type EnterAfterStyle =
@@ -237,6 +233,7 @@ export type EnterAfterStyle =
   | 'analytic'
   | 'undertag';
 
+/** Schema for all editor settings. Add new fields here with sensible defaults. */
 export interface Settings {
   /** Width of the navigation pane in pixels. */
   navWidth: number;
@@ -250,9 +247,9 @@ export interface Settings {
   showOnboardingStarter: boolean;
   /** Desktop-only. When set, "New Speech Document" saves into this
    *  directory by default (instead of leaving the doc unsaved until
-   *  the user picks a location). Empty string means "no default —
-   *  keep the current behavior of waiting for an explicit Save."
-   *  Stored as an absolute path. */
+   *  the user picks a location). Empty string means no default — the
+   *  doc stays unsaved until an explicit Save. Stored as an absolute
+   *  path. */
   defaultSpeechDocFolder: string;
   /** Format that "New Speech Document" creates the doc in. `docx`
    *  is the Verbatim-compatible default. `cmir` is CardMirror's
@@ -316,7 +313,7 @@ export interface Settings {
   overrideHighlightSlots: string[];
   /** Same idea, applied to `shading` marks (the protected
    *  highlight variant Verbatim uses for "remove highlighting"-
-   *  resistant emphasis). Default-on color matches the
+   *  resistant emphasis). Default slot color matches the
    *  protected-grey convention. */
   overrideShadingColor: boolean;
   /** 1–3 hex/rgba colors mirroring `overrideHighlightSlots` for
@@ -363,9 +360,9 @@ export interface Settings {
    *  always work by keyboard; this is a mouse-first affordance. */
   showUndoRedoButtons: boolean;
   /** Whether to check for updates on app launch (desktop only).
-   *  Off by default in this initial release to keep boot
-   *  conservative — opt in via Settings → General → "About this
-   *  install." When enabled, the first window of an app session
+   *  Off by default to keep boot conservative — opt in via
+   *  Settings → General → "About this install." When enabled,
+   *  the first window of an app session
    *  triggers a silent update check at boot; if a new version is
    *  available, a modal pops with a link to the release page.
    *  Subsequent windows in the same session skip the check.
@@ -377,8 +374,7 @@ export interface Settings {
    *  the drag handle on the column's left edge. Clamped to
    *  `COMMENTS_WIDTH_MIN` … `COMMENTS_WIDTH_MAX` (240–560) — below
    *  240 threads get cramped, above 560 the column eats too much
-   *  editor space. Default 320 matches the column's original fixed
-   *  width before the handle existed. */
+   *  editor space. Default 320. */
   commentsColumnWidth: number;
   /** UI motion preference. `'auto'` (default) follows the OS
    *  `prefers-reduced-motion` media query and gives the user the
@@ -495,9 +491,9 @@ export interface Settings {
    *  'color' to drop the redundant A:/N: prefix. */
   timerPrepLabel: 'text' | 'color' | 'both';
   /** Which edge of the ribbon the timer panel occupies when shown.
-   *  'left' (default) is the original placement — first flex child;
-   *  'right' moves it past the settings/right stack via flex order
-   *  (see html.pmd-timer-right in style.css). */
+   *  'left' (default) renders it as the first flex child; 'right'
+   *  moves it past the settings/right stack via flex order (see
+   *  html.pmd-timer-right in style.css). */
   timerPosition: 'left' | 'right';
   /** When read mode is toggled (either direction), scroll the
    *  editor to the very top of the doc and place the cursor at
@@ -522,12 +518,12 @@ export interface Settings {
    *  grow unbounded if a user pastes massive strings. */
   findLastQuery: string;
   /** Priority order for the categorized find sort (Ctrl-F). Each
-   *  match falls into one of four categories — `heading` (pocket /
-   *  hat / block), `tag`, `cite`, `other` — and the find bar's
-   *  Next steps through matches in this order, with cursor-as-top
-   *  proximity within each category. Must be a permutation of the
-   *  four category names. Alt-F ignores this setting (proximity
-   *  only). */
+   *  match falls into one of six categories — `heading` (pocket /
+   *  hat / block), `tag`, `analytic`, `undertag`, `cite`, `other` —
+   *  and the find bar's Next steps through matches in this order,
+   *  with cursor-as-top proximity within each category. Must be a
+   *  permutation of the six category names. Alt-F ignores this
+   *  setting (proximity only). */
   findCategoryOrder: ('heading' | 'tag' | 'analytic' | 'undertag' | 'cite' | 'other')[];
   /** Whether "New Speech Document" seeds the doc with a Pocket
    *  heading carrying the speech's name. On (default) matches
@@ -570,10 +566,10 @@ export interface Settings {
   enterAfterAnalytic: EnterAfterStyle;
   enterAfterUndertag: EnterAfterStyle;
   customDashStyle: 'en' | 'en-spaced' | 'em' | 'em-spaced';
-  /** What typed sequence the custom dash replaces: '---' (classic,
-   *  fires on the third hyphen) or '--' (fires on the second). An
-   *  explicit choice, so the old "a -- rule can't tell a forthcoming
-   *  --- apart" ambiguity doesn't apply — picking '--' IS the answer. */
+  /** What typed sequence the custom dash replaces: '---' (fires on
+   *  the third hyphen) or '--' (fires on the second). An exclusive
+   *  choice because a '--' rule fires before it can know whether a
+   *  third hyphen is coming — the two triggers can't coexist. */
   customDashTrigger: '---' | '--';
   /** Microphone for voice control (MediaDeviceInfo.deviceId).
    *  Empty string = system default. Desktop only. */
@@ -596,8 +592,8 @@ export interface Settings {
    *  per-keystroke autosaves would visibly stutter the editor. */
   autosaveEnabled: boolean;
   /** Whether read mode is currently active (dims non-read-aloud content,
-   *  blocks editing). Persisted across sessions because some users may
-   *  want it to be the default state. */
+   *  blocks editing). Transient — per-window, never persisted (see
+   *  `TRANSIENT_SETTING_KEYS`). */
   readMode: boolean;
   /** When true, strip ALL emphasis-mark borders in read mode (not just
    *  the ones around hidden text). Some users prefer the cleanest look
@@ -892,7 +888,8 @@ export interface Settings {
   createReferenceShrinkPt: number;
   /** What Create Reference does with highlighted text in the copied
    *  excerpt. 'shading' (default) converts highlights to the
-   *  Protected Grey background; 'keep' leaves them as highlights;
+   *  Protected Grey background; 'convert' turns each into a
+   *  background of the same color; 'keep' leaves them as highlights;
    *  'remove' strips them. */
   createReferenceHighlightMode: CreateReferenceHighlightMode;
   /** When true, Shrink (Mod-8) treats bracketed "Omitted" spans AND
@@ -2919,7 +2916,7 @@ function sanitize(s: Settings): Settings {
     // dismissed it during the session (transient — see
     // TRANSIENT_SETTING_KEYS).
     navPaneVisible: s.navPaneVisible === false ? false : true,
-    // formatNavPaneByType defaults to TRUE — current behavior.
+    // Default-on: only an explicit `false` disables it.
     formatNavPaneByType: s.formatNavPaneByType === false ? false : true,
     timerProfile:
       s.timerProfile === 'highSchool' || s.timerProfile === 'pomodoro'
@@ -2977,8 +2974,8 @@ function sanitize(s: Settings): Settings {
     autosaveEnabled: !!s.autosaveEnabled,
     readMode: !!s.readMode,
     hideEmphasisBordersInReadMode: !!s.hideEmphasisBordersInReadMode,
-    // The old persisted `zoomPct` is intentionally NOT carried over — body zoom
-    // no longer persists; documents open at this default (100% unless changed).
+    // A legacy persisted `zoomPct` is deliberately ignored — live body
+    // zoom is transient; documents open at this default.
     defaultZoomPct: clamp(Math.round(s.defaultZoomPct / 10) * 10, 50, 200),
     chromeScalePct: clamp(Math.round(s.chromeScalePct / 10) * 10, 50, 200),
     gestureZoom: !!s.gestureZoom,
@@ -2993,8 +2990,6 @@ function sanitize(s: Settings): Settings {
     ribbonTooltipMode: sanitizeRibbonTooltipMode(s.ribbonTooltipMode),
     showDropzonePill: s.showDropzonePill === true,
     showQuickCardButtons: s.showQuickCardButtons === true,
-    // Accept the new list; migrate the old single `fileSearchRoot` string when
-    // the list is absent (settings saved before multi-folder search).
     fileSearchRoots: sanitizeFileSearchRoots(s),
     fileSearchFormats:
       s.fileSearchFormats === 'cmir'
@@ -3258,8 +3253,7 @@ function sanitizeFileSearchRoots(s: Settings): string[] {
 }
 
 /** Accept a hex color string (`#rrggbb`, case-insensitive); fall
- *  back to `defaultValue` otherwise. Used by the highlight /
- *  shading display-override settings. */
+ *  back to `defaultValue` otherwise. */
 function sanitizeHexColor(raw: unknown, defaultValue: string): string {
   if (typeof raw !== 'string') return defaultValue;
   const trimmed = raw.trim();
@@ -3301,20 +3295,19 @@ function sanitizeColorSlots(
 
 /** Filter a Record<string, string> against the registered list of
  *  customizable color tokens. Keeps entries whose key matches a
- *  known token AND whose value parses as a CSS color (we accept
- *  any non-empty string here; CSS will reject malformed values
- *  silently when applied). Used to scrub the persisted
- *  `customColorOverrides` blob. */
+ *  known token and whose value is a non-empty string (CSS silently
+ *  rejects malformed values when applied). Used to scrub the
+ *  persisted `customColorOverrides` blob. */
 function sanitizeCustomColorOverrides(raw: unknown): Record<string, string> {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
   const known = new Set(CUSTOMIZABLE_COLOR_TOKENS.map((t) => t.name));
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
     if (!known.has(k)) continue;
-    // Document-text colors are backed by displayColors now; their
-    // legacy values migrate there (see sanitizeDisplayColors) and must
-    // not linger here, or applyCustomColorOverrides would re-clobber
-    // the displayColors write.
+    // Document-text colors are backed by `displayColors`; legacy
+    // values migrate there (see `sanitizeDisplayColors`) and must not
+    // linger here, or `applyCustomColorOverrides` would re-clobber
+    // the `displayColors` write.
     if (k in DISPLAY_COLOR_TOKEN_TO_KEY) continue;
     if (typeof v !== 'string' || v.trim() === '') continue;
     out[k] = v.trim();
@@ -3329,9 +3322,9 @@ function sanitizeCustomColorOverrides(raw: unknown): Record<string, string> {
  *  (`getComputedStyle`) so the manifest stays in sync with
  *  style.css without duplicating values here.
  *
- *  To add a new override, append an entry; to remove one, just
- *  delete the entry (existing user overrides for that token will
- *  be dropped by `sanitizeCustomColorOverrides` on next load). */
+ *  To add a new override, append an entry; to remove one, delete
+ *  the entry (existing user overrides for that token will be
+ *  dropped by `sanitizeCustomColorOverrides` on next load). */
 export interface CustomizableColorToken {
   name: string;
   label: string;
@@ -3398,13 +3391,11 @@ export const CUSTOMIZABLE_COLOR_TOKENS: readonly CustomizableColorToken[] = [
   // pickers stay linked to one value.
   { group: 'Document text', name: 'pmd-color-analytic', label: 'Analytic text' },
   { group: 'Document text', name: 'pmd-color-undertag', label: 'Undertag text' },
-  // ── Added with the 2026-07-01 color-compliance pass. Rebindable per
-  //    user request — colorblind users get direct recourse on the
-  //    meaning-carrying hues until dedicated presets ship. The band
-  //    foreground pair (band-fg-light/dark) is deliberately NOT here:
-  //    text-on-band contrast only makes sense authored together with
-  //    band rendering (preset territory), and a bad pick makes
-  //    highlighted document text invisible.
+  // ── Meaning-carrying hues, rebindable so colorblind users have
+  //    direct recourse. The band foreground pair (band-fg-light/dark)
+  //    is deliberately NOT here: text-on-band contrast only makes
+  //    sense authored together with band rendering (preset territory),
+  //    and a bad pick makes highlighted document text invisible.
   { group: 'Timer', name: 'pmd-c-aff', label: 'Prep timer: Aff' },
   { group: 'Timer', name: 'pmd-c-neg', label: 'Prep timer: Neg' },
   { group: 'Annotations', name: 'pmd-c-comment-thread', label: 'AI accent (comments + working indicator)' },
@@ -3443,8 +3434,8 @@ export const DISPLAY_COLOR_TOKEN_TO_KEY: Readonly<Record<string, keyof DisplayCo
 /** Token names actually managed by `customColorOverrides` — every
  *  CUSTOMIZABLE_COLOR_TOKENS name EXCEPT the displayColors-backed ones.
  *  Passed to `applyCustomColorOverrides` so it never `removeProperty`s
- *  the document-text vars (which would wipe the displayColors write,
- *  the original "Appearance picker has no effect" bug). */
+ *  the document-text vars, which would wipe the `displayColors` write
+ *  and leave the Appearance picker with no effect. */
 export const CUSTOM_OVERRIDE_TOKEN_NAMES: readonly string[] = CUSTOMIZABLE_COLOR_TOKENS
   .filter((t) => !(t.name in DISPLAY_COLOR_TOKEN_TO_KEY))
   .map((t) => t.name);
@@ -3625,8 +3616,8 @@ function sanitizeShrinkProtections(raw: unknown): ShrinkProtection[] {
 /** Keep only string / string[] entries, coercing arrays to plain arrays
  *  of strings. Unknown keys pass through — we don't import the
  *  ribbon-command ID list here (it would create an import cycle), so
- *  any obsolete IDs from a future schema change will simply have no
- *  effect at lookup time. */
+ *  any obsolete IDs from a future schema change have no effect at
+ *  lookup time. */
 function sanitizeRibbonKeyOverrides(
   raw: unknown,
 ): Partial<Record<RibbonCommandId, string | string[]>> {
@@ -3670,8 +3661,8 @@ function sanitizeLineHeight(raw: unknown, fallback: number): number {
 function sanitizeBodyFont(raw: unknown): string {
   if (typeof raw !== 'string') return DEFAULTS.bodyFont;
   // Strip any quotes or commas — bodyFont must be a single font-family
-  // name. A previous iteration accepted free-form input, so a stale
-  // persisted value might contain `"Calibri", sans-serif` or similar.
+  // name. Values persisted by builds that accepted free-form input may
+  // contain `"Calibri", sans-serif` or similar.
   const cleaned = raw.replace(/["',]/g, '').trim();
   return cleaned || DEFAULTS.bodyFont;
 }
@@ -3743,7 +3734,7 @@ function sanitizeDisplayColors(raw: unknown, rawOverrides?: unknown): DisplayCol
   // Migration: older builds let the Accessibility "Color overrides"
   // panel set pmd-color-analytic / pmd-color-undertag via
   // customColorOverrides, which — applied last — is what actually
-  // rendered. Fold any such value into displayColors so the now-linked
+  // rendered. Fold any such value into displayColors so the linked
   // pickers reflect the color the user was really seeing. The legacy
   // override wins over the displayColors entry (which never rendered).
   // `sanitizeCustomColorOverrides` then drops these tokens from the
@@ -3854,8 +3845,6 @@ function sanitizePairingGroups(rawGroups: unknown, rawPartners: unknown): Pairin
   return out;
 }
 
-/** Coerce the starred send target: keep it only if it still points at a live
- *  recipient (by code) or group (by id); otherwise clear it. */
 const ENTER_AFTER_VALUES: readonly EnterAfterStyle[] = [
   'normal', 'pocket', 'hat', 'block', 'tag', 'analytic', 'undertag',
 ];
@@ -3863,6 +3852,8 @@ function sanitizeEnterAfter(v: unknown): EnterAfterStyle {
   return ENTER_AFTER_VALUES.includes(v as EnterAfterStyle) ? (v as EnterAfterStyle) : 'normal';
 }
 
+/** Coerce the starred send target: keep it only if it still points at a live
+ *  recipient (by code) or group (by id); otherwise clear it. */
 function sanitizePairingStarred(
   raw: unknown,
   rawPartners: unknown,

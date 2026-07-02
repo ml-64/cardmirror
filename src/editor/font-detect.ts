@@ -26,12 +26,10 @@ const GENERIC_KEYWORDS = new Set([
 ]);
 
 /** Fonts the app bundles via `@font-face` declarations in style.css.
- *  Always reported as available — the metrics-probe below would
- *  spuriously report them as unavailable on first paint (the woff2
- *  file hasn't downloaded yet, so the browser is still rendering the
- *  fallback). Letting them through unconditionally is correct because
- *  we KNOW they'll be available once `document.fonts.ready` resolves,
- *  and showing them in the dropdown immediately is the right UX. */
+ *  Always reported as available: the metrics probe below would
+ *  spuriously report them missing on first paint (the woff2 hasn't
+ *  downloaded yet, so the browser still renders the fallback), and
+ *  they're guaranteed present once `document.fonts.ready` resolves. */
 const BUNDLED_FONTS = new Set([
   // Accessibility fonts (woff2 in src/editor/fonts).
   'Atkinson Hyperlegible',

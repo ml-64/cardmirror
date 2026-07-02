@@ -261,10 +261,8 @@ interface DocRecord {
   navPanel: NavigationPanel;
   /** The slot this record currently lives in — maintained by
    *  `Slot.push`. The record's dispatchTransaction refreshes THIS
-   *  slot's chrome (word count); the slot captured at build time goes
-   *  stale the moment `sendDocToSlotN` moves the record, which left
-   *  e.g. a moved speech doc's footer count frozen until something
-   *  else refreshed it. */
+   *  slot's chrome (word count); a slot captured at build time
+   *  would go stale as soon as `sendDocToSlotN` moves the record. */
   owner: Slot;
   /** Root element holding `navPanel`'s output. Mounted into / detached
    *  from the slot's nav section when visibility changes. */
@@ -739,12 +737,11 @@ class Slot {
    *  the stack but its EditorView stays live (memory-resident). */
   push(record: DocRecord): void {
     // Detach the OLD visible record first — `detachVisible` reads
-    // `this.visible`, which derives from `visibleIndex`, so it has
-    // to run before we push the new record and shift the index.
-    // Without this the old record's `editorEl` stayed in `bodyEl`
-    // and `mountVisible` below appended the new one alongside it,
-    // so both docs rendered on top of each other until the stack
-    // switcher forced a re-mount.
+    // `this.visible`, which derives from `visibleIndex`, so it must
+    // run before we push the new record and shift the index.
+    // Otherwise the old record's `editorEl` stays in `bodyEl` and
+    // `mountVisible` appends the new one alongside it, rendering
+    // both docs on top of each other.
     this.detachVisible();
     this.stack.push(record);
     record.owner = this; // keep the dispatch closure pointed at the live slot
@@ -1080,12 +1077,10 @@ class Slot {
 }
 
 /** Run a record's debounced heavy-update work NOW (nav rebuild +
- *  word-count refresh), cancelling the pending timer. The send-to-
- *  speech and cross-pane-drop paths used to CANCEL the timer to get
- *  "immediate" nav updates — but only cancelled, never flushed, so
- *  the word count (and full nav rebuild) the timer owed simply never
- *  happened. Live finding 2026-06-10: send-to-speech in multi-pane
- *  left the speech pane's count stale until something else refreshed. */
+ *  word-count refresh), cancelling the pending timer. Callers that
+ *  need an immediate nav update must flush, not just cancel — the
+ *  timer also owes the word-count refresh, and cancelling alone
+ *  leaves the pane's count stale. */
 function flushHeavyUpdateNow(record: DocRecord): void {
   if (record.heavyUpdateTimer !== null) {
     cancelIdle(record.heavyUpdateTimer);
@@ -1127,7 +1122,7 @@ class MultiPaneShell {
   private unsubscribeSettings: (() => void) | null = null;
   /** Doc-switcher overlay — the Alt+Tab-style list that opens
    *  when the user presses Ctrl+Tab while the focused slot has
-   *  2+ docs. Created lazily in the constructor below. */
+   *  2+ docs. Created in the constructor. */
   private docSwitcher!: DocSwitcherOverlay;
 
   constructor() {
@@ -1269,7 +1264,7 @@ class MultiPaneShell {
     // going through the ribbon-keymap path the other multi-pane
     // shortcuts use, because the overlay needs to track the
     // modifier hold and respond on keyup — which the discrete
-    // single-press ribbon path cant model. The other multi-pane
+    // single-press ribbon path can't model. The other multi-pane
     // shortcuts (slot focus, send-to-slot, expand toggle, smart
     // close) all go through the ribbon registry and are
     // user-rebindable in Settings → Keybindings.
@@ -1621,8 +1616,7 @@ class MultiPaneShell {
 
   /** Focus the slot at `idx` (0/1/2). Used by the `focusSlotN`
    *  ribbon commands. If a slot is currently expanded, this moves
-   *  the expansion to the target (matching the legacy window
-   *  listener's behavior). */
+   *  the expansion to the target. */
   focusSlotByIndex(idx: 0 | 1 | 2): void {
     const slot = this.slots[SLOT_IDS[idx]!];
     if (slot.stack.length === 0) return;
@@ -2374,11 +2368,6 @@ class MultiPaneShell {
     this.refreshSpeechChips();
   }
 
-  /** Send the focused pane's selection (or its enclosing heading-
-   *  and-content range if the selection is empty) into the speech
-   *  doc. `atEnd` controls the insertion point — true → after the
-   *  doc-end, false → at the speech doc's current cursor. Verbatim:
-   *  `Paperless.SendToSpeech PasteAtEnd:=true|false`. */
   /** Send the focused slot's selection (or enclosing card / heading
    *  when no selection) to the cross-window dropzone shelf.
    *  Mirrors `sendToSpeech`'s source-resolution; the destination
@@ -2397,6 +2386,11 @@ class MultiPaneShell {
     void sendViewToStarred(sourceRec.view);
   }
 
+  /** Send the focused pane's selection (or its enclosing heading-
+   *  and-content range if the selection is empty) into the speech
+   *  doc. `atEnd` controls the insertion point — true → after the
+   *  doc-end, false → at the speech doc's current cursor. Verbatim:
+   *  `Paperless.SendToSpeech PasteAtEnd:=true|false`. */
   sendToSpeech(atEnd: boolean): void {
     const sourceRec = this.focusedSlot?.visible;
     if (!sourceRec) return;
@@ -2416,9 +2410,8 @@ class MultiPaneShell {
     runSendToSpeech(sourceRec.view, atEnd, () => {
       // Post-insert: focus the destination slot and FLUSH its
       // debounced heavy update so the new headings and word count
-      // show up immediately. This used to only CANCEL the timer —
-      // killing the word-count refresh it owed, so the speech pane's
-      // count froze after every send. Nav-collapse-for-new-headings
+      // show up immediately (flush, not just cancel — the timer
+      // owes the word-count refresh). Nav-collapse-for-new-headings
       // is handled by the resolver's onSliceLanded hook (registered
       // in `buildDocRecord`), so it fires the same way for cross-
       // window receives.
@@ -2524,8 +2517,6 @@ export async function tryCloseVisibleInFocusedSlot(): Promise<boolean> {
   return shell.tryCloseFocusedVisible();
 }
 
-/** Build a fresh DocRecord — wraps the per-doc PM state, nav panel,
- *  editor drag surface, and DOM containers needed for slot mounting. */
 /** Resolve `descriptor` against a record's doc and select + scroll its
  *  view to it (preciseScrollIntoView, like the nav-pane jump). Best-
  *  effort — toasts if the text can't be located, falls back to a caret,
@@ -2562,6 +2553,8 @@ function scrollRecordToDescriptor(
   v.focus();
 }
 
+/** Build a fresh DocRecord — wraps the per-doc PM state, nav panel,
+ *  editor drag surface, and DOM containers needed for slot mounting. */
 function buildDocRecord(
   filename: string,
   doc: PMNode,
@@ -2616,12 +2609,12 @@ function buildDocRecord(
       const next = view.state.apply(tx);
       view.updateState(next);
       // Re-arm the autosave + journal debounces on doc-changing
-      // transactions. Autosave is per-record now (each DocRecord
-      // owns its own enabled flag + timer), so we schedule the
-      // record's own save instead of the single-doc global path.
-      // No-ops when autosave is off for this record. Also flip
-      // the dirty flag so the pane's close-X knows there are
-      // unsaved changes to prompt about.
+      // transactions. Autosave is per-record (each DocRecord owns
+      // its own enabled flag + timer), so schedule the record's
+      // own save, not the single-doc global path. No-ops when
+      // autosave is off for this record. Also flip the dirty flag
+      // so the pane's close-X knows there are unsaved changes to
+      // prompt about.
       // Suppressed while the benchmark drives temporary edits (reverted from a
       // snapshot — must never reach disk or mark the record dirty).
       if (tx.docChanged && !isBenchmarkActive()) {
@@ -2668,9 +2661,8 @@ function buildDocRecord(
             console.error('[cardmirror] navPanel.update failed in multi-pane flush:', e);
           }
           // record.owner, not the build-time `slot` — the record may
-          // have moved panes since (sendDocToSlotN), and refreshing
-          // the old slot left this pane's count stale (live finding:
-          // send-to-speech never updated a moved speech doc's count).
+          // have moved panes (`sendDocToSlotN`); refreshing the old
+          // slot would leave this pane's count stale.
           record.owner.refreshWordCount();
         }, 200);
       }

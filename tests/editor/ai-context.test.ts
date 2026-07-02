@@ -242,8 +242,8 @@ describe('cite-creator response parsing', () => {
 
   it('handles quotes inside the cite without any escaping required', async () => {
     const { parseCiteResponse } = await import('../../src/editor/ai/cite-creator.js');
-    // The exact failure mode the user reported with the Hayward
-    // cite — title with literal quotes that would have broken JSON.
+    // A title with literal quotes — the case the delimited-block
+    // format exists for (quotes would need escaping in JSON).
     const text = [
       '[[CITE]]',
       'Keith Hayward & Matthijs Maas 21, Hayward is Faculty of Law at University of Copenhagen; Maas is Senior Research Fellow, "Artificial intelligence and crime: A primer for criminologists," Volume 17, Issue 2, p. 209-233',

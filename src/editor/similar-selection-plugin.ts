@@ -25,8 +25,8 @@
  * is what happens after the command's own dispatch, so it doesn't
  * dissipate itself). Escape clears via `handleKeyDown`.
  *
- * No format command consumes the shadow selection yet — first cut
- * is pure decoration. See DECISIONS for the deferred work.
+ * Format commands consume the shadow via `getOperatingRanges` and keep
+ * it alive across edits with `META_OPERATING_ON_SHADOW`.
  */
 
 import {
@@ -380,8 +380,8 @@ export function computeSimilarMatches(
     if (!marksEqual(stripFontSize(node.marks), fp.marks)) return true;
     // Whitespace-only runs match on marks alone — size is invisible on
     // a space, and cut docs leave 8-pt cite-styled spaces between
-    // full-size runs. Requiring size equality made Select Similar →
-    // F12 skip exactly the debris it exists to clean up.
+    // full-size runs. Requiring size equality would make Select
+    // Similar → F12 skip exactly the debris it exists to clean up.
     const whitespaceOnly = !node.text || !node.text.trim();
     if (!whitespaceOnly && effectivePt(node, parent) !== fp.effectivePt) return true;
     const start = Math.max(from, pos);

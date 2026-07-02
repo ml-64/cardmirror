@@ -129,8 +129,8 @@ export function normalizeForMatch(s: string): { text: string; map: number[] } {
 // has runnable, testable definitions. The editor's live code paths
 // (word-selection keymap/plugin, find/replace, ribbon) reimplement
 // their boundary walks directly on `classifyChar`/`isWordChar` and do
-// NOT import these. Kept deliberately (audit 2026-07-01) — if you wire
-// one into product code, delete this banner.
+// NOT import these. Kept deliberately — if you wire one into product
+// code, delete this banner.
 
 /** The base unit (without trailing-space absorption) containing
  *  the character at index `idx` in `text`. Returns `{ from, to }`

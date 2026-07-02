@@ -7,8 +7,8 @@
  *     relevant selection edge — does NOT skip into the adjacent
  *     paragraph the way a no-selection Ctrl+Down does.
  *
- * Shift-extend variants are not changed and are exercised
- * separately to confirm.
+ * Shift-extend variants keep extending (never collapse); they are
+ * exercised separately to confirm.
  */
 
 import { describe, expect, it } from 'vitest';

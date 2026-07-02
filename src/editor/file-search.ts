@@ -154,8 +154,8 @@ export function searchFileObjects(objects: readonly FileObject[], query: string)
  *
  * Each carries a doc range, not a materialized slice: the caller keeps
  * the parsed doc and slices on insert, so a dive doesn't build a slice
- * for every heading up front. Insertion granularity (confirmed with the
- * user) is whatever `computeHeadingRange` returns:
+ * for every heading up front. Insertion granularity is whatever
+ * `computeHeadingRange` returns:
  *   - tag / cite           → the enclosing card (tag + body)
  *   - block / hat / pocket  → the heading + everything under it
  *   - analytic              → the analytic unit / card

@@ -5,8 +5,8 @@
  * that flags misspellings in the *visible* part of the document — so,
  * unlike the browser's built-in checker, it catches words in opened /
  * imported text, not just words you're actively typing. It stays cheap
- * on huge debate docs by only ever scanning the screenful that's on
- * screen, re-checked after scroll/edit settles. The cost tracks
+ * on huge debate docs by only scanning the visible screenful,
+ * re-checked after scroll/edit settles. The cost tracks
  * words-on-screen, not document size.
  *
  * Dictionary: nspell (Hunspell-in-JS) over the en `.aff`/`.dic`,
@@ -134,7 +134,7 @@ export function misspelledRangesIn(
       for (let i = 0; i < child.text.length; i++) map.push(childStart + i);
     } else {
       // A non-text inline node (image, hard break) ends a word: insert a
-      // sentinel WORD_RE never matches so no word spans across it.
+      // sentinel that `WORD_RE` never matches so no word spans across it.
       parts.push(WORD_BREAK_SENTINEL);
       map.push(base + offset);
     }

@@ -23,8 +23,8 @@ describe('comment id allocation', () => {
     const doc = schema.nodes['doc']!.create(null, schema.nodes['paragraph']!.create());
     const state = EditorState.create({ doc });
 
-    // Freshly allocated ids are small integers (the old Date.now() seed
-    // was ~1.7e12, well past Word's signed-32-bit w:id).
+    // Fresh ids must fit Word's signed-32-bit `w:id`; a Date.now()-based
+    // seed (~1.7e12) would overflow it.
     expect(Number(newCommentId())).toBeLessThan(INT32_MAX);
 
     // Loading threads advances the counter past every loaded id, so the

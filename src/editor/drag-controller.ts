@@ -1,20 +1,19 @@
 /**
  * Workspace-scoped drag controller.
  *
- * Coordinates header drag-and-drop within the nav pane (Phase 1) and
- * — eventually — between the nav pane and the editor surface, and
- * between separate documents in a multi-doc workspace.
+ * Coordinates drag-and-drop of headed units within and between the nav
+ * pane and editor surfaces — including cross-view drops in multi-pane
+ * mode and virtual sources like the dropzone shelf.
  *
  * Architecture: source(s) call `begin(session)` to start a drag.
  * Surfaces register pointer-hit handlers and tell the controller which
  * drop target the cursor is over via `setHoverTarget`. When the pointer
  * is released the active surface calls `commit()`; cancellation goes
- * through `cancel()`. Subscribers (nav pane, eventually the editor
- * view) listen for state changes to render drag visuals.
+ * through `cancel()`. Subscribers listen for state changes to render
+ * drag visuals.
  *
- * For Phase 1 we support a single-item, same-view drop. Multi-item
- * (Phase 2) and cross-view (Phase 3) extend this without changing the
- * shape — `DragSession.items` is already plural.
+ * Same-view drops move (or copy with the modifier held); cross-view
+ * and virtual-source drops always copy.
  */
 
 import type { EditorView } from 'prosemirror-view';
@@ -65,8 +64,8 @@ export interface DragSession {
 }
 
 export interface DropTarget {
-  /** The view the drop should land in. (Same as session.view in
-   *  Phase 1 — a future cross-doc commit can land in another view.) */
+  /** The view the drop should land in — the source view for same-view
+   *  drops, another pane's view for cross-view drops. */
   view: EditorView;
   /** Document position to insert at, in the target view's current doc. */
   insertPos: number;
@@ -82,17 +81,16 @@ type DragEvent = 'begin' | 'move' | 'end';
 type Listener = (event: DragEvent) => void;
 
 /**
- * A drop-target surface (nav pane, editor surface, eventually
- * other-document panes). Surfaces register at attach time; the
- * controller queries each on every pointermove during a drag and
- * picks the closest hit.
+ * A drop-target surface (nav pane, editor surface, other panes).
+ * Surfaces register at attach time; the controller queries each on
+ * every pointermove during a drag and picks the closest hit.
  */
 export interface DragSurface {
   /** Test whether the pointer is over a drop slot owned by this
    *  surface. Return null when not. Optionally returns `view` to
    *  signal which editor view the drop should land in — required for
-   *  cross-view (Phase 3) drops; when omitted the controller defaults
-   *  to the source view. */
+   *  cross-view drops; when omitted the controller defaults to the
+   *  source view. */
   hitTest(clientX: number, clientY: number):
     | {
         el: HTMLElement;
@@ -420,9 +418,8 @@ function scrollToDroppedTop(view: EditorView): void {
  * by the nav-pane copy-drag (Ctrl on Windows/Linux, Option on macOS).
  *
  * Returns null on a no-op (`insertPos` strictly inside a source range
- * — "copy into self" recurses indefinitely). Boundary positions are
- * still rejected because the hit-test surfaces don't produce them
- * anyway and rejecting keeps the same predicate as the move path.
+ * — "copy into self"). Boundary positions (= from or = to) are valid
+ * drop slots, the same predicate as the move path.
  */
 export function buildCopyTransaction(
   state: EditorState,

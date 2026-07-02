@@ -48,32 +48,30 @@ export const absorbPlugin: Plugin = new Plugin({
     if (regions.length === 0) return null;
     const tr = newState.tr;
     // Apply right-to-left so each region's positions stay valid
-    // through the in-flight transaction. Within each region we
-    // do TWO surgical steps:
+    // through the in-flight transaction. Each region takes TWO
+    // surgical steps:
     //   1. Insert the absorbed-bodies fragment INSIDE the
     //      absorbing card, just before its closing boundary.
-    //   2. Delete the doc-level orphan paragraphs that were
-    //      absorbed.
-    // Splitting it this way means the part of the card
-    // CONTAINING THE CURSOR is never touched, so PM's selection
-    // mapping leaves the cursor exactly where it was — fixing
-    // the "viewport rockets to doc end" bug that the previous
-    // single `replaceWith(0, doc.content.size, rebuilt)` form
-    // triggered via PM's default mapping for cursors inside the
-    // wholesale-replaced range.
+    //   2. Delete the absorbed doc-level orphan paragraphs.
+    // Surgical steps rather than a single
+    // `replaceWith(0, doc.content.size, rebuilt)`: they never
+    // touch the part of the card containing the cursor, so PM's
+    // selection mapping leaves the cursor in place; a wholesale
+    // replace maps cursors inside the replaced range to doc end,
+    // rocketing the viewport there.
     //
-    // ONE remaining case the per-region steps don't cover: a
-    // cursor INSIDE an orphan being absorbed. Step 2's `delete`
-    // claims the cursor's range; PM's default assoc=1 mapping
-    // pushes it to the END of the deletion (which auto-snaps to
-    // the last textblock — the bottom of the now-absorbed card).
-    // Catch that here and re-anchor manually: each absorbed orphan
-    // moves to just before the card's closing boundary, so a
-    // position `P` in the original orphan-range corresponds to
-    // `P - 1` in the final doc (one fewer doc-level boundary).
-    // The same delta works for every orphan in a region because
-    // the orphans absorb in document order into a single
-    // contiguous run inside the card.
+    // One case the per-region steps don't cover: a cursor INSIDE
+    // an orphan being absorbed. Step 2's `delete` claims the
+    // cursor's range; PM's default assoc=1 mapping pushes it to
+    // the END of the deletion (which auto-snaps to the last
+    // textblock — the bottom of the now-absorbed card). Catch that
+    // here and re-anchor manually: each absorbed orphan moves to
+    // just before the card's closing boundary, so a position `P`
+    // in the original orphan range corresponds to `P - 1` in the
+    // final doc (one fewer doc-level boundary). The same delta
+    // works for every orphan in a region because the orphans
+    // absorb in document order into a single contiguous run
+    // inside the card.
     const origHead = newState.selection.head;
     const origAnchor = newState.selection.anchor;
     let headInOrphans = false;
@@ -229,12 +227,9 @@ export function absorbedDocChildren(doc: PMNode): Fragment | null {
       t === 'card_body' ||
       t === 'table'
     ) {
-      // All four are valid in both card and analytic_unit content
-      // expressions, so absorb regardless of container type. The bare
-      // undertag case shows up after F7 on text followed by an undertag
-      // annotation; the table case is F7 on text followed by an evidence
-      // table — without these the node would orphan and the absorption
-      // zone would terminate prematurely.
+      // All four are valid in both `card` and `analytic_unit` content
+      // expressions (see the header's absorption type mapping), so
+      // absorb regardless of container type.
       absorbed.push(child);
       return;
     }

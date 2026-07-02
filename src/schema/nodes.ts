@@ -116,8 +116,10 @@ export const nodes: { [name: string]: NodeSpec } = {
    * pixels at 96dpi.
    *
    * Atomic + draggable: ProseMirror treats the image as an indivisible
-   * inline glyph — cursor goes around it, not into it. Draggable lets
-   * users move it via drag-and-drop (when supporting that later).
+   * inline glyph — cursor goes around it, not into it. `draggable` is
+   * currently inert: the editor swallows all `dragstart` events (see
+   * the text-drag-suppression plugin in `editor/index.ts`), so image
+   * drag-and-drop needs a carve-out there before it works.
    */
   image: {
     inline: true,
@@ -383,10 +385,11 @@ export const nodes: { [name: string]: NodeSpec } = {
    * `splitInCardAnalytics`) and on import, mirroring what pasting an
    * analytic into a card already does.
    *
-   * The strict-order schema (`tag undertag* cite_paragraph? card_body*`)
-   * was loosened so editing operations can insert a card_body in any
-   * position after the tag — e.g., Enter at end of tag drops a new
-   * body directly under the tag, above any pre-existing cite/body.
+   * Content after the tag is order-free rather than a strict
+   * `tag undertag* cite_paragraph? card_body*` sequence, so editing
+   * operations can insert a card_body in any position — e.g., Enter at
+   * end of tag drops a new body directly under the tag, above any
+   * pre-existing cite/body.
    *
    * Undertags belong to the tag they follow — they don't mark a card
    * boundary.
@@ -486,18 +489,16 @@ export const nodes: { [name: string]: NodeSpec } = {
 
   /**
    * An analytic-rooted unit, peer to `card`. Required analytic, optional
-   * undertag(s), zero+ body paragraphs, and (since the cite-paste
-   * simplification) cite_paragraph too. Cite paragraphs aren't a
-   * conventional part of an analytic — analytics are commentary, not
-   * external evidence — but allowing them here keeps cite-paste
-   * uniform across card and analytic_unit destinations and avoids
-   * forced new-card creation when the user just wants a cite below
-   * an analytic's body. Drags as a unit.
+   * undertag(s), zero+ body paragraphs, and cite_paragraphs. Cite
+   * paragraphs aren't a conventional part of an analytic — analytics
+   * are commentary, not external evidence — but allowing them here
+   * keeps cite-paste uniform across card and analytic_unit
+   * destinations and avoids forced new-card creation when the user
+   * just wants a cite below an analytic's body. Drags as a unit.
    */
   analytic_unit: {
-    // Loosened the same way `card` was — see the card content
-    // expression's comment, including the rationale for putting
-    // `card_body` first in the alternation.
+    // Same alternation shape as `card` — see its content expression's
+    // comment for why `card_body` comes first.
     content: 'analytic (card_body | undertag | cite_paragraph | table)*',
     defining: true,
     isolating: true,

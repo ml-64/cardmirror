@@ -30,7 +30,7 @@ export async function launchBenchmarkOverlay(): Promise<void> {
   const snapshot = beginBenchmark();
   const chip = makeChip();
   document.body.appendChild(chip.el);
-  // One frame so the chip paints and the (now modal-free) editor is on screen.
+  // One frame so the chip paints and the modal-free editor is on screen.
   await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
   let results: BenchmarkResults | null = null;
   try {

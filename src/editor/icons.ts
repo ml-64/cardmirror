@@ -1,8 +1,8 @@
 /**
  * Icon helper. Returns a `<span class="pmd-icon pmd-icon-NAME">` that
  * the generated `icons.css` paints — Untitled UI line icons in
- * `currentColor` under `:root[data-icons="modern"]` (default), or the
- * original emoji glyph under `:root[data-icons="classic"]`. The set is
+ * `currentColor` under `:root[data-icons="modern"]` (default), or an
+ * emoji glyph under `:root[data-icons="classic"]`. The set is
  * switched at runtime by the `iconSet` setting (see `applyIconSet` in
  * index.ts); no element needs rebuilding.
  *

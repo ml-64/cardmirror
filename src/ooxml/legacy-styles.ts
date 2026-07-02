@@ -12,8 +12,8 @@
  * This module is the single source of truth for classifying those styles, used
  * by BOTH the .docx style cleaner (`style-clean/legacy-remap.ts`, which rewrites
  * the styleIds) and the importer (`import/importer.ts`, which maps them to
- * schema nodes/marks). Keeping it in one place stops the two from drifting into
- * the "each covers half the vocabulary" state they were in.
+ * schema nodes/marks). Keeping it in one place stops the two from drifting
+ * into each covering only half the vocabulary.
  *
  * A style is matched by UI name (case-insensitive) or by styleId.
  */

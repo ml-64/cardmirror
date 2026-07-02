@@ -17,14 +17,13 @@
  * a ~13.2pt-tall strut (11pt × 1.2), and lines never collapse below
  * that.
  *
- * Why line-height-only (not font-size + line-height): an earlier
- * version of this plugin set both `font-size: <min>pt` AND
- * `line-height: <multiplier>` on the paragraph. That meant any text
- * inside the paragraph WITHOUT an explicit `font_size` mark cascade-
- * shrunk to the small size — visually inconsistent with what the
- * mark inspector reports (the user sees small text but no marks),
- * and a fragile workaround (an inline `font-size: 11pt` decoration
- * over bare ranges) was needed to keep bare body text readable.
+ * Why line-height-only (not font-size + line-height): setting the
+ * paragraph's `font-size: <min>pt` as well would cascade-shrink any
+ * text inside the paragraph WITHOUT an explicit `font_size` mark —
+ * visually inconsistent with what the mark inspector reports (the
+ * user sees small text but no marks) — and would need a fragile
+ * workaround (an inline `font-size: 11pt` decoration over bare
+ * ranges) to keep bare body text readable.
  * Setting only line-height (in absolute pt) collapses the strut
  * without touching the font cascade: bare text inside a shrunken
  * paragraph still inherits body 11pt naturally, and per-line height
@@ -49,11 +48,10 @@
  * they're usually fine-print citation material the user is happy
  * to compress).
  *
- * Why named-style cascade is no longer a concern: with paragraph
- * font-size left alone, `.pmd-underline` / `.pmd-emphasis` / etc.
- * inherit body 11pt as before, and `.pmd-cite` keeps its 13pt via
- * its own unconditional CSS rule. No `.pmd-fs-shrunk .pmd-*`
- * font-size pinning is needed.
+ * Named-style cascade: with paragraph font-size left alone,
+ * `.pmd-underline` / `.pmd-emphasis` / etc. inherit body 11pt, and
+ * `.pmd-cite` keeps its 13pt via its own unconditional CSS rule. No
+ * `.pmd-fs-shrunk .pmd-*` font-size pinning is needed.
  *
  * Per-keystroke incremental update: existing decorations get mapped
  * through each transaction; only paragraphs in the touched
@@ -167,8 +165,8 @@ function computeDecorationsInRange(doc: PMNode, from: number, to: number): Decor
 /**
  * Smallest `font_size` half-points value across all text nodes in
  * `para`, capped at the default 22 (11pt). Text without a `font_size`
- * mark counts as the default. Retained as a public helper for tests
- * and any external consumers.
+ * mark counts as the default. Exported for tests and external
+ * consumers.
  */
 export function computeMinHalfPoints(para: PMNode): number {
   let min = DEFAULT_HALF_POINTS;

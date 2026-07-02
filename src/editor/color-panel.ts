@@ -146,11 +146,9 @@ export function wireColorPanel(viewRef: ViewRef): ColorPanelHandle {
       if (!view) return;
       const sel = view.state.selection;
       if (sel.empty) {
-        // Toggle / switch paintbrush.
         setPaintbrush(activePaintbrush === c.paintbrushMode ? null : c.paintbrushMode);
         return;
       }
-      // Selection present — apply directly via the matching command.
       const cmd = c.onMainClick();
       cmd(view.state, view.dispatch.bind(view));
       view.focus();

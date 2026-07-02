@@ -11,13 +11,14 @@
  *   - Branch B (no integrity, with pilcrows): merge with 6-pt ¶
  *     markers at the original boundaries — recoverable via Uncondense.
  *
- * `respectHeadings` modifies branches A and B for selection-based
- * runs: when true, only `card_body` and doc-level `paragraph` runs
- * merge (headings, cites, undertags remain separate paragraphs);
- * when false, every touched paragraph merges into one textblock
- * whose type = type of the first touched paragraph, with cards /
- * analytic_units whose head was touched dissolved and orphan body
- * slots absorbed into the receiving container.
+ * `headingMode` modifies branches A and B for selection-based runs:
+ * 'strict' no-ops when the selection touches a structural element;
+ * 'respect' merges only `card_body` and doc-level `paragraph` runs
+ * (headings, cites, undertags remain separate paragraphs);
+ * 'demolish' merges every touched paragraph into one textblock typed
+ * as the first touched paragraph, dissolving cards / analytic_units
+ * whose head was touched and reconstituting containers around the
+ * surviving tags / analytics.
  */
 
 import { Fragment, type Node as PMNode, type Mark, type NodeType } from 'prosemirror-model';
@@ -42,10 +43,9 @@ export function makePilcrowText(): PMNode {
 }
 
 /** Whether a single text character at index `i` of `node` is a pilcrow
- *  marker — recognized by either the new `pilcrow_marker` mark (current
- *  format) or the legacy `font_size` mark at 6-pt (pre-fix docs / docs
- *  imported from Verbatim's OOXML encoding, which the importer still
- *  reads as font_size). */
+ *  marker — recognized by the `pilcrow_marker` mark, or by the legacy
+ *  encoding of a `font_size` mark at 6 pt (older saved docs; Verbatim
+ *  pilcrows the importer couldn't isolate into their own run). */
 export function isPilcrowMarker(node: PMNode, i: number): boolean {
   if (!node.isText) return false;
   const text = node.text ?? '';
@@ -57,13 +57,13 @@ export function isPilcrowMarker(node: PMNode, i: number): boolean {
 
 // ---------- Node-type classification ----------
 
-/** Body slots that participate in the collapse runs (when `respectHeadings`
- *  is true) and in the no-selection in-card collapse. */
+/** Body slots that participate in respect-mode collapse runs and in the
+ *  no-selection in-card collapse. */
 const COLLAPSIBLE_TYPES = new Set(['card_body', 'paragraph']);
-/** Structural elements always preserved when `respectHeadings` is true. */
+/** Structural elements always preserved outside demolish mode. */
 const HEADING_TYPES = new Set(['pocket', 'hat', 'block', 'tag', 'analytic']);
-/** Body slots that stay separate when `respectHeadings` is true (in addition
- *  to headings). */
+/** Body slots that stay separate in respect mode (in addition to
+ *  headings). */
 const PRESERVED_BODY_SLOTS = new Set(['cite_paragraph', 'undertag']);
 
 function isCollapsible(node: PMNode): boolean {
@@ -260,12 +260,10 @@ const REMOVABLE_EMPTY_TYPES = new Set(['card_body', 'paragraph']);
  * structural elements (headings, cites, undertags) keep existing even
  * when empty.
  *
- * Mirrors Verbatim's CondenseCard Branch C: clean intra-paragraph
- * whitespace, then `^p^w` (paragraph + whitespace) and `^p^p`
- * (consecutive paragraph breaks) iteratively collapsed. Both passes
- * combine to "empty/whitespace-only paragraphs between content
- * paragraphs disappear" — which is what Verbatim's two Find/Replace
- * loops do in sequence.
+ * Mirrors Verbatim's `CondenseCard` Branch C, whose `^p^w` (paragraph
+ * mark + whitespace) and `^p^p` (consecutive paragraph marks)
+ * Find/Replace loops combine to "empty / whitespace-only paragraphs
+ * between content paragraphs disappear".
  */
 export function condenseBranchC(): Command {
   return (state, dispatch) => {
@@ -331,10 +329,9 @@ interface MergeOptions {
  *                  textblock; dissolve any container whose head was
  *                  touched; reconstitute leftover body slots.
  *
- * No-selection cursor-in-container case uses the safe path
- * unconditionally — the in-card "implicit respect-headings" we
- * agreed on. The other paths only fire when there's an actual
- * selection.
+ * With no selection (cursor inside a container), the safe in-card
+ * path runs unconditionally and implicitly respects headings; the
+ * other paths require an actual selection.
  */
 export function condenseMerge(opts: MergeOptions): Command {
   return (state, dispatch) => {
@@ -469,10 +466,8 @@ function cleanedTextblock(node: PMNode): PMNode {
  * paragraph and bumps line-height to the larger strut, making the
  * merged paragraph look "11-pt-tall" even though most text is 8 pt.
  * Inheriting the trailing marks gives the joiner the same font-size /
- * highlight / bold / etc. as the run it's extending, which is the
- * visually correct continuation. Pilcrow joiners deliberately keep
- * their own intrinsic formatting (the 6-pt ¶ marker is the whole
- * point) so they don't inherit either way.
+ * highlight / bold / etc. as the run it's extending. Pilcrow joiners
+ * keep their intrinsic 6-pt formatting and don't inherit.
  *
  * The first source's marks are preserved; later sources' content
  * keeps its own marks. No attempt to merge marks across boundaries
@@ -494,9 +489,8 @@ function mergeRun(sources: PMNode[], withPilcrows: boolean, targetType: NodeType
     trailingMarks = trailingTextMarks(cleaned);
   }
   // Carry the first source's attributes that the target type supports —
-  // notably `id`. Dropping it (the previous `create(null, …)`) left a
-  // merged tag/heading with no id, which the nav pane keys on, so the
-  // merged card became invisible in the outline.
+  // notably `id`, which the nav pane keys on; a merged tag/heading
+  // without it disappears from the outline.
   return targetType.create(inheritedAttrs(targetType, sources[0]!), Fragment.fromArray(inlines));
 }
 
@@ -528,7 +522,7 @@ function trailingTextMarks(fragment: Fragment): readonly Mark[] {
 // ---------- Selection-based merging: respect-headings path ----------
 
 /**
- * Selection-based merge with `respectHeadings: true`. Walk through every
+ * Selection-based merge in 'respect' mode. Walk through every
  * doc-level container the selection intersects; for each container's
  * touched children, group consecutive collapsible-by-type touched
  * textblocks into runs and merge each run. Preserved-type touched
@@ -628,24 +622,21 @@ function condenseMergeSelectionPreserving(opts: MergeOptions): Command {
  *  parent is the smallest node that wraps `pos`. */
 function findParentPos(doc: PMNode, pos: number): number {
   const $pos = doc.resolve(pos);
-  // depth - 1 = parent of the textblock at depth. The textblock is at
-  // $pos.depth (resolved positions inside a textblock have depth = textblock
-  // depth). But we resolved AT the textblock, not inside it; PM's resolve
-  // semantics: $pos at the boundary just before the textblock has depth
-  // equal to the parent's depth.
-  // Simpler: use doc.resolve(pos).before($pos.depth) — but careful:
+  // Resolving at the boundary just before the textblock yields a depth
+  // whose innermost node is the parent, so `before(depth)` is the
+  // parent's position (-1 when the textblock sits at doc level).
   return $pos.depth === 0 ? -1 : $pos.before($pos.depth);
 }
 
 // ---------- Selection-based merging: demolish path ----------
 
 /**
- * Selection-based merge with `respectHeadings: false`. The destructive
+ * Selection-based merge in 'demolish' mode. The destructive
  * path: every touched textblock contributes its full text to a single
  * merged textblock of type = type of the first touched paragraph.
  * Containers (cards / analytic_units) whose head was touched dissolve;
- * orphan body slots after the merge point absorb into the receiving
- * container.
+ * leftover body slots absorb into a container restarted by a surviving
+ * tag / analytic, or demote to doc-level paragraphs.
  */
 function condenseMergeSelectionDemolish(opts: MergeOptions): Command {
   return (state, dispatch) => {
@@ -719,26 +710,12 @@ function condenseMergeSelectionDemolish(opts: MergeOptions): Command {
     }
     const mergedNode = mergeRun(touchedNodes, opts.withPilcrows, targetType);
 
-    // Build the replacement: pre-touched items, mergedNode, post-touched items.
-    // Pre-touched: items in `flat` with index < firstTouchedIdx — these came
-    // from containers that were partially clipped at the start; their content
-    // stays in original container form (already preserved as `flat` entries).
-    // Post-touched: items in `flat` with index > lastTouchedIdx — these are
-    // untouched leftover body slots / containers.
-    //
-    // But `flat` is a flattened sequence of textblocks — we've lost container
-    // structure. To rebuild correctly we need to track containers.
-    //
-    // For v1, simplification: pre-touched and post-touched body slots become
-    // direct children of the receiving container; if the receiver itself is a
-    // doc-level paragraph (no container), siblings stay at doc level.
-    //
-    // Determine the receiving container by walking up from `flat[firstTouchedIdx]`:
-    // the container is the smallest enclosing card / analytic_unit that the
-    // first touched node lives in (or doc if it's doc-level).
-    //
-    // For an MVP that handles the common cases the user described, see the
-    // implementation below.
+    // Build the replacement: untouched pre-touched items, the merged
+    // node, untouched post-touched items. `flat` has lost container
+    // structure, so `buildDemolishReplacement` emits everything at doc
+    // level and `reconstituteContainers` rebuilds cards / analytic_units
+    // around the surviving tags and analytics (orphan body slots demote
+    // to paragraphs).
 
     const result = buildDemolishReplacement(
       state,
@@ -787,21 +764,12 @@ function flattenForDemolish(
 }
 
 /**
- * Build the replacement fragment for the demolish path. The merged
- * textblock takes the position of the first touched node; pre- and
- * post-touched untouched siblings are placed around it. Containers
- * whose head was touched dissolve — their leftover body slots become
- * doc-level siblings (or absorb into the receiving container if
- * receiver is itself a container... this is the trickier case).
- *
- * MVP: build a flat sequence of doc-level nodes:
- *   - For each untouched node before the merged region: emit as-is
- *     (clean whitespace inside).
- *   - Emit the merged textblock at the cut point.
- *   - For each untouched node after the merged region: emit as-is.
- * Then walk back over the result and absorb orphan body slots
- * (card_body / cite_paragraph / undertag at doc level following the
- * merged node) into the most recent surviving container, if any.
+ * Build the replacement fragment for the demolish path: untouched
+ * nodes before the merged region (whitespace-cleaned), the merged
+ * textblock at the cut point, then untouched nodes after. The
+ * sequence is emitted flat, and `reconstituteContainers` rebuilds
+ * container structure — a tag / analytic restarts a card /
+ * analytic_unit and absorbs the body slots that follow it.
  */
 function buildDemolishReplacement(
   state: EditorState,
@@ -835,10 +803,8 @@ function buildDemolishReplacement(
  *     until the next heading or non-body node.
  *   - analytic → start a new analytic_unit; absorb subsequent body slots.
  *   - card_body / cite_paragraph / undertag → absorb into the current
- *     surviving container if any; otherwise lift to doc level as a
- *     paragraph (matching the schema doc content expression). To keep
- *     things simple and schema-valid, the demoted form for orphan body
- *     slots at doc level is a paragraph node.
+ *     surviving container if any; otherwise demote to a doc-level
+ *     paragraph (matching the schema doc content expression).
  *   - Other doc-level nodes (pocket / hat / block / paragraph): just
  *     emit; container is broken.
  */
@@ -893,10 +859,9 @@ function reconstituteContainers(seq: PMNode[]): Fragment {
 /**
  * Reverse Branch B: find 6-pt ¶ markers in scope and split the
  * containing textblock at each marker, dropping the marker character
- * itself. Scope = selection if non-empty; else current card or
- * analytic_unit; else whole doc (only if cursor at very top — Verbatim
- * confirms before applying doc-wide; we skip the prompt for now and
- * just no-op at doc level with no selection).
+ * itself. Scope = selection if non-empty, else the current card /
+ * analytic_unit. A doc-level cursor with no selection is a no-op
+ * (Verbatim prompts and applies doc-wide; we don't).
  */
 export function uncondense(): Command {
   return (state, dispatch) => {

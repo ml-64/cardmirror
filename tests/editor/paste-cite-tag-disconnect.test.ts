@@ -1,12 +1,11 @@
 /**
  * Card-paste fitting matrix.
  *
- * Origin (Discord regressions): pasting a cite/undertag/body block copied from
- * inside a card detached the tag — the clipboard slice is a single OPEN `card`
- * (openStart 2, tag cut off), and the paste path split the destination card to
- * insert it. The fix unwraps that container and fits the carried block INTO the
- * cursor's card per an agreed matrix (never breaking the card, preserving block
- * types):
+ * A cite/undertag/body block copied from inside a card lands on the clipboard
+ * as a single OPEN `card` slice (openStart 2, tag cut off). Pasting it must
+ * never split the destination card and detach its tag: `tryPasteCardContent`
+ * unwraps the container and fits the carried block INTO the cursor's card per
+ * this matrix (never breaking the card, preserving block types):
  *
  *   into ↓ \ paste →   body            cite              undertag
  *   card_body          inline          cite block        undertag block
@@ -246,10 +245,9 @@ describe('card-paste matrix — boundaries', () => {
 });
 
 describe('card-paste matrix — paste OVER a selection (range)', () => {
-  // A range paste used to tear the card apart: tryPasteCardContent bailed on any
-  // non-collapsed selection, so the open-card slice fell to the split path and
-  // spawned a phantom empty-tag sibling. Card-fittable content must fit in place
-  // instead, dropping the selected text first — never breaking the card.
+  // Card-fittable content pasted over a non-collapsed selection must fit in
+  // place, dropping the selected text first — never fall to the split path,
+  // which would tear the card apart and spawn a phantom empty-tag sibling.
 
   it('body over a partial card_body selection → replaces inline, card intact', () => {
     const doc = makeDoc([cardWith(tag('T', 't1'), cardBody('Smith body'))]);

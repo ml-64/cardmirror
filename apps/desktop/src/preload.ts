@@ -673,12 +673,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   getZoomFactor: (): number => webFrame.getZoomFactor(),
 
-  /** Card-cutter local plugin (experimental). `pick` opens the native
-   *  file dialog and returns the chosen path. `load` asks main for the
-   *  engine bundle's source (from the given path, the CARDCUTTER_ENGINE
-   *  env, or the default userData/plugins location) and runs it in the
-   *  renderer's MAIN world, where it self-registers via
-   *  window.__registerCardCutter. Never bundled in the release. */
   /** Verbatim Flow bridge (Windows COM → Excel). All resolve a JSON
    *  status object; off Windows they resolve `{ error: 'windows-only' }`. */
   flowAvailable: (): Promise<Record<string, unknown>> =>
@@ -691,6 +685,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /** Pre-warm the persistent PowerShell host (no Excel interaction). */
   flowStartHost: (): Promise<Record<string, unknown>> => ipcRenderer.invoke('host:flow-start'),
 
+  /** Card-cutter local plugin (experimental). `pick` opens the native
+   *  file dialog and returns the chosen path. `load` asks main for the
+   *  engine bundle's source (from the given path, the CARDCUTTER_ENGINE
+   *  env, or the default userData/plugins location) and runs it in the
+   *  renderer's MAIN world, where it self-registers via
+   *  window.__registerCardCutter. Never bundled in the release. */
   cardCutterPickFile: (): Promise<string | null> =>
     ipcRenderer.invoke('host:cardcutter-pick-file'),
   cardCutterLoad: async (

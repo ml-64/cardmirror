@@ -4,9 +4,9 @@
  * A full-window view shown when the app launches without a
  * document, when the last open doc is closed, or via the Home
  * affordance in the chrome. Offers the primary entry points —
- * New document, New speech document, Open — plus a list of
- * recently opened files. A Study entry point is stubbed for a
- * later phase (the spaced-repetition practice interface).
+ * New document, New speech document, Open — plus recently opened
+ * files, utility groups (Clean / Convert / Compress / Quick
+ * Cards), and the Learn section (spaced-repetition review).
  *
  * Visibility is driven by the `pmd-home-active` class on
  * `documentElement`: CSS hides the ribbon / nav pane / editor /
@@ -100,15 +100,12 @@ class HomeScreen {
     header.appendChild(tagline);
     inner.appendChild(header);
 
-    // Number-key actions. Order matters: index 0..8 map to the 1..9
-    // keyboard shortcuts (handled in onKeyDown), mirroring the number-key
-    // panels elsewhere. Reading order down the page: 1-3 primary action
+    // Number-key actions: index 0..8 map to the 1..9 shortcuts (see
+    // onKeyDown), in reading order down the page — 1-3 primary action
     // cards, 4 Clean, 5 Bulk convert, 6 Bulk compress, 7 Manage quick
-    // cards, 8 Review all, 9 Manage flashcards (their cards are built
-    // further down). 4-6 guard on the same conditions that show their
-    // card, so a key only fires when its button is on screen (no clean /
-    // bulk convert / compress off Electron; no Review all before any
-    // flashcards exist).
+    // cards, 8 Review all, 9 Manage flashcards. Runners guard on the
+    // same conditions that show their card, so a key only fires when
+    // its button is on screen.
     this.actionRunners = [
       () => this.callbacks?.newDoc(),
       () => this.callbacks?.newSpeechDoc(),
@@ -166,11 +163,10 @@ class HomeScreen {
     recentsSection.appendChild(this.recentsEl);
     inner.appendChild(recentsSection);
 
-    // Utilities — below Recent, above the (forthcoming) Learn section.
-    // Each is its own labeled group (heading + button) sitting side by
-    // side in a card-width grid. Order: Clean, Convert, Compress, Quick
-    // Cards (matching the number-key order: Clean 4, Convert 5, Compress
-    // 6, Quick Cards 7).
+    // Utilities — below Recent. Each is its own labeled group (heading
+    // + button) sitting side by side in a card-width grid. Order:
+    // Clean, Convert, Compress, Quick Cards (matching the number-key
+    // order: Clean 4, Convert 5, Compress 6, Quick Cards 7).
     const qcSection = document.createElement('section');
     qcSection.className = 'pmd-home-qc-section';
     const qcGrid = document.createElement('div');
@@ -233,14 +229,10 @@ class HomeScreen {
         ),
       ),
     );
-    // Learn — spaced-repetition review, as the rightmost utility group
-    // (to the right of Quick Cards). Content is rebuilt from the local
-    // learn store (due counts per scope) and re-rendered on store
-    // changes + each show.
-    // Learn — a two-column-spanning group to the right of Quick Cards,
-    // so the utilities fill two complete rows: row 1 Clean / Convert /
-    // Compress, row 2 Quick Cards / Learn[Review all · Manage flashcards].
-    // One "Learn" heading sits over its two full-size cards.
+    // Learn — spaced-repetition review, a two-column group to the right
+    // of Quick Cards so the utilities fill two rows: Clean / Convert /
+    // Compress, then Quick Cards / Learn. Content is rebuilt from the
+    // learn store (due counts per scope) on store changes + each show.
     this.learnEl = document.createElement('div');
     this.learnEl.className = 'pmd-home-learn';
     const learnGroup = labeledGroup('Learn', this.learnEl);

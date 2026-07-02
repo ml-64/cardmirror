@@ -2,7 +2,7 @@
  * Voice recognition worker — runs as a PLAIN NODE child process
  * (child_process.fork with ELECTRON_RUN_AS_NODE), not an Electron
  * utilityProcess: utilityProcess SIGTRAPs loading the multi-GB large
- * dictation model (reproduced 2026-06-10; plain Node loads it fine).
+ * dictation model (plain Node loads it fine).
  * Isolation properties are identical — decode is synchronous FFI work,
  * and an engine stall or crash can never block or take down the main
  * process (SPEC-voice.md §12 item 2 hardening). Speaks a tiny message

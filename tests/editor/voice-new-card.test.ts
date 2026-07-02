@@ -1,5 +1,5 @@
 /**
- * E2 — voice "new card" must mint a tag with a real id. `card.createAndFill()`
+ * Voice "new card" must mint a tag with a real id. `card.createAndFill()`
  * fills the required tag with default attrs (`id: null`), which is invisible to
  * the nav pane and level filter; `newCardNode` seeds a fresh id instead.
  */

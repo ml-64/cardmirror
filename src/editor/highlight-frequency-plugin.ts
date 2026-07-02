@@ -13,7 +13,7 @@
  *     `--pmd-c-override-{highlight,shading}` (set by
  *     applyHighlightShadingOverride to the last slot's color).
  *
- * Performance design (per design discussion):
+ * Performance design:
  *
  *   1. **Inactive when not needed.** If the feature is off, or
  *      slots.length ≤ 1, or all slots are equal, the plugin
@@ -226,9 +226,9 @@ export const highlightFrequencyPlugin = new Plugin<FreqState>({
         }
         return prev;
       }
-      // If we haven't initialized yet, the view layer below will
-      // trigger a full scan via a setMeta(META_FORCE_RESCAN) once
-      // it notices the gap. Just pass through here.
+      // If not yet initialized, the view layer below triggers a
+      // full scan via setMeta(META_FORCE_RESCAN) once it notices
+      // the gap; pass through here.
       const force = tr.getMeta(META_FORCE_RESCAN) as
         | { highlight: Map<string, number>; shading: Map<string, number> }
         | undefined;

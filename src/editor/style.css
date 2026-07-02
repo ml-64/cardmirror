@@ -741,7 +741,7 @@ button {
   --pmd-c-image-placeholder-border: #999;
   --pmd-c-highlight-default: #ffff66;  /* default user-applied highlight color */
 
-  /* ── Theme-invariant tokens (2026-07-01 color-compliance audit). ──
+  /* ── Theme-invariant tokens ──
      These deliberately do NOT get dark-theme overrides:
      - doc-paper: the document's paper when the theme is NOT applied
        to the doc — must stay white in dark mode by design.
@@ -759,8 +759,8 @@ button {
   --pmd-c-repair-match: rgba(76, 175, 80, 0.32);
   --pmd-c-repair-match-strong: rgba(76, 175, 80, 0.55);
   --pmd-c-repair-glow: rgba(76, 175, 80, 0.9); /* pulse-ring keyframe peak */
-  --pmd-c-aff: #1e6fcc;                /* prep-timer Aff (was a phantom token) */
-  --pmd-c-neg: #c53030;                /* prep-timer Neg (was a phantom token) */
+  --pmd-c-aff: #1e6fcc;                /* prep-timer Aff */
+  --pmd-c-neg: #c53030;                /* prep-timer Neg */
   --pmd-c-notify-dot: #e5484d;         /* ribbon due-date dot */
   --pmd-c-spellcheck: red;             /* misspelling squiggle */
   --pmd-c-live-indicator: #00ff66;     /* benchmark live dot */
@@ -1151,8 +1151,8 @@ button {
 }
 
 /* Companion rule: paint the scroller white in dark-chrome-light-doc
-   mode. With `#app` now the single-doc scroller (and `.pmd-pane-body`
-   the per-pane scroller in multi-pane), paint behind the visible
+   mode. `#app` is the single-doc scroller (and `.pmd-pane-body`
+   the per-pane scroller in multi-pane) — paint behind the visible
    viewport at every scroll position so any gap below the editor's
    content extent reads as light rather than showing the dark body
    underneath. Container backgrounds in `overflow: auto` cover the
@@ -1210,8 +1210,7 @@ html:has(body.pmd-speech-banner-visible) {
 
 /* All ribbon buttons share the same icon-button look: square, centered
    glyph, no padding-driven asymmetry. Flexbox centering avoids
-   line-height alignment quirks (which is what was making the gear sit
-   off-center). */
+   line-height alignment quirks that leave glyphs sitting off-center. */
 #ribbon button {
   font-family: inherit;
   background: var(--pmd-c-bg);
@@ -1236,8 +1235,8 @@ html:has(body.pmd-speech-banner-visible) {
 /* Ribbon-right 2×2 grid: shortcuts / settings on top, timer /
    home on the bottom. Uses the same 2px×3px intra-panel gap as
    the left-side panels so spacing reads consistently. All four
-   buttons are sized uniformly (overriding the default 1.7rem
-   square and the timer's former tall sizing). */
+   buttons are sized uniformly, overriding the default 1.7rem
+   square. */
 .ribbon-right-grid {
   display: grid;
   grid-template-columns: repeat(2, auto);
@@ -1250,8 +1249,8 @@ html:has(body.pmd-speech-banner-visible) {
   height: 1.45rem;
   font-size: 0.85rem;
 }
-/* Shared scaffolding (accent fill (2-prop)) — consolidated from 4 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (accent fill (2-prop)).
+   Diverge by pulling a selector out, not by re-copying. */
 #ribbon #timer-toggle-btn[aria-pressed="true"],
 .pmd-theme-editor-btn[aria-pressed='true'],
 .pmd-pane-focused .pmd-pane-chip,
@@ -1271,9 +1270,9 @@ html:has(body.pmd-speech-banner-visible) {
    the export button's top + bottom align with the panels' bottom
    row. 1.45rem row height + 2px inter-row gap = the same rhythm. */
 .ribbon-button-stack {
-  /* Was a column flex when this only held Open + Save. Adding "New"
-   * would make a 3-row stack, breaking the 2-row chrome rhythm. Use
-   * a 2-row × N-column grid instead — Open / New on top, Save below. */
+  /* 2-row × N-column grid (Open / New on top, Save below) rather
+   * than a column flex: added buttons flow into new columns instead
+   * of a third row, preserving the 2-row chrome rhythm. */
   display: grid;
   grid-template-rows: repeat(2, auto);
   grid-auto-flow: column;
@@ -1283,8 +1282,8 @@ html:has(body.pmd-speech-banner-visible) {
 
 /* Prefix with `#ribbon` so this rule beats the generic
    `#ribbon button` (ID + element) specificity — without the prefix
-   the height and font-size were silently inherited and the stack
-   buttons rendered at 1.7rem / 0.95rem. */
+   the height and font-size silently fall back to the 1.7rem /
+   0.95rem ribbon defaults. */
 #ribbon .ribbon-button-stack button {
   height: 1.45rem;
   width: 1.5rem;
@@ -1313,9 +1312,9 @@ html:has(body.pmd-speech-banner-visible) {
      "this IS saving."
    - On + inert (no handle yet, OR doc is .docx): amber HOLLOW chip
      with a dashed outline, "armed but not firing." Filled vs hollow is
-     the shape channel (color-vision audit): the two on-states must not
-     differ by hue alone — misreading inert as effective is a
-     data-loss belief. Outline (not border) so the box doesn't shift;
+     the shape channel: the two on-states must not differ by hue
+     alone — misreading inert as effective is a data-loss belief.
+     Outline (not border) so the box doesn't shift;
      negative offset draws it inside the button's rounded rect.
    `data-autosave-effective` is maintained by `refreshAutosaveBtn`
    whenever focus / file format / handle changes, so the state tracks
@@ -1437,8 +1436,8 @@ body.pmd-multi-doc #doc-name-chip { display: none; }
 .pmd-speech-doc-banner-icon { font-size: 1rem; line-height: 1; }
 /* Single-doc only — multi-doc never shows the speech banner (see
    `body.pmd-multi-doc #speech-doc-banner { display: none }` below).
-   With `#app` now `position: fixed` in single-doc, we adjust its
-   top edge to sit below the banner rather than via `margin-top`. */
+   `#app` is `position: fixed` in single-doc, so the banner offsets
+   its top edge rather than using `margin-top`. */
 body.pmd-speech-banner-visible:not(.pmd-multi-doc) #app {
   top: calc(var(--ribbon-height) + var(--speech-banner-height));
 }
@@ -1477,11 +1476,8 @@ body:not(.pmd-inplace-save) #autosave-btn { display: none; }
   display: grid;
   /* `1fr` (not `auto`) so all three columns share equal width
      even when their natural content widths differ. With `auto`
-     each column sizes to its widest occupant, which made the
-     Pocket / Hat / Analytic columns unequal (Block is shorter
-     than Analytic, so col 2 ended up narrower than col 3) — and
-     when style-preview was off the eye picked that up as an
-     asymmetric gap pattern. Equal columns keep the rhythm
+     each column sizes to its widest occupant and the gaps read
+     as an asymmetric pattern. Equal columns keep the rhythm
      uniform regardless of the formattingPanelMode label set or
      whether style-preview is on. */
   grid-template-columns: repeat(3, 1fr);
@@ -1550,8 +1546,8 @@ body:not(.pmd-inplace-save) #autosave-btn { display: none; }
 /* All .ribbon-color-control button selectors are prefixed with
    `#ribbon` so they outrank the generic `#ribbon button` rule
    (ID + element specificity). Without the prefix, height / width /
-   border / background were silently inherited and the color panel
-   buttons rendered at 1.7rem with the wrong chrome. */
+   border / background are silently inherited and the color panel
+   buttons render at 1.7rem with the wrong chrome. */
 #ribbon .ribbon-color-control button {
   border: 1px solid transparent;
   background: transparent;
@@ -1577,9 +1573,7 @@ body:not(.pmd-inplace-save) #autosave-btn { display: none; }
 /* Specificity note: the parent `#ribbon .ribbon-color-control button`
    rule (1,1,1) sets `width: auto` to release the generic
    `#ribbon button` 1.7rem default. We need (1,2,1) here to beat it,
-   hence the wrapper class is included in the selector. The same
-   trap applied to the previous 1.6rem default and the .ribbon-color-
-   arrow width — those weren't taking effect either before this fix. */
+   hence the wrapper class is included in the selector. */
 #ribbon .ribbon-color-control button.ribbon-color-main {
   display: inline-flex;
   flex-direction: column;
@@ -1729,15 +1723,10 @@ body:not(.pmd-inplace-save) #autosave-btn { display: none; }
   margin-left: 0.15rem;
 }
 
-/* The ▴ glyph naturally sits high in the line box (its visual mass
-   is in the upper half), while the ▾ glyph sits low — so without
-   adjustment they don't visually align horizontally with the row of
-   ▾ arrows on neighboring controls. Past iterations of this rule
-   landed too high (translateY: -0.18em) or too low (+0.18em /
-   +0.08em); the natural position turned out to read best alongside
-   the row's other dropdown ▾s. Kept as an explicit `translateY(0)`
-   so a future reader sees the deliberate "no shift" rather than
-   suspecting a missing override. */
+/* The ▴ glyph sits high in the line box while ▾ sits low, yet the
+   natural position reads best alongside the row's other dropdown
+   ▾s. The explicit `translateY(0)` marks that as a deliberate
+   "no shift" rather than a missing override. */
 .ribbon-font-size-step-up-arrow {
   display: inline-block;
   transform: translateY(0);
@@ -1809,17 +1798,12 @@ body:not(.pmd-inplace-save) #autosave-btn { display: none; }
   box-shadow: inset 0 1px 2px var(--pmd-c-shadow);
 }
 
-/* Paintbrush cursor on the editor while a paintbrush mode is on.
-   `cell` reads as a select-tool / "I'm dragging to act on a region"
-   gesture; same cursor for all three modes since the active button
-   already communicates which mark gets applied. The class is added
-   to view.dom (the .ProseMirror element). */
-/* Paint-mode classes are still useful as hooks for descendant
-   selectors (e.g. dimming non-target marks). The cursor itself is
+/* Paintbrush modes on the editor (classes added to view.dom, the
+   .ProseMirror element). The classes serve as hooks for descendant
+   selectors (e.g. dimming non-target marks); the cursor itself is
    set inline by color-panel.ts as a data-URI SVG showing the
-   active color — see `paintbrushCursorDataUri`. The `text`
-   fallback below kicks in if the SVG cursor fails to load (very
-   rare; browsers fall back to the second value automatically). */
+   active color — see `paintbrushCursorDataUri`. The `text` value
+   here is the fallback if the SVG cursor fails to load. */
 .ProseMirror.pmd-paintbrush-highlight,
 .ProseMirror.pmd-paintbrush-shading,
 .ProseMirror.pmd-paintbrush-fontcolor {
@@ -1994,10 +1978,10 @@ body:not(.pmd-inplace-save) #autosave-btn { display: none; }
 
 /* Single-doc layout: `#app` is a bounded scroller pinned to the
    chrome-clipped viewport rectangle, with the editor scrolling
-   *inside* it. Migrating off `body`-is-the-rootScroller eliminates
-   the doc-height composited layer (measured at 4.9 GB nominal on
-   a big doc, vs viewport-bounded `#app` now) that drove the
-   continuous `UpdateLayer` cost during scroll. Multi-doc keeps
+   *inside* it. Scrolling `#app` rather than `body` keeps the
+   composited layer viewport-bounded instead of doc-height (a
+   doc-height layer measures ~4.9 GB nominal on a big doc and
+   drives continuous `UpdateLayer` cost while scrolling). Multi-doc keeps
    its own positioning via `body.pmd-multi-doc #app` further down
    in this file — gated via `:not(.pmd-multi-doc)` so this only
    applies to single-doc. The fixed chrome (ribbon, nav-panel,
@@ -2090,8 +2074,8 @@ body:not(.pmd-multi-doc) #app {
   white-space: nowrap;
 }
 
-/* Shared scaffolding (flex row) — consolidated from 6 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (flex row).
+   Diverge by pulling a selector out, not by re-copying. */
 .zoom-controls,
 .pmd-display-size-row,
 .pmd-reader-row,
@@ -2169,11 +2153,11 @@ code {
   --pmd-emphasis-box-size: 1pt;
   --pmd-body-font: "Times New Roman";
 
-  /* Per-paragraph-type line-height multipliers. Body (`--pmd-line-height`)
-     is the only one that propagates via #editor's `line-height: var(...)`
-     declaration — everything else has its own explicit override on the
-     paragraph class. Defining them as variables now sets up the
-     per-type "line spacing" knobs we'll surface in settings later. */
+  /* Per-paragraph-type line-height multipliers, updated at runtime
+     from the Line spacing settings (see index.ts). Body
+     (`--pmd-line-height`) is the only one that propagates via
+     #editor's `line-height: var(...)` declaration — everything else
+     has its own explicit override on the paragraph class. */
   --pmd-line-height: 1.3;          /* body (card_body / generic paragraph) */
   --pmd-line-height-cite: 1.2;     /* cite paragraph */
   --pmd-line-height-tag: 1.2;      /* tag head */
@@ -2311,11 +2295,10 @@ code {
      fallback closely matches a card's real rendered width
      (otherwise off-screen-never-rendered cards in a narrow
      multi-pane slot would size to the fixed 600px and the
-     scrollbar would overestimate the doc's width). The 32px
-     subtraction accounts for the ProseMirror element's 1rem
-     horizontal padding in multi-pane mode (and is harmless in
-     single-doc where the editor publishes its own width minus
-     any padding directly). */
+     scrollbar would overestimate the doc's width). The published
+     value is the ProseMirror element's `clientWidth` minus its
+     computed horizontal padding — the box cards actually lay out
+     into (see `syncCardIntrinsicWidth`). */
   contain: layout style;
   content-visibility: auto;
   contain-intrinsic-width: auto var(--pmd-card-intrinsic-width, 600px);
@@ -2670,8 +2653,8 @@ body.pmd-override-shading [data-shading] {
   line-height: 1;
 }
 .pmd-color-slot-trash:hover:not(:disabled) { background: var(--pmd-c-hover); }
-/* Shared scaffolding (disabled dim) — consolidated from 4 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (disabled dim).
+   Diverge by pulling a selector out, not by re-copying. */
 .pmd-color-slot-trash:disabled,
 .pmd-color-override-reset:disabled,
 .pmd-color-overrides-reset-all:disabled,
@@ -2807,8 +2790,8 @@ body.pmd-override-shading [data-shading] {
   flex-direction: column;
   gap: 0.35rem;
 }
-/* Shared scaffolding (small flex row) — consolidated from 4 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (small flex row).
+   Diverge by pulling a selector out, not by re-copying. */
 .pmd-color-editor-row,
 .pmd-line-height-row,
 .pmd-prompt-footer,
@@ -2849,8 +2832,8 @@ body.pmd-override-shading [data-shading] {
   outline: 1px solid var(--pmd-c-accent);
   outline-offset: 1px;
 }
-/* Shared scaffolding (outset focus ring) — consolidated from 5 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (outset focus ring).
+   Diverge by pulling a selector out, not by re-copying. */
 .pmd-color-editor-swatch-active,
 .pmd-home-recent:focus-visible,
 .pmd-keybindings-search-input:focus,
@@ -3051,8 +3034,8 @@ body.pmd-nav-hidden #nav-pane-pull-tab {
   align-items: center;
   justify-content: center;
 }
-/* Shared scaffolding (hover highlight) — consolidated from 8 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (hover highlight).
+   Diverge by pulling a selector out, not by re-copying. */
 #nav-pane-pull-tab:hover,
 .pmd-home-recents-clear:hover,
 .pmd-dropzone-row-delete:hover,
@@ -3337,16 +3320,16 @@ html.pmd-home-active #speech-doc-banner {
   background: var(--pmd-c-bg-soft);
   color: var(--pmd-c-text-muted);
 }
-/* Shared scaffolding (category chip: heading family) — consolidated from 3 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (category chip: heading family).
+   Diverge by pulling a selector out, not by re-copying. */
 .pmd-home-recent-format-cmir,
 .pmd-dropzone-row-type-pocket, .pmd-dropzone-row-type-hat, .pmd-dropzone-row-type-block,
 .pmd-find-result-category-heading {
   background: var(--pmd-c-cat-heading-bg);
   color: var(--pmd-c-cat-heading-fg);
 }
-/* Shared scaffolding (category chip: cite family) — consolidated from 3 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (category chip: cite family).
+   Diverge by pulling a selector out, not by re-copying. */
 .pmd-home-recent-format-docx,
 .pmd-dropzone-row-type-card, .pmd-dropzone-row-type-cite,
 .pmd-find-result-category-cite {
@@ -3456,20 +3439,15 @@ html.pmd-pill-tray-active .pmd-pane-pill-anchored .pmd-pane-editor .ProseMirror 
    is the pill morphing into the bottom of a shelf panel.
    Drag-over: blue accept-state via --pmd-c-drop tokens. */
 .pmd-dropzone-root {
-  /* Anchored to the editor's bottom-left corner (NOT the nav pane —
-     a nav-bottom pill sat in the outline's auto-scroll zone). Fixed
-     so it floats over the editor; `positionDropzone` (index.ts) sets
-     left/bottom from the editor element's live rect. The values here
-     are a sane fallback before the first positioning pass — bottom
-     already clears the status bar so a missed positioning pass (a
-     boot where `target.getBoundingClientRect()` came back 0×0 and
-     the function early-returned, observed on some Windows machines)
-     doesn't strand the pill in the status bar's vertical band. The
-     fallback uses the same `--status-bar-height` var the status bar
-     itself reads from, so they can't drift. */
-  /* Now a flex child of `.pmd-pill-tray` (that tray is the fixed,
-     positioned element — see index.ts `positionDropzone`). Was
-     `position: fixed` with inline left/bottom. */
+  /* A flex child of `.pmd-pill-tray` — the tray is the fixed element
+     `positionDropzone` (index.ts) anchors to the editor's bottom-left
+     corner (NOT the nav pane: a nav-bottom pill would sit in the
+     outline's auto-scroll zone). The tray's fallback `bottom` clears
+     the status bar via the same `--status-bar-height` var the bar
+     reads, so a missed positioning pass (a boot where
+     `getBoundingClientRect()` comes back 0×0 and the function
+     early-returns, observed on some Windows machines) can't strand
+     the pill in the status bar's vertical band. */
   position: relative;
   right: auto;
   /* Fallback width cap before `positionDropzone` runs; it then sets an
@@ -3478,15 +3456,11 @@ html.pmd-pill-tray-active .pmd-pane-pill-anchored .pmd-pane-editor .ProseMirror 
   max-width: 360px;
   max-height: 60vh;
   pointer-events: auto;
-  /* Above the status bar (z=200). In the spec-correct world the pill
-     and the status bar never overlap, so z-index only matters if the
-     pill ends up in the bar's band — but on some Windows boots that
-     happened anyway and the pill rendered over the bar instead of
-     being clipped by it (suspected Chromium layer-promotion quirk).
-     Keeping z-index above the bar's makes the failure mode visible
-     and clickable while the new bottom-fallback prevents the
-     overlap in the first place. (z within the tray now; the tray owns the
-     stacking context.) */
+  /* z within the tray, which owns the stacking context (tray z=220,
+     above the status bar's 200). In the spec-correct world the pill
+     and the status bar never overlap, so this only matters if a
+     missed positioning pass lands the pill in the bar's band — then
+     it renders visible and clickable rather than clipped. */
   z-index: 1;
   display: flex;
   flex-direction: column;
@@ -3496,9 +3470,7 @@ html.pmd-pill-tray-active .pmd-pane-pill-anchored .pmd-pane-editor .ProseMirror 
   border: 1px solid transparent;
   border-radius: 10px;
   /* No transitions on state changes — the open/closed and
-     drop-target morphs read better as instant flips. User
-     A/B-tested against an animated version and preferred the
-     instant feel. */
+     drop-target morphs read better as instant flips. */
   transition: none;
 }
 /* Multi-doc fallback: the pill must clear TWO stacked bottom bars —
@@ -3691,8 +3663,8 @@ body.pmd-multi-doc .pmd-pill-tray {
   text-align: center;
   line-height: 1.3;
 }
-/* Shared scaffolding (flex fill) — consolidated from 4 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (flex fill).
+   Diverge by pulling a selector out, not by re-copying. */
 .pmd-dropzone-bar-spacer,
 .pmd-qc-manage-row-main,
 .pmd-learn-manage-text,
@@ -3803,8 +3775,8 @@ body.pmd-nav-resize-active {
   background: var(--pmd-c-hover);
 }
 
-/* Shared scaffolding (accent-filled active/CTA) — consolidated from 8 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (accent-filled active/CTA).
+   Diverge by pulling a selector out, not by re-copying. */
 .pmd-nav-level-btn-active,
 #read-mode-btn.pmd-active,
 .pmd-prompt-btn-primary,
@@ -4099,8 +4071,8 @@ body.pmd-nav-resize-active {
   visibility: hidden;
 }
 
-/* Shared scaffolding (truncating label) — consolidated from 3 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (truncating label).
+   Diverge by pulling a selector out, not by re-copying. */
 .pmd-nav-label,
 .pmd-keybinding-label,
 .pmd-qc-manage-row-tags {
@@ -4194,9 +4166,8 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
    inconsistent dimmer entries against the dark chrome, and the
    empty-state message disappears entirely at faint-grey. The nav
    pane is chrome (not gated by `themeAppliesToDocument`) so this
-   only watches `data-theme`. The "format entries by type" toggle
-   in the wishlist will let users opt back in when shipped. Covers
-   both the single-doc nav panel and the multi-pane nav rail. */
+   only watches `data-theme`. Covers both the single-doc nav panel
+   and the multi-pane nav rail. */
 :root[data-theme="dark"] :is(.pmd-nav-panel, .pmd-multi-nav),
 :root[data-theme="dark"] :is(.pmd-nav-panel, .pmd-multi-nav) .pmd-nav-empty,
 :root[data-theme="dark"] :is(.pmd-nav-panel, .pmd-multi-nav) .pmd-nav-level-4,
@@ -4207,7 +4178,7 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 
 /* ---------------------------------------------- Read mode
 
-   Hides non-read-aloud content. Per the user's spec:
+   Hides non-read-aloud content:
    - Headings (pocket / hat / block / tag / analytic) — visible.
    - cite_paragraph — only text with cite_mark visible.
    - card_body — only text with highlight visible; multiple body
@@ -4390,8 +4361,8 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 
 /* ---------------------------------------------- Settings modal */
 
-/* Shared scaffolding (modal overlay) — consolidated from 7 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (modal overlay).
+   Diverge by pulling a selector out, not by re-copying. */
 .pmd-settings-overlay,
 .pmd-prompt-overlay,
 .pmd-clod-overlay,
@@ -4782,8 +4753,8 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   background: var(--pmd-c-bg);
   color: var(--pmd-c-text);
 }
-/* Shared scaffolding (input focus ring) — consolidated from 9 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (input focus ring).
+   Diverge by pulling a selector out, not by re-copying. */
 .pmd-settings-text:focus,
 .pmd-macro-text:focus,
 .pmd-find-input:focus,
@@ -4823,8 +4794,8 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   gap: 0.15rem;
 }
 
-/* Shared scaffolding (caption text) — consolidated from 5 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (caption text).
+   Diverge by pulling a selector out, not by re-copying. */
 .pmd-typography-flag-desc,
 .pmd-line-height-unit,
 .pmd-comment-date,
@@ -4842,8 +4813,8 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   margin-top: 0.25rem;
 }
 
-/* Shared scaffolding (numeric input) — consolidated from 3 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (numeric input).
+   Diverge by pulling a selector out, not by re-copying. */
 .pmd-typography-size-input,
 .pmd-line-height-input,
 .pmd-display-size-input {
@@ -4856,8 +4827,8 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   text-align: right;
 }
 
-/* Shared scaffolding (unit label) — consolidated from 3 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (unit label).
+   Diverge by pulling a selector out, not by re-copying. */
 .pmd-typography-unit,
 .pmd-display-size-unit,
 .pmd-reader-wpm-label {
@@ -4951,8 +4922,8 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   gap: 0.4rem;
 }
 
-/* Shared scaffolding (field block) — consolidated from 5 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (field block).
+   Diverge by pulling a selector out, not by re-copying. */
 .pmd-line-heights-rows,
 .pmd-save-as-preset,
 .pmd-qc-add-field,
@@ -5390,8 +5361,8 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 
 /* Heading-mode setting: radio rows. Long option labels wrap on
    narrow dialogs, unlike <select>'s OS-rendered options. */
-/* Shared scaffolding (settings sub-editor) — consolidated from 4 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (settings sub-editor).
+   Diverge by pulling a selector out, not by re-copying. */
 .pmd-heading-mode-editor,
 .pmd-condense-warning-delimiter-editor, .pmd-multi-doc-layout-mode-editor,
 .pmd-shrink-protections-editor,
@@ -5507,8 +5478,8 @@ body.pmd-steady-cursor .pmd-italic-caret,
   flex-wrap: wrap;
   margin-top: 0.2rem;
 }
-/* Shared scaffolding (tight column) — consolidated from 3 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (tight column).
+   Diverge by pulling a selector out, not by re-copying. */
 .pmd-translation-langs > div,
 .pmd-keybindings-group,
 .pmd-comment-root, .pmd-comment-reply {
@@ -5623,8 +5594,8 @@ body.pmd-steady-cursor .pmd-italic-caret,
   font-style: italic;
 }
 
-/* Shared scaffolding (wrapping row) — consolidated from 3 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (wrapping row).
+   Diverge by pulling a selector out, not by re-copying. */
 .pmd-shrink-protection-row,
 .pmd-settings-folder,
 .pmd-pairing-owncode {
@@ -5899,8 +5870,8 @@ body.pmd-steady-cursor .pmd-italic-caret,
   color: var(--pmd-c-text);
 }
 
-/* Shared scaffolding (danger outline hover) — consolidated from 4 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (danger outline hover).
+   Diverge by pulling a selector out, not by re-copying. */
 .pmd-macro-delete:hover,
 .pmd-flashcard-card-delete:hover,
 .pmd-learn-session-forgot:hover,
@@ -5926,8 +5897,7 @@ body.pmd-steady-cursor .pmd-italic-caret,
    are easy to tell apart: the scope band is the same faint blue
    "within selection" tint as `.pmd-find-scope`, and each match is the
    same orange band + outline as `.pmd-find-match-current` (kept dashed
-   to read as a shadow selection rather than a literal one). Earlier
-   both were near-identical oranges and blurred together. */
+   to read as a shadow selection rather than a literal one). */
 .pmd-similar-scope {
   background-color: var(--pmd-c-drop-tint);
   box-shadow: inset 0 0 0 1px var(--pmd-c-drop-outline);
@@ -6169,8 +6139,8 @@ body.pmd-steady-cursor .pmd-italic-caret,
   background: var(--pmd-c-cat-undertag-bg);
   color: var(--pmd-c-cat-undertag-fg);
 }
-/* Shared scaffolding (truncating flex text) — consolidated from 3 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (truncating flex text).
+   Diverge by pulling a selector out, not by re-copying. */
 .pmd-find-result-snippet,
 .pmd-pane-chip-dropdown-name,
 .pmd-send-target-name {
@@ -6348,14 +6318,13 @@ body.pmd-steady-cursor .pmd-italic-caret,
    items' content heights via grid; the column stretches to that
    so its background fills the full scroll strip.
 
-   Tried CSS flex first: flex's cross-size determination floors
+   Grid rather than flex: flex's cross-size determination floors
    at `min-height` and doesn't grow with overflowing items, so
-   the column came out viewport-tall even with `min-height: 100%`
-   + content overflowing past viewport (measured via DOM probe:
-   wrapper height 807px while #editor.scrollHeight was 5971px).
-   Grid's track sizing is content-based and doesn't have that
-   pathology. `min-height: 100%` keeps a one-viewport floor so
-   short docs still fill the visible area. */
+   the column comes out viewport-tall even with `min-height: 100%`
+   and content overflowing past the viewport. Grid's track sizing
+   is content-based and doesn't have that pathology.
+   `min-height: 100%` keeps a one-viewport floor so short docs
+   still fill the visible area. */
 .pmd-editor-row {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -6386,23 +6355,19 @@ body.pmd-multi-doc .pmd-editor-row {
   display: none;
 }
 #editor {
-  /* `min-width: 0` was needed in the prior flex layout to let
-     #editor shrink below its content's intrinsic width when the
-     comments column claimed 320px. Grid handles this via
-     `1fr` track sizing, but keeping `min-width: 0` is harmless
-     and defends against any grandchild that asserts a wide
-     intrinsic size (e.g., a long unbroken URL). */
+  /* Grid's `1fr` track already lets #editor shrink below its
+     content's intrinsic width; `min-width: 0` defends against any
+     grandchild that asserts a wide intrinsic size (e.g., a long
+     unbroken URL). */
   min-width: 0;
 }
 .pmd-comments-column {
   /* `.pmd-editor-row` is grid-based (`grid-template-columns: 1fr
      auto`), so the column needs an explicit width to define the
-     `auto` track. Previous version used `flex: 0 0 320px` which
-     is irrelevant outside a flex container. Width is driven by
-     `--pmd-comments-width` so the resize-handle drag can mutate
-     it without touching this stylesheet; the fallback matches the
-     pre-handle default. JS clamps to 240–560 (see
-     `commentsColumnWidth` in `settings.ts`). */
+     `auto` track. Width is driven by `--pmd-comments-width` so the
+     resize-handle drag can mutate it without touching this
+     stylesheet; 320px is the fallback default. JS clamps to
+     240–560 (see `commentsColumnWidth` in `settings.ts`). */
   width: var(--pmd-comments-width, 320px);
   background: var(--pmd-c-bg-soft);
   border-left: 1px solid var(--pmd-c-border-soft);
@@ -6619,8 +6584,6 @@ body.pmd-comments-resize-active {
   color: var(--pmd-c-text-muted);
 }
 
-/* Unanchored section — pinned below the anchored cards (top set by
-   layoutCards). Absolute like the cards so it scrolls with the editor. */
 /* Flow-list: the Unanchored section is the last item in the column's
    flex list (after all anchored cards), with a little extra top gap. */
 .pmd-comments-unanchored {
@@ -6940,9 +6903,9 @@ body.pmd-comments-resize-active {
    identity highlight; the selected one additionally gets the accent
    outline (.pmd-annotation-active). Underlines exist only under the
    shapes toggle below — with it off, a comment tint on text that
-   already carries a matching yellow highlight can vanish (the old
-   gold-tint-on-yellow invisibility; the toggle's dotted underline is
-   the fix). Comment styling is shown only while the comments panel is
+   already carries a matching yellow highlight can vanish; the
+   toggle's dotted underline covers that case. Comment styling is
+   shown only while the comments panel is
    open: flashcards (decorations) are cleared on close; the comment
    mark is in the doc always, so its styling is gated on the panel via
    `:has`. */
@@ -7155,10 +7118,8 @@ body:has(#comments-column:not([hidden])) :is(#editor, .pmd-pane-editor) .pmd-com
   border-radius: 2px;
 }
 
-/* Comments panel reuses the standard 2-row ops-panel rhythm now
-   that the AI button has moved off-ribbon and only 💬 + + live
-   here. (No bespoke selector needed — the panel uses
-   `.ribbon-doc-ops-panel`.) */
+/* The comments panel uses the standard 2-row ops-panel rhythm
+   (`.ribbon-doc-ops-panel`) — no bespoke selector needed. */
 
 /* ---------------------------------------------- Activity cycler */
 
@@ -7269,15 +7230,15 @@ body:has(#comments-column:not([hidden])) :is(#editor, .pmd-pane-editor) .pmd-com
   align-items: center;
   justify-content: space-between;
 }
-/* Shared scaffolding (modal header title) — consolidated from 5 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (modal header title).
+   Diverge by pulling a selector out, not by re-copying. */
 .pmd-prompt-header h2,
 .pmd-clod-header h2,
 .pmd-save-as-header h2,
 .pmd-qc-add-header h2,
 .pmd-bulk-header h2 { margin: 0; font-size: 1.05rem; font-weight: 600; }
-/* Shared scaffolding (modal close button) — consolidated from 4 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (modal close button).
+   Diverge by pulling a selector out, not by re-copying. */
 .pmd-prompt-close,
 .pmd-clod-close,
 .pmd-save-as-close,
@@ -7310,8 +7271,8 @@ body:has(#comments-column:not([hidden])) :is(#editor, .pmd-pane-editor) .pmd-com
   resize: vertical;
 }
 
-/* Shared scaffolding (modal button) — consolidated from 4 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (modal button).
+   Diverge by pulling a selector out, not by re-copying. */
 .pmd-prompt-btn,
 .pmd-clod-btn,
 .pmd-save-as-btn,
@@ -7394,8 +7355,8 @@ body:has(#comments-column:not([hidden])) :is(#editor, .pmd-pane-editor) .pmd-com
   flex-direction: column;
   font-family: var(--pmd-ui-font);
 }
-/* Shared scaffolding (modal header) — consolidated from 3 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (modal header).
+   Diverge by pulling a selector out, not by re-copying. */
 .pmd-clod-header,
 .pmd-save-as-header,
 .pmd-bulk-header {
@@ -7512,7 +7473,7 @@ body:has(#comments-column:not([hidden])) :is(#editor, .pmd-pane-editor) .pmd-com
    on the left edge) out of the way while recovery is active. The
    sidebar slides in between the nav-pane and the editor.
    Single-doc has `#app` as `position: fixed; left: var(--nav-width)`
-   (see path A migration earlier in this file), so `margin-left`
+   (see the single-doc layout rule above), so `margin-left`
    would compound with the `left` offset and push #app way off
    to the right — use `left:` directly. Multi-doc keeps its
    normal-flow `margin-left` via the `.pmd-multi-doc` variant
@@ -7660,12 +7621,11 @@ body.pmd-recovery-active:not(.pmd-multi-doc) #app {
   cursor: pointer;
   color: var(--pmd-c-text);
 }
-/* Shared scaffolding (surface hover) — consolidated from 4 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying.
-   These originally pointed at the never-defined --pmd-c-surface-3 and fell
-   back to --pmd-c-surface — the same color as the pane footer they sit on,
-   so the hover was invisible since multi-pane's first cut. --pmd-c-hover is
-   the shade that phantom token was reaching for. */
+/* Shared scaffolding (surface hover).
+   Diverge by pulling a selector out, not by re-copying.
+   `--pmd-c-hover` (not `--pmd-c-surface`) — the pane footer these sit
+   on is already `--pmd-c-surface`, so a same-shade hover would be
+   invisible. */
 .pmd-recovery-sidebar-done:hover,
 .pmd-pane-chip-stack:hover,
 .pmd-pane-open:hover,
@@ -8258,8 +8218,8 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   color: var(--pmd-c-drop);
   border-color: var(--pmd-c-drop);
 }
-/* Shared scaffolding (accent outline) — consolidated from 6 identical rules
-   (CSS dedup, 2026-07-01). Diverge by pulling a selector out, not by re-copying. */
+/* Shared scaffolding (accent outline).
+   Diverge by pulling a selector out, not by re-copying. */
 .pmd-qcs-badge-settings,
 .pmd-qcs-badge-file,
 .pmd-learn-session-remembered:hover,
@@ -8813,10 +8773,8 @@ body.pmd-recovery-active.pmd-multi-doc #app {
 /* prosemirror-tables's table-column-resize plugin sets
  * `class: "resize-cursor"` via its `props.attributes`, which PM
  * applies to `view.dom` (the `.ProseMirror` element), NOT to the
- * editor host. The old selector `#editor.resize-cursor` looked
- * for the class on `#editor` itself and never matched in either
- * mode. Targeting `.ProseMirror.resize-cursor` works for
- * single-doc and multi-pane both. */
+ * editor host — so the selector must target `.ProseMirror`, which
+ * covers single-doc and multi-pane both. */
 .ProseMirror.resize-cursor {
   cursor: col-resize;
 }
@@ -9436,7 +9394,7 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
    by `MultiPaneShell.refreshSpeechChips`. The 🎤 prefix on the
    chip name is the same affordance Verbatim's title-bar tweak
    uses ("Speech …") — just visible enough to remind the user
-   which slot is the active destination for the ` send-to-speech
+   which slot is the active destination for the send-to-speech
    chord. The chip's accent stripe reinforces it without crowding
    the filename. */
 .pmd-pane-speech .pmd-pane-chip-name::before {
@@ -10364,7 +10322,7 @@ html.pmd-emphasis-box .pmd-pane-editor .pmd-emphasis {
  *
  *   Compact — 4 columns × 2 rows (presets hidden):
  *     col 1+2: Display (rows 1–2)
- *     col 3: Start (row 1) | Reset (row 2, no longer rotated)
+ *     col 3: Start (row 1) | Reset (row 2)
  *     col 4: Aff (row 1) | Neg (row 2)
  */
 .pmd-timer-panel {
@@ -10374,10 +10332,9 @@ html.pmd-emphasis-box .pmd-pane-editor .pmd-emphasis {
      timer's rows visually align with the file-ops / formatting
      button stacks: auto-sized rows driven by the buttons'
      fixed `height: 1.45rem`, 2px row gap, container vertically
-     centered in the ribbon. NO explicit panel height — the
-     previous `height: 2.92rem` was a math error (actual stack
-     height = 2 × 1.45rem + 2px gap ≈ 3.03rem) and constrained
-     the panel smaller than the grid wanted, causing overflow. */
+     centered in the ribbon. NO explicit panel height — a fixed
+     height smaller than the grid's natural 2 × 1.45rem + 2px gap
+     (≈ 3.03rem) constrains the panel and causes overflow. */
   grid-template-rows: repeat(2, auto);
   gap: 2px;
   flex: 0 0 auto;
@@ -10411,10 +10368,9 @@ html.pmd-timer-right #timer-panel {
    button` rule (1 ID + 1 element = higher specificity than
    our 1 class + 1 element). Without the prefix, height +
    font-size silently fall back to the ribbon-wide defaults
-   (1.7rem implicit height from line-height, 0.95rem font),
-   which is what was making the timer rows tower over the
-   adjacent file-ops button stack. Same trick
-   `.ribbon-button-stack button` uses. */
+   (1.7rem implicit height from line-height, 0.95rem font)
+   and the timer rows tower over the adjacent file-ops button
+   stack. Same trick `.ribbon-button-stack button` uses. */
 #ribbon .pmd-timer-panel button {
   background: var(--pmd-c-bg);
   border: 1px solid var(--pmd-c-border);
@@ -10752,7 +10708,7 @@ html.pmd-timer-right #timer-panel {
   box-shadow: 0 2px 6px var(--pmd-c-shadow-fade);
   user-select: none;
   cursor: pointer;
-  transition: none; /* state morphs read better instant (dropzone A/B) */
+  transition: none; /* instant state morphs, matching the dropzone bar */
 }
 
 body.pmd-multi-doc .pmd-voice-pill {
@@ -11465,8 +11421,6 @@ html.pmd-home-active .pmd-mobile-scrim {
 body.pmd-mobile-phone .pmd-home-screen {
   padding: 1rem;
 }
-
-/* ── Mobile shell fixes (desktop test feedback, 2026-06-11) ── */
 
 /* Long outline entries must never poke out of the drawer — the
    drawer clips, and labels wrap up to three lines before ellipsis

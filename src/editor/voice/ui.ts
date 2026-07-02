@@ -24,9 +24,9 @@ export class VoicePill {
   constructor(private onStop?: () => void) {
     this.el = document.createElement('div');
     this.el.className = 'pmd-voice-pill';
-    // The accessibility flagship must itself be accessible (audit
-    // 2026-06-10): keyboard-operable button, labelled, with the echo
-    // text announced to screen readers — the same feedback contract
+    // An accessibility feature must itself be accessible:
+    // keyboard-operable button, labelled, with the echo text
+    // announced to screen readers — the same feedback contract
     // sighted users get from the pill.
     this.el.setAttribute('role', 'button');
     this.el.setAttribute('tabindex', '0');
@@ -37,11 +37,11 @@ export class VoicePill {
     // Persistent mode badge — unlike the transition hint in the echo
     // slot (overwritten by the next recognized word), this always shows
     // the current mode as text, so mode never rests on dot hue alone
-    // (color-vision audit). Only setMode() writes it.
+    // (color-vision accessibility). Only `setMode()` writes it.
     this.modeEl = document.createElement('span');
     this.modeEl.className = 'pmd-voice-mode-badge';
-    // The badge is the announcement channel for mode changes now that
-    // the echo no longer narrates them (it was redundant on screen).
+    // The badge, not the echo, announces mode changes to screen
+    // readers.
     this.modeEl.setAttribute('aria-live', 'polite');
     this.penEl = document.createElement('span');
     this.penEl.className = 'pmd-voice-pen';

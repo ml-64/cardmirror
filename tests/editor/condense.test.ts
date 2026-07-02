@@ -103,8 +103,8 @@ describe('condenseBranchC — paragraph integrity preserved', () => {
     const doc = makeDoc([paragraph('hello    world')]);
     const state = setCursorIn(doc, (n) => n.type.name === 'paragraph');
     const next = apply(state, condenseBranchC());
-    // Cursor at doc-level no-op? scope is "current card or analytic_unit".
-    // For a doc-level paragraph, no enclosing container → no-op.
+    // Scope is the current card or analytic_unit; a doc-level
+    // paragraph has no enclosing container → no-op.
     expect(next).toBeNull();
   });
 
@@ -149,7 +149,7 @@ describe('condenseBranchC — paragraph integrity preserved', () => {
 
   it('removes empty card_body paragraphs between content paragraphs', () => {
     // Mirror Verbatim's ^p^p collapse: tag, body, EMPTY body, body
-    // becomes tag, body, body. (Empty middle card_body removed.)
+    // becomes tag, body, body.
     const doc = makeDoc([
       card(tag('Tag'), cardBody('first'), cardBody(''), cardBody('second')),
     ]);
@@ -191,7 +191,7 @@ describe('condenseBranchC — paragraph integrity preserved', () => {
     ]);
     const state = setCursorIn(doc, (n) => n.type.name === 'card_body');
     const next = apply(state, condenseBranchC());
-    // No structural removal; just possibly content clean. Structure same.
+    // No structural removal; content cleanup only.
     if (next) {
       const c = next.doc.firstChild!;
       const names: string[] = [];
@@ -271,7 +271,7 @@ describe('condenseMerge — no selection, cursor in card', () => {
   });
 
   it('PILCROW_HALF_POINTS sanity', () => {
-    // Round-trip OOXML still uses 6pt = halfPoints 12 (the exporter
+    // OOXML round-trip uses 6pt = halfPoints 12 (the exporter
     // writes this value for pilcrow_marker; importer recognizes it).
     expect(PILCROW_HALF_POINTS).toBe(12);
   });
@@ -283,7 +283,7 @@ describe('condenseMerge — no selection, cursor in card', () => {
     const state = setCursorIn(doc, (n) => n.type.name === 'card_body');
     // Single card_body → no merging needed.
     const next = apply(state, condenseMerge({ withPilcrows: false, headingMode: 'respect' }));
-    // Either no-op or just whitespace cleanup; in this case structure unchanged.
+    // Either no-op or whitespace cleanup; structure unchanged.
     if (next) {
       const c = next.doc.firstChild!;
       expect(c.childCount).toBe(3);
@@ -391,8 +391,8 @@ describe("condenseMerge — selection, headingMode: 'demolish'", () => {
     expect(next).not.toBeNull();
     const merged = next!.doc.firstChild!;
     expect(merged.type.name).toBe('pocket');
-    // The id used to be dropped (create(null, …)) → nav couldn't find the
-    // merged heading. It must carry over from the first source.
+    // Regression guard: the id must carry over from the first source
+    // node, or nav can't find the merged heading.
     expect(merged.attrs['id']).toBe('pkt-keep');
   });
 });
@@ -457,7 +457,7 @@ describe('uncondense', () => {
   it('skips an invalid split (pilcrow in a tag) instead of throwing', () => {
     // A pilcrow can end up in a tag (a demolish merge, or pasting condensed
     // body into a tag). Splitting there would make two tags in one card —
-    // schema-invalid, so tr.split used to throw and crash the editor.
+    // schema-invalid, so `tr.split` would throw and crash the editor.
     const tag = schema.nodes['tag']!.create({ id: 'tg' }, [
       schema.text('Heading '),
       makePilcrowText(),
@@ -601,7 +601,8 @@ describe('toggleCase', () => {
     const doc = makeDoc([paragraph('die straße nach berlin bleibt offen')]);
     const state = setSelectionRange(doc, 'die', 0, 'offen', 5);
     const next = apply(state, toggleCase());
-    // The trailing "N" used to be eaten because ß→SS shifts the slice.
+    // Regression guard: ß→SS lengthens the slice; the trailing "N"
+    // must not be eaten.
     expect(caseStateOf(next!.doc, 'DIE')).toBe('DIE STRASSE NACH BERLIN BLEIBT OFFEN');
     // Selection still wraps the whole (now longer) run.
     expect(next!.selection.empty).toBe(false);

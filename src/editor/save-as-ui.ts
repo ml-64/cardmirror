@@ -12,12 +12,12 @@
  * Layout: a Name section, a Format section, then a Save section
  * with one-click presets — As-Is (everything), Send Doc (no
  * analytics / undertags / comments), Read Doc (read-mode export),
- * each with its description as a caption below the button — followed
- * by a Custom Save block (comments / analytics / undertags
- * checkboxes + a Save Custom button), then Cancel. The format radio
- * drives the default filename extension and which filter the OS
- * dialog defaults to; all content options apply equally to both
- * formats.
+ * Marked Doc (marked cards only), each with its description as a
+ * caption below the button — followed by a Custom Save block
+ * (comments / analytics / undertags checkboxes + a Save Custom
+ * button), then Cancel. The format radio drives the default
+ * filename extension and which filter the OS dialog defaults to;
+ * all content options apply equally to both formats.
  */
 
 import { settings } from './settings.js';
@@ -59,8 +59,7 @@ export interface OpenSaveAsOptions {
   initialFilename: string;
   /** Default format to pre-select. Usually the current doc's format
    *  (so re-saving stays in the same format unless the user changes
-   *  it). New docs default to `'cmir'` — the recommended forward-
-   *  looking native format. */
+   *  it). New docs default to `'cmir'`, the native format. */
   defaultFormat: SaveAsFormat;
 }
 
@@ -410,9 +409,9 @@ class SaveAsModal {
 
   /** Save with the given content options + the live filename /
    *  format. Shared by every preset and the Save Custom submit.
-   *  `prefix` (Send Doc / Read Doc presets) is prepended to the
-   *  file name when the `prefixPresetSaveFilenames` setting is on.
-   *  No-op on an empty filename. */
+   *  `prefix` (from the Send/Read/Marked Doc presets) is prepended
+   *  to the file name when the `prefixPresetSaveFilenames` setting
+   *  is on. No-op on an empty filename. */
   private confirmWith(
     opts: {
       includeComments: boolean;

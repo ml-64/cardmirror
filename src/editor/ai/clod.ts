@@ -1,15 +1,13 @@
 /**
- * Clod — a friendlier persona for the AI "thinking…" indicator.
- * Ported from the user's prior Card Formatting Tools utility
- * (`reference-docs/Card Formatting Tools.py`) so the in-flight
- * placeholder while the model is composing a reply can cycle
- * through time-of-day-appropriate activities ("Clod is making
- * toast…", "Clod is reading by candlelight…", etc.) instead of a
- * plain "Thinking…".
+ * Clod — persona for the AI "thinking…" indicator. While the model
+ * composes a reply, the placeholder cycles through time-of-day-
+ * appropriate activities ("Clod is making toast…") instead of a
+ * plain "Thinking…". Activity lists ported from the Card Formatting
+ * Tools utility (`reference-docs/Card Formatting Tools.py`).
  *
- * The data is exposed via the public helpers so the configurator
- * dialog (the easter-egg shift+right-click in settings) can read
- * defaults to seed its text areas and revert-to-defaults buttons.
+ * The data is exposed via public helpers so the configurator dialog
+ * (the easter-egg shift+right-click in settings) can read defaults
+ * to seed its text areas and revert-to-defaults buttons.
  */
 
 export type ClodTimePeriod = 'morning' | 'day' | 'evening' | 'night';

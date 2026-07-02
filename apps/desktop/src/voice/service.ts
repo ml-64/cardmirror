@@ -34,8 +34,9 @@ const RESERVED_VERBS: Record<string, string> = {
   'scratch that': 'scratchThat',
   'new line': 'newLine',
   'new paragraph': 'newParagraph',
-  // Audit 2026-06-10: was missing — paint's documented correction verb
-  // emitted `verb: undefined` and died in dispatch.
+  // Paint's correction verb; every `RESERVED_PAINT` phrase except the
+  // special-cased 'stop paint' needs an entry here, or dispatch
+  // receives `verb: undefined`.
   'clear last': 'clearLast',
 };
 
@@ -151,14 +152,11 @@ export class VoiceService {
   private applyVocabularyIfIdle(): void {
     if (!this.doc || this.pendingVocabText === null) return;
     if (this.docHot) {
-      // Audit 2026-06-10: docHot is set by EVERY accepted chunk —
-      // including pure silence — so updates used to defer past the very
-      // utterance that needed them (stale vocabulary on the first quote
-      // after navigation). If no SPEECH has reached the recognizer
-      // since its last reset, resetting is safe (nothing decodable is
-      // buffered) and lets the new grammar apply immediately. The
-      // hot-swap-mid-decode Kaldi abort only applies to a recognizer
-      // that is actually decoding speech.
+      // `docHot` is set by every accepted chunk, including pure silence.
+      // If no speech has reached the recognizer since its last reset,
+      // resetting is safe (nothing decodable is buffered) and lets the
+      // new grammar apply immediately — the hot-swap Kaldi abort only
+      // threatens a recognizer that is actually decoding speech.
       if (this.segmenter.voicedActive) return;
       this.doc.final();
       this.doc.reset();
@@ -237,16 +235,15 @@ export class VoiceService {
     if (seg.type === 'speech') this.lastActivityAt = now;
 
     // Idle auto-sleep (§2.1): a forgotten mic must not eat a
-    // conversation. Waking always lands in command mode, as ever.
+    // conversation. Waking always lands in command mode.
     const autoSleepMs = (this.opts.autoSleepSeconds ?? AUTO_SLEEP_DEFAULT_S) * 1000;
     let autoSleepRemainingMs: number | undefined;
     if (autoSleepMs > 0 && this.mode !== 'asleep' && this.lastActivityAt > 0) {
       const remaining = autoSleepMs - (now - this.lastActivityAt);
       if (remaining <= 0) {
-        // Audit 2026-06-10: explicit mode exits go through
-        // finishUtterance, which finalizes+resets the active
-        // recognizers; auto-sleep didn't, so buffered audio prefixed
-        // the first post-wake decode with noise.
+        // Finalize+reset like an explicit mode exit (finishUtterance)
+        // does; otherwise buffered audio prefixes the first post-wake
+        // decode with noise.
         for (const rec of this.activeRecognizers()) {
           rec.final();
           rec.reset();
@@ -339,10 +336,9 @@ export class VoiceService {
       const openResult = finals[0];
       const escapeResult = finals[1];
       let openText = openResult?.text ?? '';
-      // Onset-filler suppression (test-run finding 2026-06-10): the
-      // open model routinely resolves breath/onset noise as a leading
-      // low-confidence "the"/"a"/"and". Strip it only when the model
-      // itself isn't sure.
+      // Onset-filler suppression: the open model routinely resolves
+      // breath/onset noise as a leading low-confidence "the"/"a"/"and".
+      // Strip it only when the model itself isn't sure.
       const w0 = openResult?.words?.[0];
       if (
         w0 &&

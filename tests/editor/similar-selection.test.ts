@@ -102,9 +102,6 @@ describe('computeSimilarMatches', () => {
       card(tag('TagTwo'), cardBody('Body B')),
       card(tag('TagThree'), cardBody('Body C')),
     );
-    // Cursor inside "TagOne". Doc structure puts tag content at:
-    //   doc 0 / card 1 / tag 2 / text starts at 2.
-    // Easier: walk to find the first tag's text-start.
     const cursorPos = findTextStart(doc, 'TagOne');
     const matches = computeSimilarMatches(doc, cursorPos, null, effectivePt);
     expect(matches.length).toBe(3);
@@ -163,9 +160,8 @@ describe('computeSimilarMatches', () => {
   });
 
   it('respects mark-order differences as not-equal (sanity)', () => {
-    // Marks of different types in the same set still hash to the
-    // same equality via marksEqual (PM normalizes order). This just
-    // confirms the equality check accepts equivalent multi-mark sets.
+    // PM normalizes mark order, so both runs carry the same mark
+    // set; confirms `marksEqual` accepts equivalent multi-mark sets.
     const doc = docOf(
       card(
         tag('T'),
@@ -175,8 +171,6 @@ describe('computeSimilarMatches', () => {
     );
     const pos = findTextStart(doc, 'bold-italic');
     const matches = computeSimilarMatches(doc, pos, null, effectivePt);
-    // PM normalizes marks: both runs end up with marks in the same
-    // order, so they match each other.
     expect(textAtRanges(doc, matches).sort()).toEqual([
       'bold-italic',
       'italic-bold',
@@ -256,11 +250,11 @@ describe('computeSimilarMatches', () => {
   });
 
   it('Select Similar → F12 clears matched runs INCLUDING their trailing spaces', () => {
-    // The burgum-18 flow: un-underlined cut text imported as 8pt
+    // Regression (burgum-18): un-underlined cut text imports as 8pt
     // cite-marked runs whose boundary spaces live inside the runs.
     // The Layer-3 trailing-space trim (built for double-click
-    // absorption) used to shave one space per matched run, leaving N
-    // formatted spaces that kept the paragraph classified as a cite
+    // absorption) would shave one space per matched run, leaving N
+    // formatted spaces that keep the paragraph classified as a cite
     // line. Shadow ranges are run-exact — no trim.
     const cite = () => schema.marks['cite_mark']!.create();
     const under = () => schema.marks['underline_mark']!.create();
@@ -298,7 +292,7 @@ describe('computeSimilarMatches', () => {
   it('whitespace-only runs match on marks alone, ignoring size (cut-doc 8pt spaces)', () => {
     // Imported cuts leave 8pt cite-styled SPACES between full-size
     // runs. Size is invisible on a space; requiring effective-pt
-    // equality made Select Similar → F12 skip exactly that debris.
+    // equality would make Select Similar → F12 skip exactly that debris.
     const cite = () => schema.marks['cite_mark']!.create();
     const body = schema.nodes['card_body']!.create(null, [
       schema.text('lead words', [cite()]),

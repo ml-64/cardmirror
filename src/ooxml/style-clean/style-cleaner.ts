@@ -1,9 +1,10 @@
 /**
  * Headless .docx style cleaner for Verbatim-standard formatting — a faithful
  * TypeScript port of the scouting-assistant `style_cleaner.py`, running over the
- * python-docx-equivalent shim (`ooxml-doc.ts`). Pipeline (clean_document_bytes):
- *   pre-prune (optional) → normalize aliases → formatting→styles conversion →
- *   rename/remove style defs → save → post-prune (optional) → fix dangling refs.
+ * python-docx-equivalent shim (`ooxml-doc.ts`). Pipeline (`cleanDocumentBytes`):
+ *   normalize required style names → inject missing canonical styles →
+ *   remap legacy styles → normalize aliases → formatting→styles conversion →
+ *   rename/remove style defs → save → fix dangling refs.
  *
  * Behavior is matched to python-docx 1.1.0 as the scouting tool relies on it
  * (see ooxml-doc.ts fidelity notes). The one knowingly-reproduced quirk: in the

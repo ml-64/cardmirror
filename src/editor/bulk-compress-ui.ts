@@ -1,8 +1,8 @@
 /**
  * Bulk-compress modal — a temporary migration tool.
  *
- * `.cmir` files are gzip-compressed on save now, but an existing
- * bulk-converted corpus only shrinks as files are re-saved. This walks a
+ * `.cmir` files are gzip-compressed on save, but a corpus written by
+ * older builds only shrinks as files are re-saved. This walks a
  * chosen folder and rewrites every `.cmir` compressed, in place. The heavy
  * lifting (skip-if-already-compressed, lossless verify, atomic rename,
  * mtime preservation) runs in the main process (`host:bulk-compress`); this
@@ -108,7 +108,6 @@ class BulkCompressModal {
       'Rewrites every .cmir file in a folder (and its subfolders) in compressed form, in place — typically ~10× smaller. Files already compressed are skipped, and each file is verified before it is replaced, so this is safe to run (and re-run) on your library.';
     body.appendChild(blurb);
 
-    // Folder.
     const field = document.createElement('div');
     field.className = 'pmd-bulk-field';
     const label = document.createElement('div');
@@ -124,7 +123,6 @@ class BulkCompressModal {
     field.appendChild(this.folderPathEl);
     body.appendChild(field);
 
-    // Run.
     const actions = document.createElement('div');
     actions.className = 'pmd-bulk-actions';
     this.runBtn = button('Compress', () => void this.run());
@@ -132,7 +130,6 @@ class BulkCompressModal {
     actions.appendChild(this.runBtn);
     body.appendChild(actions);
 
-    // Progress bar.
     const bar = document.createElement('div');
     bar.className = 'pmd-bulk-progress';
     this.barFillEl = document.createElement('div');

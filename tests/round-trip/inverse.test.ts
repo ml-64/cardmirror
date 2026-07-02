@@ -246,7 +246,7 @@ describe('inverse round-trip — tab and line break', () => {
     const xml = await (await Docx.load(await toDocx(doc))).readText('word/document.xml');
     expect(xml).toContain('<w:tab/>');
     expect(xml).toContain('<w:br/>');
-    // The chars must not survive as raw text in <w:t> any more.
+    // The chars must not survive as raw text in <w:t>.
     expect(xml).not.toMatch(/<w:t[^>]*>[^<]*\t[^<]*<\/w:t>/);
     await expectInverse(doc, 'tab + line break');
   });

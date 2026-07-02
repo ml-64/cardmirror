@@ -1,14 +1,13 @@
 /**
- * Navigation panel — outline view of headings.
+ * Navigation panel — outline view of headings (ARCHITECTURE.md §8).
  *
  * Renders a tree of pocket / hat / block / tag / analytic entries
- * indented by outline level. Click an entry to jump to and select
- * the heading in the editor.
- *
- * v0 affordances (this file): tree rendering, click-to-jump, hover
- * highlight. Out of scope for this iteration: collapse/expand, drag-
- * reorder, promote/demote, delete-subtree, grab — per
- * ARCHITECTURE.md §8 these are real features that need design input.
+ * indented by outline level. Click an entry to jump to the heading
+ * in the editor; chevrons and double-click toggle collapse; the
+ * level buttons filter like Word's "Show Heading N". Also provides
+ * level-locked multi-select, drag-reorder via the shared drag
+ * controller (long-press on mobile), a heading context menu, and
+ * find-hit decorations.
  */
 
 import type { EditorView } from 'prosemirror-view';
@@ -29,9 +28,8 @@ import {
 import { setIcon } from './icons';
 import { isMobileShellActive } from './mobile-plugin.js';
 
-/** Minimum nav-pane width. Has to fit the 4 level-buttons + the
- *  close (×) button + the row padding. With the previous 150px
- *  bound the × could be clipped at the smallest sizes. */
+/** Minimum nav-pane width — must fit the 4 level buttons + the
+ *  close (×) button + row padding; anything narrower clips the ×. */
 const NAV_WIDTH_MIN = 180;
 const NAV_WIDTH_MAX = 800;
 
@@ -316,13 +314,12 @@ export class NavigationPanel {
     applyNavWidthCss(settings.get('navWidth'));
     this.installResizeHandle();
 
-    // Re-render only when a setting the outline ACTUALLY depends on
-    // changes — the level filter (`navMaxLevel`) or the cite preview
-    // (`showCitePreview`). Re-rendering on every settings change rebuilt
-    // the whole outline (one DOM node per heading/card — O(doc)) on a
-    // large doc every time any unrelated setting was toggled, which was a
-    // big chunk of the per-settings-change lag. (Multi-pane level changes
-    // go through `localMaxLevel` + a direct render, not this subscriber.)
+    // Re-render only when a setting the outline depends on changes —
+    // the level filter (`navMaxLevel`) or the cite preview
+    // (`showCitePreview`). An unconditional re-render would rebuild the
+    // whole outline (one DOM node per heading — O(doc)) on every
+    // unrelated settings toggle. (Multi-pane level changes go through
+    // `localMaxLevel` + a direct render, not this subscriber.)
     let lastNavMaxLevel = settings.get('navMaxLevel');
     let lastShowCitePreview = settings.get('showCitePreview');
     this.unsubscribeSettings = settings.subscribe((s) => {
@@ -342,11 +339,8 @@ export class NavigationPanel {
   }
 
   /**
-   * Add a draggable resize handle on the right edge. Width is stored in
-   * the `--nav-width` CSS custom property so both the panel and #app's
-   * left margin update in lockstep. Persisted in localStorage. In
-   * multi-doc mode this per-section handle is hidden (the rail carries
-   * its own); see {@link installNavResizeHandle}, used by both layouts.
+   * Per-section resize handle; hidden in multi-doc mode (the rail
+   * carries its own). See {@link installNavResizeHandle}.
    */
   private installResizeHandle(): void {
     installNavResizeHandle(this.root);
@@ -378,8 +372,8 @@ export class NavigationPanel {
         this.removeDropIndicators();
       } else if (event === 'move') {
 
-        // Run auto-expand / auto-restore / auto-scroll on every
-        // controller move event, so editor-sourced drags get the same
+        // Run auto-expand / auto-restore on every controller move
+        // event, so editor-sourced drags get the same
         // hover-driven nav-pane behavior as nav-sourced drags. The
         // nav-source path also triggers this (its setPointer fires
         // 'move'), but the duplicate work is idempotent.
@@ -431,7 +425,6 @@ export class NavigationPanel {
     this.root.remove();
   }
 
-  /** Surface implementation handed to the drag controller. */
   /** Cached scroll-gate element — used by hit-test to verify the
    *  cursor is in THIS nav's section, not just somewhere in the
    *  nav-rail column. See the comment in `hitTestDropIndicators`. */
@@ -543,7 +536,8 @@ export class NavigationPanel {
     }
   }
 
-  /** Re-render given a new doc. Cheap to call on every transaction. */
+  /** Re-render given a new doc. Doc-change callers debounce (~200ms);
+   *  `remapPositions` keeps cached positions current in between. */
   update(doc: PMNode): void {
     if (this.destroyed) return; // a late debounced call must not re-pin the doc
     this.currentDoc = doc;
@@ -590,16 +584,6 @@ export class NavigationPanel {
     }
   }
 
-  /**
-   * Apply the current `maxLevel` collapse rule to headings whose IDs
-   * weren't present at the last render. Used by the multi-pane shell
-   * after a cross-view drop: dropped content gets fresh heading IDs
-   * via `rewriteHeadingIds`, so the diff identifies exactly the new
-   * entries. Existing user-expanded parents are preserved.
-   *
-   * Also triggers a synchronous re-render and updates the latest doc
-   * snapshot — call after a transaction has applied.
-   */
   /** Scroll the outline back to the top. Called by the editor on
    *  doc load so a freshly-opened doc doesn't inherit the previous
    *  doc's nav-pane scroll offset. */
@@ -631,6 +615,16 @@ export class NavigationPanel {
     if (this.currentDoc) this.render(this.currentDoc);
   }
 
+  /**
+   * Apply the current `maxLevel` collapse rule to headings whose IDs
+   * weren't present at the last render. Used by the multi-pane shell
+   * after a cross-view drop: dropped content gets fresh heading IDs
+   * via `rewriteHeadingIds`, so the diff identifies exactly the new
+   * entries. Existing user-expanded parents are preserved.
+   *
+   * Also triggers a synchronous re-render and updates the latest doc
+   * snapshot — call after a transaction has applied.
+   */
   applyMaxLevelToNewHeadings(): void {
     const view = this.view;
     if (!view) return;
@@ -895,8 +889,8 @@ export class NavigationPanel {
     this.dragStartEntry = entry;
 
     // Mobile: arm the drag by long-press, never by movement (movement
-    // is a scroll). Destination mode is tap-only — no pickup at all,
-    // and read mode locks the doc (same rule as the desktop arm path).
+    // is a scroll). Destination mode is tap-only — no pickup at all —
+    // and read mode disables mobile pickup entirely.
     if (isMobileShellActive() && !this.destinationCb && !settings.get('readMode')) {
       this.cancelLongPress();
       this.longPressLi = li;
@@ -1401,9 +1395,9 @@ export class NavigationPanel {
     // it. Keeps the source slot under the cursor, so releasing
     // the drag with no mouse movement drops the heading back
     // where it came from. Items below the dragged li still get
-    // pushed down by every indicator, which is what makes the
-    // nav pane visibly grow at drag start — preserved on
-    // purpose; the user likes that affordance.
+    // pushed down by every indicator, making the nav pane visibly
+    // grow at drag start — deliberate: the growth signals that
+    // drop slots have opened.
     if (draggingLi && indicatorsAboveDraggedCount > 0) {
       // Indicator height = 4px (see .pmd-nav-drop-indicator).
       const INDICATOR_HEIGHT_PX = 4;
@@ -1785,10 +1779,10 @@ export class NavigationPanel {
   }
 
   /**
-   * Scroll the corresponding heading element into view *without* moving
-   * the cursor or focusing the editor. Headings carry a `data-id` attr
-   * (per their toDOM); we look that up in the rendered DOM and scroll
-   * to it.
+   * Jump to a heading: place the cursor at the start of its content,
+   * focus the editor, and scroll it into view. Headings carry a
+   * `data-id` attr (per their toDOM); scrolling targets that element,
+   * falling back to `domAtPos` when it isn't in the rendered DOM.
    */
   private jumpTo(entry: HeadingEntry): void {
     if (!this.view) return;

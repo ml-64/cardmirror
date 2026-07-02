@@ -63,10 +63,7 @@ function apply(state: EditorState, cmd: Command): EditorState | null {
   return next; // null if the command swallowed the event without dispatching
 }
 
-/**
- * Locate the start position of the n-th tag (or analytic) in the doc.
- * The n-th means 0-indexed.
- */
+/** Start position of the n-th (0-indexed) tag or analytic in the doc. */
 function findTagStart(doc: ReturnType<typeof makeDoc>, n = 0): number {
   let count = 0;
   let pos = -1;
@@ -213,12 +210,9 @@ describe('backspaceAtTagStart', () => {
   });
 
   it('deletes a preceding card whose only-tag is blank (no merge)', () => {
-    // Blank wins over merge: even though the preceding card has only a
-    // tag (which would normally trigger a tag-into-tag merge), the
-    // tag's content is empty, so we just delete the card. End result
-    // is the same as a merge would produce because the blank content
-    // contributes nothing, but the *operation* is simpler and matches
-    // the user's mental model of "remove the empty thing ahead of me."
+    // Blank wins over merge: the preceding card's only-tag is empty, so
+    // the card is deleted outright rather than tag-into-tag merged —
+    // same end result, simpler operation.
     const doc = makeDoc([
       cardTagOnly(''),
       cardTagOnly('Second'),
@@ -692,10 +686,10 @@ describe('enterInHeading', () => {
 
 describe('splitBlock at start of cite_paragraph (default Enter)', () => {
   it('creates a card_body, NOT an undertag, above the cite', async () => {
-    // Bug: prior schema content order put `undertag` first in the
-    // alternation, so ProseMirror's defaultBlockAt picked undertag as
-    // the type for newly-created paragraphs. The card content
-    // expression now puts card_body first.
+    // Guards the card content expression listing `card_body` before
+    // `undertag`: ProseMirror's defaultBlockAt picks the first type in
+    // the alternation for newly-created paragraphs, so undertag-first
+    // would make Enter insert undertags here.
     const { splitBlock } = await import('prosemirror-commands');
     const doc = makeDoc([
       schema.nodes['card']!.createChecked(null, [

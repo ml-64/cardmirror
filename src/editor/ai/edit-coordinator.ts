@@ -5,8 +5,7 @@
  * capturing where an edit should land and dispatching it, the document
  * can move underneath them — another AI op finishing, or the user typing
  * — so positions captured up front drift and edits land in the wrong
- * place (or, for the older code, the whole op aborts). This coordinator
- * fixes that with **edit leases**.
+ * place. This coordinator fixes that with **edit leases**.
  *
  * A lease claims a document region for the lifetime of one AI op. The
  * plugin holds every live lease's positions and **remaps them through

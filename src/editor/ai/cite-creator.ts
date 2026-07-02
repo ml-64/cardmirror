@@ -39,13 +39,12 @@ import { showToast } from '../toast.js';
  *  text. */
 const DATE_PLACEHOLDER = '{DATE}';
 
-// Default prompt — ported verbatim from the user's prior Card
-// Formatting Tools utility (cite-formatter prompt in
-// reference-docs/Card Formatting Tools.py), with the JSON-wrapper
-// instructions appended at the bottom. The wrapper is what
-// distinguishes this from the clipboard-only utility: we need a
-// machine-parsable shape so the editor can apply the cite_mark
-// to the right tokens.
+// Default prompt — ported from the Card Formatting Tools utility's
+// cite-formatter prompt (reference-docs/Card Formatting Tools.py),
+// with the delimited-block output instructions appended at the
+// bottom. The wrapper is what distinguishes this from the
+// clipboard-only utility: the editor needs a machine-parsable shape
+// to apply `cite_mark` to the right tokens.
 export const DEFAULT_AI_CITE_PROMPT = `Today's date is ${DATE_PLACEHOLDER}.
 
 You are an expert in formatting academic citations. Your task is to reformat the given citation to match the following style:
@@ -135,20 +134,18 @@ export function parseCiteResponse(text: string): AiCiteResult {
     throw new Error("Cite response missing the [[CITE]] / [[TOKENS]] markers.");
   }
   // Sanitize before anything positional touches the cite. Messy source
-  // text (especially pasted out of PDFs) carries invisible junk —
-  // soft hyphens, zero-width spaces, BOMs, control chars — and the
-  // model echoes it into the cite. These count toward `cite.length` (and
-  // the per-token `indexOf` offsets) here, but the browser's
-  // contenteditable silently drops several of them when ProseMirror
-  // renders the cite paragraph; the DOM observer then reconciles the doc
-  // ONE position shorter than the string we measured. That single
-  // off-by-one lands on BOTH the trailing cite_mark (its last char goes
-  // unmarked) AND the "cite is its own paragraph" split (the now-stray
-  // last char gets shunted to its own line) — together, or not at all,
-  // exactly as observed. `sanitizeCiteText` strips the invisibles and
-  // collapses whitespace so `cite.length` matches what actually renders.
-  // (The whitespace collapse also fixes wrapped / multi-space cites,
-  // which `white-space: pre-wrap` would otherwise show as broken lines.)
+  // text (especially pasted out of PDFs) carries invisible junk — soft
+  // hyphens, zero-width spaces, BOMs, control chars — and the model
+  // echoes it into the cite. Those count toward `cite.length` (and the
+  // per-token `indexOf` offsets), but the browser's contenteditable
+  // silently drops several of them on render, so the DOM observer
+  // reconciles the doc shorter than the string we measured — leaving
+  // the trailing cite_mark short of its last char and shunting a stray
+  // char past the own-paragraph split. `sanitizeCiteText` strips the
+  // invisibles and collapses whitespace so `cite.length` matches what
+  // actually renders. (The whitespace collapse also fixes wrapped /
+  // multi-space cites, which `white-space: pre-wrap` would otherwise
+  // show as broken lines.)
   const citeBody = sanitizeCiteText(
     text
       .slice(citeIdx, tokensIdx)
@@ -224,15 +221,14 @@ export function buildCiteTransaction(
   // Clamp the range to valid TEXT positions before inserting. The caller
   // passes the raw selection bounds, which can be block-boundary
   // positions that ProseMirror won't place inline text at — most commonly
-  // `from === 0` from a whole-document / top-of-doc selection (Ctrl+A),
-  // where the cite actually lands at position 1, not 0. If we trusted the
-  // raw `from`, every position below would be shifted one left: the
-  // trailing token would lose its last char AND the "cite is its own
-  // paragraph" split would shunt that char onto its own line — together,
-  // exactly the reported bug. `TextSelection.between` resolves the bounds
-  // inward to the nearest inline positions (e.g. 0 → 1), so the inserted
-  // run is then exactly `[from, from + cite.length]` with 1:1 character
-  // offsets (which is what the token substring search relies on).
+  // `from === 0` from a whole-document selection (Ctrl+A), where the cite
+  // actually lands at position 1, not 0. Trusting the raw `from` would
+  // shift every position below one left: the trailing token loses its
+  // last char and the own-paragraph split shunts that char onto its own
+  // line. `TextSelection.between` resolves the bounds inward to the
+  // nearest inline positions (e.g. 0 → 1), so the inserted run is exactly
+  // `[from, from + cite.length]` with 1:1 character offsets (which the
+  // token substring search relies on).
   const clamped = TextSelection.between(state.doc.resolve(from), state.doc.resolve(to));
   from = clamped.from;
   to = clamped.to;

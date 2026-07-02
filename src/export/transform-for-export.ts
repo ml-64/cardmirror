@@ -5,7 +5,9 @@
  * itself needing per-feature flags.
  *
  * Five user options drive this:
- *   - includeComments   (no-op until comments import lands)
+ *   - includeComments   (no doc transform — gated at the export call
+ *                        site, which withholds the doc's comment
+ *                        threads from the exporter when off)
  *   - includeAnalytics  (strip analytic_units + in-card analytic)
  *   - includeUndertags  (strip undertag nodes wherever they live)
  *   - readMode          (mutually exclusive — replaces the above
@@ -48,9 +50,9 @@ export function transformForExport(
   let out = doc;
   if (!opts.includeAnalytics) out = stripAnalytics(out);
   if (!opts.includeUndertags) out = stripUndertags(out);
-  // includeComments is a no-op until comments import lands. The
-  // exporter has no comment-emit logic yet; once it does, this is
-  // where the gate plugs in.
+  // includeComments needs no doc transform here: the export call site
+  // gates it by withholding the doc's comment threads from the
+  // exporter when off (notes / AI threads have their own flags there).
   return out;
 }
 

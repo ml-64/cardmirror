@@ -1,7 +1,7 @@
 /**
  * ProseMirror mark specs.
  *
- * Two families of marks:
+ * The two main mark families (the rest are documented inline):
  *
  * 1. Named-style emphasis marks — round-trip to a Word character style:
  *    - cite_mark   ↔ rStyle "Style13ptBold" (Cite)
@@ -388,26 +388,22 @@ export const marks: { [name: string]: MarkSpec } = {
         }),
       },
     ],
-    // Render as <span class="pmd-highlight"> rather than <mark>. Class-
-    // based targeting is more robust than the bare `mark` element
-    // selector — ProseMirror's view layer can normalize element names
-    // in ways that defeat element-typed CSS rules in some cases.
-    // Emphasis box padding is intentionally 0 so the highlight bg
-    // reaches the box's inner border edge with no white gap, even
-    // though emphasis is OUTER to highlight in mark rank (a continuous
-    // emphasis run renders as ONE `.pmd-emphasis` span regardless of
-    // which sub-runs carry highlight — no phantom internal borders).
+    // Rendered as <span class="pmd-highlight"> rather than <mark>:
+    // class targeting survives ProseMirror view-layer element
+    // normalization that can defeat element-typed CSS rules.
+    // Emphasis box padding is 0 so the highlight bg reaches the box's
+    // inner border edge with no gap, even though emphasis is OUTER to
+    // highlight in mark rank (a continuous emphasis run renders as one
+    // `.pmd-emphasis` span regardless of which sub-runs carry
+    // highlight — no phantom internal borders).
     toDOM: (mark) => {
       const color = String(mark.attrs['color'] ?? 'yellow');
-      // `data-highlight-band` is the perceived-luminance bucket for
-      // the named highlight color. Lets downstream CSS pick a single
-      // band attribute instead of having to enumerate every named
-      // color via `:has(.pmd-highlight[data-highlight=COLOR])`
-      // selectors — collapsing 16 `:has()` checks per `.pmd-underline`
-      // down to 2 (one per band). Big style-recalc win on big docs
-      // when cv:auto cards stream into view. `data-highlight-band`
-      // is "none" for the explicit no-highlight value so the CSS
-      // selector chain doesn't fire on transparent containers.
+      // `data-highlight-band` = perceived-luminance bucket for the
+      // named color, so downstream CSS matches one band attribute
+      // instead of 16 `:has(.pmd-highlight[data-highlight=…])` checks
+      // per `.pmd-underline` — a large style-recalc win when cv:auto
+      // cards stream into view. "none" for the explicit no-highlight
+      // value keeps the selector chain off transparent containers.
       return [
         'span',
         {

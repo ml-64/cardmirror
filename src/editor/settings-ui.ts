@@ -60,21 +60,17 @@ import {
 } from './file-search.js';
 
 /**
- * Available body fonts, organized into labeled groups. The dropdown
- * uses `<optgroup>` so the user can find a font by category. Fonts
- * not installed on the system are filtered out per-group via
- * `isFontAvailable`; if every font in a group is unavailable the
- * whole group is suppressed.
+ * Body fonts for the font dropdowns, grouped into `<optgroup>`s.
+ * Fonts not installed on the system are filtered out per-group via
+ * `isFontAvailable`; a group with no available fonts is suppressed.
  *
- * The "Recommended for readability" group leads. The first three
- * entries (Atkinson Hyperlegible, Lexend, OpenDyslexic) are
- * SIL OFL fonts bundled with the app so every install has at least
- * one readability-tuned option regardless of what's on the host OS
- * — see `style.css`'s @font-face block and `src/editor/fonts/`.
- * The remaining three (Verdana, Tahoma, Comic Sans MS) are the
- * British Dyslexia Association's 2023 endorsed system sans-serifs
- * for body text aimed at dyslexic readers; they appear in the
- * group when the user's OS has them installed.
+ * In "Recommended for readability": Atkinson Hyperlegible, Lexend,
+ * and OpenDyslexic are SIL OFL fonts bundled with the app (see
+ * `style.css`'s @font-face block and `src/editor/fonts/`), so every
+ * install has a readability-tuned option regardless of the host OS.
+ * Verdana, Tahoma, and Comic Sans MS are the British Dyslexia
+ * Association's 2023 endorsed system sans-serifs for body text aimed
+ * at dyslexic readers; they show only when installed.
  */
 interface FontGroup {
   label: string;
@@ -120,9 +116,6 @@ const FONT_GROUPS: FontGroup[] = [
   },
 ];
 
-/** Flat list of every named font we know about. Used by
- *  `sanitizeBodyFont` (via the membership check) and for any caller
- *  that just wants "is this a recognized font name?" semantics. */
 const COMMON_FONTS = FONT_GROUPS.flatMap((g) => g.fonts);
 
 /** Human-readable label for each display-size key. */
@@ -159,15 +152,14 @@ function flushRowCleanups(): void {
 /** Register `callback` to run when the settings modal tears down its
  *  current DOM generation (close, or the rebuild at the top of the
  *  next render). This is the release point for the settings
- *  subscription each row/widget creates. Replaces a per-element
- *  document-wide MutationObserver ("run when detached") that never
- *  fired while the modal was merely hidden, leaving ~60 observers +
- *  subscriptions live for the rest of the session after one open.
- *  NOTE: cleanup is tied to the MODAL lifecycle, not to `el` actually
- *  detaching — an element removed mid-session (nothing does this
- *  today) keeps its subscription until close; release it manually via
- *  the returned cancel if that ever matters. `el` is accepted only to
- *  document ownership at the call site. */
+ *  subscription each row/widget creates. Cleanup is tied to the MODAL
+ *  lifecycle rather than to `el` detaching: the dialog DOM stays
+ *  connected (merely hidden) after close, so detach-based cleanup
+ *  would never fire and every open would leak ~60 subscriptions.
+ *  An element removed mid-session (nothing does this today) keeps its
+ *  subscription until close; release it manually via the returned
+ *  cancel if that ever matters. `el` is accepted only to document
+ *  ownership at the call site. */
 function registerRowCleanup(_el: Element, callback: () => void): () => void {
   rowCleanups.push(callback);
   return () => {
@@ -196,9 +188,10 @@ function scrollTabIntoView(tab: HTMLElement, container: HTMLElement): void {
 // settings-categories.ts so the command palette (main chunk) can use
 // them without pulling this lazily-loaded module in with them.
 
-/** A deep-link into the settings dialog: open a tab and optionally
- *  scroll to / flash a specific setting, or a named non-setting section
- *  (e.g. "About this install") via its `data-anchor`. */
+/** The settings dialog. `open()` takes a deep-link target: a tab to
+ *  activate and optionally a setting row — or a named non-setting
+ *  section (e.g. "About this install") via its `data-anchor` — to
+ *  scroll to and flash. */
 class SettingsModal {
   private overlay: HTMLDivElement;
   private dialog: HTMLDivElement;
@@ -338,7 +331,7 @@ class SettingsModal {
 
   private render(): void {
     // Tear down the outgoing generation's subscriptions before its DOM
-    // is replaced (mirrors the old detach-time semantics).
+    // is replaced.
     flushRowCleanups();
     this.dialog.innerHTML = '';
 
@@ -475,8 +468,7 @@ class SettingsModal {
       // General — read-only labels users can copy-paste into bug
       // reports. Lives here rather than in SETTING_METADATA
       // because it isn't a user-editable setting. The Benchmark
-      // action (run the in-app perf suite) lives here too — not its
-      // own tab, just an action button alongside the diagnostics.
+      // action (run the in-app perf suite) sits alongside it.
       if (id === 'general') {
         panel.appendChild(buildBenchmarkSection(() => this.close()));
         panel.appendChild(buildInstallInfoSection());
@@ -1059,10 +1051,9 @@ class SettingsModal {
       });
       label.appendChild(input);
     } else if (meta.kind === 'aiCitePrompt') {
-      // Just a button — the actual prompt editor pops up in its
-      // own modal because the prompt's long enough that an inline
-      // textarea would shove the rest of the settings dialog off-
-      // screen.
+      // A button only — the prompt editor opens in its own modal
+      // because the prompt is long enough that an inline textarea
+      // would shove the rest of the settings dialog off-screen.
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'pmd-settings-btn';
@@ -1097,10 +1088,9 @@ class SettingsModal {
       });
       label.appendChild(checkbox);
     } else if (meta.kind === 'clodCustomize') {
-      // Opens the Clod customization dialog — persona name + pronouns, the
-      // activity pools per time period, and the time-period boundaries. This
-      // was previously reachable only via a hidden modifier-click on the
-      // toggle; it's now a plain button.
+      // Opens the Clod customization dialog — persona name + pronouns,
+      // the activity pools per time period, and the time-period
+      // boundaries.
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'pmd-settings-btn';
@@ -1333,13 +1323,12 @@ function buildInstallInfoSection(): HTMLElement {
   // shell.openPath). The web edition has neither capability.
   const electronHost = getElectronHost();
   if (electronHost) {
-    // "Check for updates automatically" toggle. Lives in this
-    // section alongside the manual Check-for-updates button because
-    // it's the same conceptual surface — "how the app handles
-    // updates." When enabled, the app checks at launch AND once a
-    // day, staying silent unless an update is found. Only the first
-    // window of a session runs the checks; spawned windows skip
-    // them. The triggers live in `index.ts`'s boot path.
+    // "Check for updates automatically" toggle — kept next to the
+    // manual Check-for-updates button since both govern updates.
+    // When enabled, the app checks at launch AND once a day, staying
+    // silent unless an update is found. Only the first window of a
+    // session runs the checks; spawned windows skip them. The
+    // triggers live in `index.ts`'s boot path.
     const launchRow = document.createElement('label');
     launchRow.className = 'pmd-install-info-launch-toggle';
     const launchInput = document.createElement('input');
@@ -1418,8 +1407,8 @@ function buildInstallInfoSection(): HTMLElement {
 }
 
 /** GitHub-hosted copy of MANUAL.md — opened from Settings → General (and, on
- *  macOS, the Help menu). Pinned in settings so it stays reachable now that
- *  Windows/Linux no longer carry a native menu bar. */
+ *  macOS, the Help menu). Pinned in Settings so it stays reachable on
+ *  Windows/Linux, which carry no native menu bar. */
 const MANUAL_URL = 'https://github.com/ant981228/cardmirror/blob/main/MANUAL.md';
 
 /** A "User Manual" link pinned at the bottom of Settings → General. */
@@ -1769,9 +1758,7 @@ function buildLineHeightsEditor(): HTMLElement {
     }
   }
 
-  // Reset button: restores every line-spacing knob to its built-in
-  // default. Same styling/shape as the zoom reset button in the
-  // status bar.
+  // Reset button — same styling/shape as the status bar's zoom reset.
   const footer = document.createElement('div');
   footer.className = 'pmd-line-heights-footer';
   const resetBtn = document.createElement('button');
@@ -1979,16 +1966,13 @@ function buildReadersEditor(): HTMLElement {
     commit([...cur, { name: `Reader ${cur.length + 1}`, wpm: 200 }]);
   });
 
-  // Re-render when readers change (e.g., from elsewhere or own edits).
+  // Re-render on any settings change (covers edits made elsewhere).
   const unsubscribe = settings.subscribe((s) => {
-    // Only re-render if the readers list changed.
     void s;
     render();
   });
-  // Also re-render once now.
   render();
 
-  // Best-effort cleanup if the editor is detached (modal closes & rebuilds).
   registerRowCleanup(wrap, () => unsubscribe());
 
   return wrap;
@@ -2057,9 +2041,6 @@ function buildPairingOwnCodeEditor(): HTMLElement {
   return wrap;
 }
 
-/** Paired machines: nickname + code rows, modeled on the readers editor.
- *  A new partner starts with a placeholder name so it survives the
- *  set→sanitize round-trip while you paste its code. */
 /** Is this recipient/group the single starred "Send to Starred" target? */
 function isStarredTarget(kind: 'partner' | 'group', ref: string): boolean {
   const s = settings.get('pairingStarred');
@@ -2208,6 +2189,7 @@ function buildPairingPartnersEditor(): HTMLElement {
 
   addBtn.addEventListener('click', () => {
     const cur = settings.get('pairingPartners');
+    // Placeholder name — the set→sanitize round-trip drops rows with no code and no name.
     commit([...cur, { code: '', name: `Recipient ${cur.length + 1}` }]);
   });
 
@@ -2457,7 +2439,6 @@ function buildVoiceInputDeviceEditor(): HTMLElement {
   return select;
 }
 
-/** Generic editor for plain numeric settings (kind: 'number'). */
 /** The four dash outputs the custom-dash remapping can target. */
 const CUSTOM_DASH_OPTIONS: ReadonlyArray<[Settings['customDashStyle'], string]> = [
   ['en', '– en dash'],
@@ -3585,23 +3566,23 @@ function buildColorOverridesEditor(): HTMLElement {
       .trim();
   }
 
-  /** Resolve any CSS color string (hex / rgba / named / hsl) to
-   *  numeric RGB + alpha. Used to pre-fill the color picker AND
-   *  the alpha slider with the token's current effective value
-   *  regardless of how it's stored. */
-  // ONE reused, hidden probe for resolving color strings to rgba.
-  // Appending + removing a fresh probe to <body> on every call (×37 rows ×
-  // every settings change, plus at build) forced a full-document layout
-  // recalc each time — the dominant settings-lag source on large docs.
-  // Kept connected + laid out (`visibility:hidden`, off-screen) so
-  // `getComputedStyle(probe).color` resolves, but reused so changing only
-  // its own color dirties just this leaf element, not the whole document.
+  // One reused, hidden probe for resolving color strings to rgba.
+  // Appending + removing a fresh probe to <body> per call (×37 rows ×
+  // every settings change) would force a full-document layout recalc
+  // each time — the dominant settings-lag source on large docs. Kept
+  // connected + laid out (`visibility:hidden`, off-screen) so
+  // `getComputedStyle(probe).color` resolves; changing only its own
+  // color dirties just this leaf element, not the whole document.
   const probe = document.createElement('span');
   probe.style.cssText =
     'position:absolute;left:-9999px;top:0;visibility:hidden;pointer-events:none';
   document.body.appendChild(probe);
   registerRowCleanup(wrap, () => probe.remove());
 
+  /** Resolve any CSS color string (hex / rgba / named / hsl) to
+   *  numeric RGB + alpha. Used to pre-fill the color picker AND
+   *  the alpha slider with the token's current effective value
+   *  regardless of how it's stored. */
   function parseToRgbaParts(css: string): {
     r: number; g: number; b: number; a: number;
   } {
@@ -3715,9 +3696,8 @@ function buildColorOverridesEditor(): HTMLElement {
       input.value = toHex(r, g, b);
       alpha.value = String(a);
       // Keep the button in the layout always so the row doesn't
-      // shift width as the user drags the alpha slider into / out
-      // of "this is now overridden" territory. Just toggle
-      // disabled / aria-pressed for visual state.
+      // shift width as the alpha slider drags into / out of
+      // overridden territory; only `disabled` toggles.
       reset.disabled = !isOverridden(tok.name);
     }
 
@@ -3757,12 +3737,11 @@ function buildColorOverridesEditor(): HTMLElement {
     refresh();
     // Refresh this row only when ITS OWN token's value changes — the
     // document-text rows track `displayColors[dcKey]`, the rest their
-    // own `customColorOverrides[name]`. (`refresh` reads a computed
-    // style, so re-running it across all ~37 rows on every settings
-    // change — or on every color edit, when only one token actually
-    // changed — was the dominant settings lag on large docs. The
-    // customizable tokens are independent base colors, so editing one
-    // never changes another's effective value.)
+    // own `customColorOverrides[name]`. `refresh` reads a computed
+    // style, so re-running all ~37 rows on every settings change
+    // would dominate settings lag on large docs; the customizable
+    // tokens are independent base colors, so editing one never
+    // changes another's effective value.
     const tokenValue = (s: ReturnType<typeof settings.all>): unknown =>
       dcKey ? s.displayColors[dcKey] : s.customColorOverrides[tok.name];
     let lastBacking = tokenValue(settings.all());

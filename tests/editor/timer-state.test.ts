@@ -1,7 +1,7 @@
 /**
  * Editing the timer display in a prep mode writes that side's saved balance, so
  * the edit persists across mode switches (only Reset zeroes prep). Covers
- * `setActiveRemainingMs` — the state half of the editable-prep-time change.
+ * `setActiveRemainingMs` — the state half of editable prep time.
  */
 import { describe, it, expect } from 'vitest';
 import {

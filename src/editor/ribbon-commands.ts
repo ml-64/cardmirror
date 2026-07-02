@@ -1,36 +1,37 @@
 /**
- * Verbatim ribbon commands — structural style application
+ * Verbatim ribbon commands — structural style application, formatting
+ * marks, and the keymap / command-ID registry
  * (ARCHITECTURE.md §15 ribbon-command parity).
  *
- * Phase 1: F4 / F5 / F6 / F7 — set current paragraph or heading to
- * Pocket / Hat / Block / Tag.
- *
- * Conversion rules:
+ * Heading-hotkey conversion rules (F4 / F5 / F6 / F7 → Pocket / Hat /
+ * Block / Tag):
  *   - paragraph at doc root → target heading (new id)
  *   - pocket / hat / block at doc root → target heading (preserve id)
+ *   - same-type re-press → reset toward the style's canonical look
+ *     (clear indent + stray font size / color; see `stripIndentAtDepth`)
  *   - tag inside card → dissolve card; tag → target heading. Card
  *     children that follow become loose doc-level siblings:
  *     card_body → paragraph, cite_paragraph → paragraph, undertag is
  *     kept, analytic gets wrapped in an analytic_unit.
  *   - analytic inside analytic_unit → analogous dissolve
- *   - card_body inside card/analytic_unit:
- *       - F4–F6 split the container: everything before the cursor body
- *         stays in the container; the cursor body becomes a heading
- *         after; following children lift out as loose paragraphs
+ *   - body slot (card_body / cite_paragraph / undertag) inside
+ *     card / analytic_unit:
+ *       - F4–F6 split the container: everything before the cursor slot
+ *         stays in the container; the cursor slot becomes a heading
+ *         after; following children lift out as loose siblings
  *         (card_body / cite_paragraph → paragraph, undertag kept,
  *         analytic wrapped in analytic_unit).
- *       - F7 splits into two cards: cursor body becomes the tag of
+ *       - F7 splits into two cards: the cursor slot becomes the tag of
  *         a new card; following children (card_body / undertag /
  *         cite_paragraph / analytic) become that new card's body.
- *   - F7 on a tag → accept no-op
  *   - F7 on doc-level paragraph/heading → wrap as card with tag
  *     carrying the original content (preserve id on heading → tag)
  *   - F7 on analytic-as-anchor of analytic_unit → analytic_unit
  *     becomes card; analytic becomes tag
  *
- * Returns false (no-op) for contexts the command doesn't handle:
- * cite_paragraph / undertag cursors, or an analytic that's the
- * cite-slot of a card rather than the anchor of an analytic_unit.
+ * Returns false (no-op) for contexts a command doesn't handle, e.g.
+ * an analytic that's the cite-slot of a card rather than the anchor
+ * of an analytic_unit.
  */
 
 import { Fragment, type Mark, type MarkType, type Node as PMNode, type ResolvedPos } from 'prosemirror-model';
@@ -265,23 +266,20 @@ function clearReapplyFormatting(node: PMNode): PMNode {
 }
 
 /**
- * Bulk re-apply of a structural style over a right-click "select all of
- * this style" shadow selection (`selectAllOfStyle`). `applyStructuralToSelection`
- * only sees the real PM selection — which `selectAllOfStyle` collapses — so a
- * shadow that spans many paragraphs (e.g. every tag in the doc) couldn't be
- * re-styled at all. Re-applying a structural style to a block that is ALREADY
- * that type is, by design, a no-op on structure that just resets it toward the
- * style's canonical look — clearing its `indent` and stray direct font-size /
- * font-color marks (the same-type re-press behavior, mirroring
- * `stripIndentAtDepth`). This does exactly that across every same-type block the
- * shadow covers, in one transaction — the intended way to scrub stray sizes /
- * colors (often imported from .docx) off all tags: right-click the ribbon style
- * button to select them, left-click to re-apply. `spacing` is preserved.
+ * Bulk same-type re-press over a right-click "select all of this style"
+ * shadow selection (`selectAllOfStyle`), which collapses the real PM
+ * selection — so `applyStructuralToSelection` never sees the matches.
+ * Resets every covered same-type block toward the style's canonical
+ * look — clearing its `indent` and stray direct font-size / font-color
+ * marks, mirroring `stripIndentAtDepth` — in one transaction;
+ * `spacing` is preserved. Workflow: right-click the ribbon style button
+ * to select all tags, left-click to scrub stray sizes / colors (often
+ * imported from .docx) off them.
  *
- * Only fires for a shadow selection (`fromShadow`) whose blocks already match
- * `targetType`; a shadow of a different style, or a real selection, falls
- * through so the caller's normal conversion logic runs. Returns false when no
- * same-type block is covered (nothing to clear).
+ * Only fires for a shadow selection (`fromShadow`) whose blocks already
+ * match `targetType`; a shadow of a different style, or a real
+ * selection, falls through so the caller's normal conversion logic
+ * runs. Returns false when no same-type block is covered.
  */
 function bulkReapplyStructuralOnShadow(
   state: EditorState,
@@ -810,38 +808,14 @@ function dissolveContainerToHeading(
 }
 
 /**
- * Verbatim's CopyPreviousCite, reframed for our schema.
- *
- * Source: cite_paragraph nodes whose end position is strictly before
- * the cursor, scoped first to the cursor's enclosing card. If that
- * yields nothing, walk doc-level siblings backward until we find a
- * card whose children include at least one cite_paragraph; take all
- * of that card's cite_paragraphs. Whitespace-only cites still count.
- *
- * Destination:
- *   - If the cursor is inside a card and its current paragraph is an
- *     EMPTY (or whitespace-only) card_body / cite_paragraph / undertag,
- *     REPLACE that paragraph with the cites.
- *   - If the cursor is inside a card otherwise (tag / non-empty body /
- *     empty heading-like child), INSERT the cites as siblings right
- *     after the cursor's paragraph.
- *   - If the cursor is NOT inside a card (doc-level paragraph, heading,
- *     analytic_unit), wrap the cites in a new card `[empty tag, cites]`
- *     and insert that card at doc level immediately after the cursor's
- *     doc-level ancestor. Cursor lands in the empty tag so the user
- *     can immediately type the new tag.
- *
- * The "in card" cases place the cursor at the end of the last inserted
- * cite_paragraph so the user can continue from there.
- */
-/**
  * F8 / F10 — apply a body-only named-style mark (`cite_mark` /
  * `emphasis_mark`) to text in the selection. Both share the same
  * shape: structural textblocks (tag / analytic / pocket / hat / block)
  * and undertags are skipped, so a selection that spans them only marks
  * the body portions and the structural slots are left untouched.
  *
- * No-op when the selection is collapsed.
+ * A collapsed selection expands to the word at the cursor (no-op when
+ * there is no word to act on).
  *
  * Apply-only (not toggle): re-running on the same range is idempotent.
  * Schema `excludes` on these marks auto-strips conflicting
@@ -978,9 +952,9 @@ function getOperatingRangesForFormatting(
   // Layer 3 exists to un-do word-unit absorption in USER selections
   // (double-click pulls one trailing space onto the edge). Shadow
   // ranges come from text-RUN boundaries — nothing was absorbed, and
-  // trimming each of N matched runs left N formatted trailing spaces
-  // behind (the burgum-18 cite-debris case: Select Similar → F12
-  // cleaned everything except 55 run-final spaces).
+  // trimming each of N matched runs would leave N run-final spaces
+  // out of scope (e.g. Select Similar → F12 skipping every run's
+  // trailing space).
   if (op.fromShadow) return op;
   return {
     ranges: trimRangesForFormatting(state.doc, op.ranges),
@@ -997,9 +971,9 @@ function applyBodyMark(
     if (!markType) return false;
 
     // Operating ranges: PM selection if non-empty, otherwise the
-    // shadow-selection matches if any are active, otherwise fall
-    // back to the per-command default (word-expand at cursor for
-    // F10 Emphasis; nothing for F8 Cite).
+    // shadow-selection matches if any are active, otherwise the
+    // word at the cursor (when the command opts in via
+    // `expandToWordWhenEmpty`).
     const op = getOperatingRangesForFormatting(state);
     let opRanges = op.ranges;
     if (opRanges.length === 0) {
@@ -1032,12 +1006,9 @@ function applyBodyMark(
     const mark = markType.create();
     for (const r of ranges) {
       tr.addMark(r.from, r.to, mark);
-      // F8 / F10 are one-directional applies — the named style's
-      // typography is the run's new identity, so direct overrides
-      // (font_size, bold, etc.) get cleared. Highlight is preserved:
-      // it marks "this is the argument-text" and the user typically
-      // wants it to survive a typographic re-skin. Shading still
-      // strips (its semantic is closer to font color).
+      // One-directional apply: direct overrides (font_size, bold,
+      // etc.) clear; highlight survives, shading strips — see
+      // `APPLY_DIRECT_FORMATTING_STRIP_NAMES` for the rationale.
       stripDirectFormattingOnApply(tr, r.from, r.to);
     }
     if (op.fromShadow) tr.setMeta(META_OPERATING_ON_SHADOW, true);
@@ -1061,9 +1032,8 @@ export function applyEmphasis(): Command {
  * acronym: select "United States Capitol Police", run this, and
  * "U", "S", "C", "P" get emphasized.
  *
- * No-op on empty selection (the user explicitly asked for
- * selection-only behavior — no "emphasize the word at the cursor"
- * fallback like `applyEmphasis` has).
+ * No-op on empty selection — no "emphasize the word at the cursor"
+ * fallback like `applyEmphasis` has.
  *
  * Word definition matches `wordRangeAtCursor`: a maximal run of
  * non-whitespace characters within a single textblock. Inline
@@ -1102,11 +1072,9 @@ export function emphasizeAcronym(): Command {
       // digits, `'` U+0027, `'` U+2019. Inline leaves (images, etc.)
       // get the sentinel `'\0'` which classifies as non-word and
       // therefore ends any in-progress word. Same index space as
-      // `wordRangeAtCursor`. Under the spec `U.S.A.` becomes three
-      // words (each letter standalone), so the F10 acronym command
-      // emphasizes `U`, `S`, `A` separately — a more useful result
-      // than the prior "treat the whole `U.S.A.` as one word" walk
-      // that only emphasized the leading `U`.
+      // `wordRangeAtCursor`. Under the spec `U.S.A.` is three words
+      // (each letter standalone), so `U`, `S`, `A` are emphasized
+      // separately.
       const isW = new Array<boolean>(size);
       let p = 0;
       node.forEach((child) => {
@@ -1176,11 +1144,8 @@ export function emphasizeAcronym(): Command {
     const mark = markType.create();
     for (const r of firstLetterRanges) {
       tr.addMark(r.from, r.to, mark);
-      // Same one-directional-apply semantics as F10 Emphasis:
-      // direct overrides (font_size, bold, etc.) on the marked
-      // character clear so the emphasis run renders as the named
-      // style's typography. Highlight + shading follow the same
-      // rules as `applyBodyMark`.
+      // Same one-directional-apply semantics as `applyBodyMark`:
+      // direct overrides clear; highlight survives, shading strips.
       stripDirectFormattingOnApply(tr, r.from, r.to);
     }
     dispatch(tr);
@@ -1524,15 +1489,14 @@ function applyFullGapTarget(
   const marksToAdd: Mark[] = [];
   const marksToRemove: MarkType[] = [];
 
-  // Named-style family (underline / emphasis / cite). ONLY normalized when the
-  // command that ran actually toggles this family (appliesNamedStyle: underline /
-  // emphasis / cite). For an UNRELATED command (highlight / shading / font_size)
-  // we leave it completely ALONE — whatever underline / emphasis / cite the gap
-  // already carries is the deliberate result of an earlier named-style apply
-  // (e.g. the underlined read-aloud join between two emphasized words), and the
-  // unrelated command never touched it. Tidying it from the bookends here was a
-  // bug: highlighting either emphasized side of `E <underline> E` saw emphasis on
-  // both bookends and rewrote the underlined join to EMPHASIS.
+  // Named-style family (underline / emphasis / cite). ONLY normalized
+  // when the command that ran actually toggles this family
+  // (appliesNamedStyle). For an UNRELATED command (highlight / shading /
+  // font_size) it's left completely ALONE — whatever the gap already
+  // carries is the deliberate result of an earlier named-style apply
+  // (e.g. the underlined read-aloud join between two emphasized words).
+  // Rewriting it from the bookends would see emphasis on both sides of
+  // `E <underline> E` and turn the underlined join into EMPHASIS.
   if (appliesNamedStyle) {
     const fmU = has(fm, um) || has(fm, ud);
     const lmU = has(lm, um) || has(lm, ud);
@@ -2709,11 +2673,10 @@ function applyClearToNormalDemote(tr: Transaction, op: ClearToNormalOp): void {
     // replacement (assoc=1 — the right-association convention),
     // which lands the cursor at the tail of the lifted bodies
     // — and if absorb claims those bodies into a preceding card,
-    // the cursor follows them to the bottom of that card. (Same
-    // root cause the absorb-plugin had before its surgical-step
-    // rewrite; here the cure is a manual setSelection, since
-    // dissolve genuinely replaces the container that holds the
-    // cursor — there's no surrounding region to preserve.)
+    // the cursor follows them to the bottom of that card. A
+    // manual setSelection is the only fix: dissolve replaces the
+    // very container that holds the cursor, so there's no
+    // surrounding region whose mapping could preserve it.
     const containerEnd = containerStart + container.nodeSize;
     const origHead = tr.selection.head;
     const origAnchor = tr.selection.anchor;
@@ -2856,24 +2819,22 @@ function mapPosThroughDissolve(
 //     at its existing size).
 
 const SHRINK_NORMAL_TO_SMALL_PT = 8;
-// Cycle order, for reference: 11 → 8 → 7 → 6 → 5 → 4 → 11.
 // `i` for case-insensitive ("omitted" / "OMITTED" / etc. all match);
 // `.*?` is non-greedy and JS `.` doesn't cross newlines by default,
 // so each bracket pair stops at the nearest closer within the same
 // paragraph. Double-bracket variants come first so the longer match
 // wins when both shapes overlap.
 const BUILTIN_PROTECTED_REGEXES: readonly RegExp[] = [
-  // Omissions. Double-bracket variants first so the longer match wins
-  // when both shapes overlap; the post-sort+merge in
-  // findProtectedRanges collapses any residual overlap.
+  // Omissions. The post-sort+merge in `findProtectedRanges` collapses
+  // any residual overlap between the double and single variants.
   /\[\[.*?Omitted.*?\]\]/gi,
   /<<.*?Omitted.*?>>/gi,
   /\{\{.*?Omitted.*?\}\}/gi,
   /\[.*?Omitted.*?\]/gi,
   /<.*?Omitted.*?>/gi,
   /\{.*?Omitted.*?\}/gi,
-  // "Condense with warning" markers — all 6 delimiter variants, doubles
-  // first. Matched regardless of the current `condenseWarningDelimiter`
+  // "Condense with warning" markers — all 6 delimiter variants.
+  // Matched regardless of the current `condenseWarningDelimiter`
   // setting so older markers (or markers from another user's setting
   // choice) stay protected after the setting changes. The `'custom'`
   // delimiter's markers get auto-added via `compileShrinkProtections`
@@ -2885,8 +2846,7 @@ const BUILTIN_PROTECTED_REGEXES: readonly RegExp[] = [
   /<PARAGRAPH INTEGRITY (?:PAUSES|RESUMES)>/gi,
   /\{PARAGRAPH INTEGRITY (?:PAUSES|RESUMES)\}/gi,
   // Footnote callouts — anything containing "FOOTNOTE" between any of
-  // our six delimiter shapes. Doubles before singles so the longer
-  // match wins when both shapes overlap.
+  // the six delimiter shapes.
   /\[\[.*?FOOTNOTE.*?\]\]/gi,
   /<<.*?FOOTNOTE.*?>>/gi,
   /\{\{.*?FOOTNOTE.*?\}\}/gi,
@@ -2894,8 +2854,7 @@ const BUILTIN_PROTECTED_REGEXES: readonly RegExp[] = [
   /<.*?FOOTNOTE.*?>/gi,
   /\{.*?FOOTNOTE.*?\}/gi,
   // Image alt-text fallbacks — anything containing "ALT TEXT" between
-  // any of the six delimiter shapes. Doubles before singles so the
-  // longer match wins when both shapes overlap.
+  // any of the six delimiter shapes.
   /\[\[.*?ALT TEXT.*?\]\]/gi,
   /<<.*?ALT TEXT.*?>>/gi,
   /\{\{.*?ALT TEXT.*?\}\}/gi,
@@ -2905,8 +2864,7 @@ const BUILTIN_PROTECTED_REGEXES: readonly RegExp[] = [
   // Translator attribution markers — "TRANSLATION BY <model/service>"
   // between any of the six delimiter shapes. The `.*?` covers every
   // attribution (MYMEMORY, GOOGLE TRANSLATE, OPUS 4.8, …) so all
-  // possible markers stay at Normal size when protection is on. Doubles
-  // before singles so the longer match wins on overlap.
+  // possible markers stay at Normal size when protection is on.
   /\[\[.*?TRANSLATION BY .*?\]\]/gi,
   /<<.*?TRANSLATION BY .*?>>/gi,
   /\{\{.*?TRANSLATION BY .*?\}\}/gi,
@@ -3149,9 +3107,9 @@ function sizeCycleCommand(
   return (state, dispatch) => {
     const ranges = computeShrinkScope(state);
     if (ranges.length === 0) {
-      // The common dead-end is a cite line that READS as body text
-      // (imported cite-style debris kept the paragraph classified as
-      // cite) — silently refusing made that undiagnosable. Still
+      // The common dead-end: a cite line that READS as body text
+      // (imported cite-style debris keeps the paragraph classified
+      // as cite) — toast so the refusal is diagnosable. Still
       // returns false: the command didn't run.
       if (dispatch && state.selection.$from.parent.type.name === 'cite_paragraph') {
         showToast('This paragraph is a cite line — shrink works on body text', {
@@ -3228,10 +3186,9 @@ function nextShrinkSize(sizes: Set<number>, normalPt: number): number {
   if (current === 6) return 5;
   if (current === 5) return 4;
   if (current === 4) return normalPt;
-  // Unusual size (e.g., 3pt, 9pt, 10pt) — jump back to Normal so the
-  // user can re-enter the cycle from a known starting point.
-  // Note: 9pt and 10pt aren't on the ramp but a value here means the
-  // user manually set them; Normal is the safest exit.
+  // Off-cycle size — below 4pt or fractional (e.g. 3pt, 6.5pt;
+  // anything above 8pt is caught by the `> 8` branch) — jump back
+  // to Normal so the cycle re-enters from a known point.
   return normalPt;
 }
 
@@ -3386,6 +3343,14 @@ function scanTextMarkPresence(
   return { allMarked, anyText };
 }
 
+/**
+ * Alt-F8 — Verbatim's CopyPreviousCite, reframed for our schema.
+ * Copies the nearest preceding cite_paragraphs (source rules in
+ * `findPreviousCites`; whitespace-only cites still count) to the
+ * cursor's location (placement rules in `computeCitePasteLocation`),
+ * leaving the source untouched. The cursor lands at the end of the
+ * last inserted cite so the user can continue from there.
+ */
 export function copyPreviousCite(): Command {
   return (state, dispatch) => {
     // Collapse a non-empty selection to its start position.
@@ -3559,23 +3524,6 @@ export function pasteTextAndCondense(view: EditorView, text: string, headingMode
 }
 
 /**
- * Remove every `link` mark from the current scope — Verbatim's
- * `RemoveHyperlinks` macro, parity-friendly. Selection-sensitive:
- *
- *   - Non-empty selection → strip link marks within the selection.
- *     Partial overlap with a link splits the mark, leaving the
- *     untouched portion linked (PM's natural `removeMark` behavior).
- *   - Empty selection → strip link marks across the whole doc.
- *
- * No-op (returns false) when no `link` mark is present in scope.
- * Other marks (font_size, color, bold, etc.) carried by linked runs
- * are untouched — only the `link` mark itself goes, which is what
- * removes both the URL data AND the browser's default `<a>` styling
- * (since our `link` mark renders as `<a href>` and the editor has no
- * CSS overriding that, the user-agent blue/underline came from being
- * inside an anchor and disappears with the wrapper).
- */
-/**
  * Verbatim's `FixFormattingGaps` (extended) — normalize every short
  * word-to-word gap so its marks are the intersection of the two
  * bookends' marks. This both BRIDGES marks the bookends agree on
@@ -3586,16 +3534,13 @@ export function pasteTextAndCondense(view: EditorView, text: string, headingMode
  * whole doc). Walks each textblock in scope independently — bridges
  * never cross paragraph breaks.
  *
- * The regex is
- *
- *   /[A-Za-z0-9'"‘’“”][.,;:?()! ]+(?=[A-Za-z0-9'"‘’“”])/g
- *
- * — left bookend (1 word char) + 1+ gap chars + lookahead at the
- * right bookend. Lookahead is critical: it lets single-char interior
- * words (e.g., "a", "I") serve as the right bookend of one match
- * and the left bookend of the next without `/g`'s lastIndex eating
- * them. Quotes are included in the bookend class so gaps adjacent
- * to quoted runs still bridge.
+ * The gap regex comes from `makeGapRegex` — left bookend (1 word
+ * char, incl. straight/curly quotes so gaps adjacent to quoted runs
+ * still bridge) + 1+ gap chars (the setting-driven allowlist; see
+ * `formattingGapClass`) + a lookahead at the right bookend. The
+ * lookahead is critical: it lets single-char interior words (e.g.,
+ * "a", "I") serve as the right bookend of one match and the left
+ * bookend of the next without `/g`'s lastIndex eating them.
  *
  * The gap range — the chars strictly between the bookends — is
  * what we modify; the bookends themselves are never touched.
@@ -3650,22 +3595,9 @@ export function fixFormattingGaps(
     const shadingType = schema.marks['shading']!;
     const fontSizeType = schema.marks['font_size']!;
 
-    // Word-char class: ASCII alphanumerics + straight quotes
-    // (`'` / `"`) + curly quotes (`‘`/`’`/`“`/`”`). Verbatim's
-    // original regex is ASCII-only; we widen the bookend class so
-    // a gap adjacent to a quoted run still bridges (e.g.,
-    // `must supply " reasoned explanation"`, where the bookend on
-    // one side is the curly quote).
-    //
-    // The right bookend is matched via lookahead so it ISN'T
-    // consumed by `/g`'s lastIndex advance. Without the lookahead,
-    // a sequence like "...word a word..." would lose the second gap
-    // entirely — the regex would consume "...d a", advance past the
-    // "a", and then can't start a new match at the following space
-    // (not a bookend char). With the lookahead, the consumed match
-    // is "...d " only; the next iteration can start at "a" and
-    // match "a " for the second gap.
-    // Shared, setting-driven gap class (see `makeGapRegex` / `formattingGapClass`).
+    // Shared, setting-driven gap class (see `makeGapRegex` /
+    // `formattingGapClass`); bookend/lookahead rationale in the
+    // function doc above.
     const gapRegex = makeGapRegex();
 
     type Add = {
@@ -3846,23 +3778,6 @@ export function fixFormattingGaps(
   };
 }
 
-/**
- * Verbatim's `ConvertAnalyticsToTags` — bulk swap every
- * `analytic_unit` in scope to a `card` (and its `analytic` heading
- * to a `tag`). Selection-sensitive:
- *
- *   - Non-empty selection → only units that intersect the selection.
- *   - Empty selection → every unit in the doc.
- *
- * The heading's `id`, inline content, and marks survive — this is
- * a same-tier swap (the existing per-cursor Mod-F7 path uses the
- * same shape; see DECISIONS 2026-05-12 "Style apply strips direct
- * formatting" for why this category is exempt from the promotion
- * strip). Body slots (`card_body` / `cite_paragraph` / `undertag`)
- * pass through untouched — they're legal in both containers.
- *
- * No-op (returns false) when no `analytic_unit` exists in scope.
- */
 /** Shared core for the analytics→tags conversions. Converts every
  *  `analytic_unit` in scope (the selection, or the whole doc when the
  *  selection is empty) that satisfies `shouldConvert` into a `card`
@@ -3915,6 +3830,12 @@ function analyticsToTagsCommand(
   };
 }
 
+/** Verbatim's `ConvertAnalyticsToTags` — convert every `analytic_unit`
+ *  in scope (see `analyticsToTagsCommand`). The heading's `id`, inline
+ *  content, and marks survive: a same-tier swap, exempt from the
+ *  promotion strip (see DECISIONS 2026-05-12 "Style apply strips
+ *  direct formatting"). Body slots pass through untouched — they're
+ *  legal in both containers. */
 export function convertAnalyticsToTags(): Command {
   return analyticsToTagsCommand(() => true);
 }
@@ -3983,6 +3904,15 @@ export function extractUndertag(inQuotes: () => boolean): Command {
   };
 }
 
+/**
+ * Remove every `link` mark in scope — Verbatim's `RemoveHyperlinks`.
+ * Non-empty selection → strip within the selection (partial overlap
+ * splits the mark, leaving the untouched portion linked); empty
+ * selection → the whole doc. Returns false when no `link` mark is in
+ * scope. Other marks on linked runs are untouched — dropping `link`
+ * alone removes both the URL and the user-agent blue/underline, since
+ * our `link` mark renders as `<a href>` with no overriding CSS.
+ */
 export function removeHyperlinks(): Command {
   return (state, dispatch) => {
     const linkType = schema.marks['link']!;
@@ -4092,12 +4022,10 @@ interface CitePasteLocation {
  *   2. If the cursor is at the VERY START (parentOffset === 0)
  *      of a body-like paragraph (card_body / cite_paragraph /
  *      undertag / doc-level paragraph), insert the cite right
- *      BEFORE that paragraph. Without this branch, a cursor at
- *      offset 0 in the first card_body of a no-cite card sent
- *      the cite AFTER that body (between body 1 and body 2),
- *      surprising users who expected it between the tag and
- *      body 1 (i.e., between the previous sibling and the
- *      cursor's paragraph — "where the cursor visually is").
+ *      BEFORE that paragraph — between the previous sibling and
+ *      the cursor's paragraph, "where the cursor visually is"
+ *      (e.g., between a no-cite card's tag and its first body,
+ *      not after that body).
  *   3. Otherwise, insert as a sibling immediately after the
  *      cursor's paragraph. Covers cursor in a tag (cite
  *      naturally belongs after the tag), and cursor mid-/end-
@@ -4175,23 +4103,6 @@ type StructuralMode =
   | { mode: 'undertag' };
 
 /**
- * Apply a structural-style command to every paragraph the selection
- * touches. Selection is contiguous, so the affected paragraphs are
- * contiguous too. Walk the doc-level slice that contains them, rebuild
- * it once, and dispatch a single replaceWith.
- *
- * Rules per affected node:
- *   - doc-level textblock (paragraph / pocket / hat / block / loose
- *     card_body / cite_paragraph / undertag): convert to the target
- *     style. Heading ids are preserved across heading→heading swaps.
- *   - card / analytic_unit: walk children. Once the first touched
- *     child is hit the container is broken — touched children become
- *     headings/tags/analytics, untouched children that follow lift to
- *     doc level (card_body / cite_paragraph → paragraph, undertag
- *     stays, analytic → analytic_unit). Untouched children that
- *     precede the first touched stay inside the original container.
- */
-/**
  * Compute the doc-child replacement for restyling everything in `[from, to]`
  * to `opts`'s structural type — the shared core of selection-based apply and
  * the shadow bulk-replace. Returns the contiguous doc-child range to replace
@@ -4257,6 +4168,23 @@ function computeStructuralReplacement(
   return { replaceFrom, replaceTo, newChildren };
 }
 
+/**
+ * Apply a structural-style command to every paragraph the selection
+ * touches. Selection is contiguous, so the affected paragraphs are
+ * contiguous too. Walk the doc-level slice that contains them, rebuild
+ * it once, and dispatch a single replaceWith.
+ *
+ * Rules per affected node:
+ *   - doc-level textblock (paragraph / pocket / hat / block / loose
+ *     card_body / cite_paragraph / undertag): convert to the target
+ *     style. Heading ids are preserved across heading→heading swaps.
+ *   - card / analytic_unit: walk children. Once the first touched
+ *     child is hit the container is broken — touched children become
+ *     headings/tags/analytics, untouched children that follow lift to
+ *     doc level (card_body / cite_paragraph → paragraph, undertag
+ *     stays, analytic → analytic_unit). Untouched children that
+ *     precede the first touched stay inside the original container.
+ */
 function applyStructuralToSelection(
   state: EditorState,
   dispatch: ((tr: Transaction) => void) | undefined,
@@ -4369,13 +4297,13 @@ function transformDocChild(
       const inSel = gEnd > selFrom && gStart < selTo;
       // A child the command would re-create as the type it already is
       // (F7 with a selection inside a tag, Mod-F7 on analytic text,
-      // F8 on an undertag) counts as UNTOUCHED: the equivalent cursor
-      // gesture is a no-op, and treating it as touched dissolved the
-      // container — orphaning the cite/body that followed (audit
-      // 2026-06-10 P1#4). Re-pressing the shortcut on a same-type head
-      // still resets it toward canonical (clears indent + direct font-size /
-      // font-color marks; see clearReapplyFormatting), mirroring the cursor
-      // re-press, but leaves the container intact.
+      // Mod-F8 on an undertag) counts as UNTOUCHED: the equivalent
+      // cursor gesture is a no-op, and treating it as touched would
+      // dissolve the container — orphaning the cite/body that follow.
+      // Re-pressing the shortcut on a same-type head still resets it
+      // toward canonical (clears indent + direct font-size /
+      // font-color marks; see clearReapplyFormatting), mirroring the
+      // cursor re-press, but leaves the container intact.
       const sameType = isSameTypeTarget(g, opts);
       const gTouched = inSel && !sameType;
       if (gTouched) {
@@ -4459,12 +4387,12 @@ function asTransformed(child: PMNode, opts: StructuralMode): PMNode {
 
 /**
  * Stable identifiers for editor command bindings. The settings UI
- * will store user overrides keyed by these IDs — not by the current
+ * stores user overrides keyed by these IDs — not by the current
  * key string — so renaming a default key doesn't strand user
  * customizations.
  *
  * `StructuralRibbonCommandId` is the subset rendered as buttons in
- * the formatting panel; the remainder are keyboard-only.
+ * the formatting panel.
  */
 export type StructuralRibbonCommandId =
   | 'setPocket'
@@ -4570,7 +4498,7 @@ export type RibbonCommandId =
   // Select / copy the cursor's enclosing structure (the current card /
   // analytic_unit / heading + its subtree), reusing the send-to-*
   // bounds logic but keyed off the cursor — any active selection is
-  // ignored. No default bindings — wire up via Settings → Keybindings.
+  // ignored. No default bindings — wire up via Settings → Keyboard shortcuts.
   | 'selectCurrentHeading'
   | 'deleteCurrentHeading'
   | 'copyCurrentHeading'
@@ -4593,15 +4521,15 @@ export type RibbonCommandId =
   | 'openFindReplace'
   | 'openFindByProximity'
   | 'toggleNavPane'
-  // Commands that ship without a default binding — added so users
-  // can wire them up via Settings → Keybindings. Each maps to a
-  // ribbon button or menu item that wasn't previously bindable.
+  // Commands that ship without a default binding — bindable via
+  // Settings → Keyboard shortcuts. Each maps to a ribbon button or
+  // menu item.
   | 'adjustFontSizeUp'
   | 'adjustFontSizeDown'
   | 'applyFontColor'
   | 'openSettings'
   // Cycle the theme setting light → dark → system → light. No default
-  // binding; bind via Settings → Keybindings.
+  // binding; bind via Settings → Keyboard shortcuts.
   | 'cycleTheme'
   // Cycle the timer profile College → High School → Pomodoro (wraps),
   // applying its durations. No default binding.
@@ -4619,9 +4547,9 @@ export type RibbonCommandId =
   | 'openDocToolsMenu'
   | 'openCardToolsMenu'
   | 'openTableMenu'
-  // Multi-pane workspace navigation. All seven listed here for
-  // user-rebindability via Settings → Keybindings; the shell
-  // owns the implementations and the global keydown handler in
+  // Multi-pane workspace navigation, listed for user-rebindability
+  // via Settings → Keyboard shortcuts; the shell owns the
+  // implementations and the global keydown handler in
   // editor/index.ts dispatches when the key fires. No-ops in
   // single-doc mode.
   | 'focusSlot1'
@@ -4641,15 +4569,16 @@ export type RibbonCommandId =
   | 'closeDocOrWindow'
   // Timer transport. All gated on the timer panel being visible
   // (they return false when it's hidden so the key falls through);
-  // none has a default binding — wire up via Settings → Keyboard.
+  // none has a default binding — wire up via Settings → Keyboard
+  // shortcuts.
   // Timer state is BroadcastChannel-synced, so a key press in one
   // window drives the clocks in every window, like the buttons.
   // Show/hide is the one timer command NOT gated on visibility —
   // its whole point is bringing the panel up. Mirrors the ribbon
   // timer button (aria-pressed toggle in index.ts).
   // Insert an empty footnote at the cursor and open its editor.
-  // No default binding and (per maintainer) no menu entry — a
-  // keyboard-only power feature.
+  // No default binding and no menu entry — a keyboard-only power
+  // feature.
   | 'insertFootnote'
   | 'timerToggleVisible'
   | 'timerStartPause'
@@ -4781,7 +4710,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'openFindReplace',
   'openFindByProximity',
   'toggleNavPane',
-  // Newly bindable ribbon actions (no default keys).
+  // Bindable ribbon actions with no default keys.
   'adjustFontSizeUp',
   'adjustFontSizeDown',
   'applyFontColor',
@@ -5065,9 +4994,9 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
  * Default key bindings. The value is a single key or an array of
  * keys; all bindings invoke the same command. The first entry is the
  * "primary" binding used for ribbon-button tooltips; the rest are
- * aliases (visible in the future rebinding UI). Verbatim's hotkeys
- * win where they exist; Word's Mod-B / Mod-I / Mod-U pipe in as
- * aliases for inline marks.
+ * aliases (visible in the keybindings editor). Verbatim's hotkeys
+ * win where they exist; Word's Mod-B / Mod-I / Mod-U cover the
+ * inline marks.
  */
 export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   setPocket: 'F4',
@@ -5125,7 +5054,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   translate: 'Mod-Shift-t',
   repairText: 'Mod-Shift-r',
   repairFormatting: 'Mod-Alt-r',
-  // No default binding — rebindable in Settings → Keybindings.
+  // No default binding — rebindable in Settings → Keyboard shortcuts.
   repairParagraphIntegrity: '',
   sendToFlowColumn: '',
   sendToFlowCell: '',
@@ -5161,7 +5090,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   // are un-preventable in the browser, so the web edition has to
   // use `Mod-Alt-N`. Electron has no such restriction, so its
   // default is the conventional `Mod-N`. Both can be rebound in
-  // Settings → Keybindings.
+  // Settings → Keyboard shortcuts.
   newDocument: getHost().kind === 'electron' ? 'Mod-n' : 'Mod-Alt-n',
   openFile: 'Mod-o',
   save: 'Mod-s',
@@ -5193,7 +5122,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   // Zoom. Mod-=/Mod-- mirror Word's editor-zoom convention (the `=`
   // key is the unshifted version of `+`). Mod-= overlaps with
   // toggleSubscript's default; the editor's keymap resolves the
-  // overlap in the user's favor via Settings → Keybindings, where
+  // overlap in the user's favor via Settings → Keyboard shortcuts, where
   // either command can be rebound. zoomReset stays unbound by
   // default — Mod-0 is a browser-level "reset zoom" chord that
   // Chromium won't always let the page intercept.
@@ -5212,7 +5141,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   // Paintbrush toggles — no obvious convention here, so register
   // them in the keybinding registry without a default. Users who
   // want a hotkey for sticky highlight / shading can bind one in
-  // Settings → Keybindings.
+  // Settings → Keyboard shortcuts.
   togglePaintbrushHighlight: '',
   togglePaintbrushShading: '',
   // Browser-level Ctrl-F opens the page's find. Electron will let us
@@ -5221,15 +5150,14 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   openFind: 'Mod-f',
   openFindReplace: 'Mod-h',
   openFindByProximity: 'Alt-f',
-  // No default — pickable in Settings → Keybindings. Hiding the
+  // No default — pickable in Settings → Keyboard shortcuts. Hiding the
   // nav pane is a personal-workflow toggle that's already on the
   // ribbon + nav-pane × + pull-tab; the keybinding is a power-
   // user convenience layer, not a discoverable default.
   toggleNavPane: '',
-  // Newly bindable ribbon actions. None get a default key — they're
-  // all already reachable via the ribbon, so a default chord would
-  // just be noise. Users who want a hotkey can pick one in
-  // Settings → Keybindings.
+  // Ribbon actions with no default key — all already reachable via
+  // the ribbon, so a default chord would be noise. Bindable in
+  // Settings → Keyboard shortcuts.
   adjustFontSizeUp: '',
   adjustFontSizeDown: '',
   applyFontColor: '',
@@ -5714,7 +5642,7 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       };
     case 'addCommentToSelection':
       // The mark + thread creation logic is view-aware, so the
-      // command just delegates to the editor's side-effect hook.
+      // command delegates to the editor's side-effect hook.
       return (state, dispatch) => {
         if (state.selection.empty) return false;
         if (!dispatch) return true;
@@ -5883,10 +5811,9 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return deleteTable;
     case 'newDocument':
       // File-level commands: always available, even with no doc open
-      // and no selection. PM-command convention: return `false` from
-      // a "query" call (no dispatch) so the keybinding editor can
-      // tell apart bound-but-unrunnable from bound-and-active, then
-      // run the side effect on the real dispatch call.
+      // and no selection. PM-command convention: a "query" call (no
+      // dispatch) only reports availability; the side effect runs
+      // solely on the real dispatch call.
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.newDocument();
@@ -6108,8 +6035,8 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
         ctx.toggleNavPane();
         return true;
       };
-    // ─── No-default-binding commands (parity for ribbon actions
-    //     that previously had inline click handlers only) ────────
+    // ─── No-default-binding commands (keybinding parity for
+    //     ribbon-button / menu actions) ──────────────────────────
     case 'adjustFontSizeUp':
       return adjustFontSize(1, ctx.effectivePtForNode);
     case 'adjustFontSizeDown':
@@ -6279,8 +6206,7 @@ function insertTable(): Command {
     // finding the innermost container whose schema allows a `table`
     // child. doc / card / analytic_unit accept tables; card_body and
     // textblocks (paragraph, tag, etc.) don't. Insert immediately
-    // before the ancestor that lives one level inside that container,
-    // matching the prior doc-level "before current block" semantic —
+    // before the ancestor that lives one level inside that container —
     // so a cursor inside a card produces a card-internal table just
     // above the card_body the cursor is in.
     let depth = $from.depth;

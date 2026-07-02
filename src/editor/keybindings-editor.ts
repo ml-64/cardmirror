@@ -144,9 +144,9 @@ function validateKey(key: string, raw: KeyboardEvent): string | null {
   if (['Mod', 'Alt', 'Shift', 'Control', 'Meta'].includes(final)) {
     return 'Press a key together with the modifier.';
   }
-  // Reject Escape / Tab / Enter / Space / arrows / etc. that we don't
-  // want to claim. Anything single-character without a modifier is
-  // also rejected (would intercept regular typing).
+  // Reject Escape / Tab / Enter / Space — keys we don't want to
+  // claim. Anything single-character without a modifier is also
+  // rejected (would intercept regular typing).
   if (
     final === 'Escape' ||
     final === 'Tab' ||

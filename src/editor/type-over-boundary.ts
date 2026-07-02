@@ -41,7 +41,7 @@ export const typeOverBoundaryPlugin: Plugin = new Plugin({
       // Collapse to a cursor after the typed text — PM's default input
       // path does this implicitly; without it the mapped selection
       // stays a range with its tail at the block start, so every
-      // following keystroke re-entered this handler and overwrote the
+      // following keystroke re-enters this handler and overwrites the
       // first character in place.
       tr.setSelection(TextSelection.create(tr.doc, from + text.length));
       view.dispatch(tr.scrollIntoView());

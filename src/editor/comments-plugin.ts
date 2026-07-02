@@ -3,15 +3,14 @@
  *
  * Thread data lives outside the document tree (the doc only carries
  * `comment_range` marks that reference thread IDs). The plugin owns
- * a `Map<threadId, Thread>` and exposes a small command surface for
- * the UI: load (used at import time), addThread, addReply,
- * deleteThread, deleteComment, setVisible.
+ * a `Map<threadId, Thread>` and exposes meta builders for the UI:
+ * load (import time), add, reply, edit-text, delete-thread,
+ * delete-comment, set-visible.
  *
  * Mutations always go through transactions with a `commentsKey` meta
- * payload so the undo history captures them. Document edits that
- * affect comment ranges (e.g. deleting all marked text) are handled
- * by an `appendTransaction` that garbage-collects threads whose
- * mark has disappeared from the doc.
+ * payload so the undo history captures them. Threads whose mark has
+ * disappeared from the doc (e.g. all marked text deleted) are
+ * reconciled by `gcOrphanThreads`, which the host runs on idle.
  */
 
 import { Plugin, PluginKey } from 'prosemirror-state';
@@ -158,22 +157,22 @@ export const commentsPlugin: Plugin<CommentsState> = new Plugin<CommentsState>({
       }
     },
   },
-  // GC moved out of appendTransaction. The walk is O(doc) and was
-  // running synchronously on every doc-changing transaction; on big
-  // docs with comments, that was a per-keystroke cost. The
+  // No appendTransaction GC here: the orphan walk is O(doc), too
+  // costly per keystroke on big commented docs. Instead,
   // dispatchTransaction in editor/index.ts schedules `gcOrphanThreads`
-  // via `scheduleHeavyUpdate` instead (200ms idle debounce). Save As
-  // flushes it synchronously before reading thread state, so exports
+  // via `scheduleHeavyUpdate` (200ms idle debounce), and Save As
+  // flushes it synchronously before reading thread state so exports
   // don't include orphans even if the user saves mid-burst.
 });
 
 /**
- * Walk the doc, find threads whose `comment_range` mark no longer
- * exists anywhere, and dispatch a `load` meta with the surviving
- * threads so the plugin state stops tracking them. No-op when there
- * are no threads or no orphans. Exported so editor/index.ts can
- * trigger it from a debounced idle callback (and from the Save As
- * flow to flush before export).
+ * Reconcile plugin state with the doc's live `comment_range` marks:
+ * threads whose mark is gone are parked in the tombstone map, and
+ * tombstoned threads whose mark reappeared (undo/redo/paste) are
+ * resurrected — dispatched as one `gc` meta. No-op when nothing
+ * changed. Exported so editor/index.ts can trigger it from a
+ * debounced idle callback (and from the Save As flow to flush
+ * before export).
  */
 export function gcOrphanThreads(view: { state: EditorState; dispatch: (tr: Transaction) => void }): void {
   const state = commentsKey.getState(view.state);
@@ -239,10 +238,10 @@ function collectLiveThreadIds(doc: PMNode): Set<string> {
 // ----------------------- helpers / commands ----------------------
 
 /** Generate a fresh comment id. Stringified integers keep round-trip with
- *  Word's `w:id` (a non-negative 32-bit integer) trivial — so the counter
+ *  Word's `w:id` (a non-negative 32-bit integer) trivial — the counter
  *  starts small and is advanced past any loaded ids (see
- *  `seedCommentIdCounter`). The old `Date.now()` seed (~1.7e12) overflowed
- *  int32, producing ids Word can't represent. */
+ *  `seedCommentIdCounter`) rather than seeded from `Date.now()`, whose
+ *  ~1.7e12 values overflow int32 into ids Word can't represent. */
 let commentIdCounter = 0;
 export function newCommentId(): string {
   commentIdCounter += 1;

@@ -23,7 +23,7 @@ export const appVersion: string = pkg.version;
  * Stamped onto every card this build SENDS as `minReceiverVersion`. A receiver
  * accepts a card unless this floor is set AND the receiver's own version is
  * below it — so **blank (the default) means any version can receive**, and
- * cross-version sharing just works.
+ * cross-version sharing works.
  *
  * Only raise this when a future release changes the shared-card payload in a way
  * OLDER versions genuinely can't read. Set it to that release's own version
@@ -57,11 +57,10 @@ export function getInstallInfo(): InstallInfoEntry[] {
     { label: 'Operating system', value: detectOS(ua) },
   ];
   // Pull Electron / Chromium versions out of the UA into their own
-  // labelled rows. They're visible in the UA string below, but
-  // having them as named fields makes "is the user running the
-  // version they think they are?" a one-line check during bug
-  // triage instead of a UA-parsing exercise. Web edition omits the
-  // Electron row (no Electron) — Chromium still applies.
+  // labelled rows: named fields make "is the user running the version
+  // they think they are?" a one-line check during bug triage instead
+  // of a UA-parsing exercise. The web edition has no Electron row;
+  // Chromium still applies.
   const chromiumVersion = matchVersion(ua, /Chrome\/(\S+?)\b/);
   const electronVersion = matchVersion(ua, /Electron\/(\S+?)\b/);
   if (chromiumVersion) {

@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 //
-// Regression: the "Find: remember the last search query" setting was
-// ignored — the find bar kept its DOM input value across open/close, so
-// once a query had been typed it re-appeared on every open regardless
-// of the setting. The fix re-seeds the input on each *fresh* open: the
-// remembered query when the setting is on, empty when it's off.
+// The find bar must re-seed its input on each *fresh* open: the
+// remembered query when "Find: remember the last search query" is on,
+// empty when it's off. Regression guard — the DOM input otherwise keeps
+// its value across open/close and surfaces a stale query regardless of
+// the setting.
 import { describe, it, expect, beforeEach } from 'vitest';
 import { FindReplaceBar } from '../../src/editor/find-replace-ui.js';
 import { settings } from '../../src/editor/settings.js';

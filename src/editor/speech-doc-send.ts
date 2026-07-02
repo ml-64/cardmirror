@@ -6,11 +6,10 @@
  * in THIS renderer) or serialize it and route via the host bridge to
  * whichever window owns the speech doc (Electron multi-window).
  *
- * The local insert flow is the same code path the multi-pane shell
- * used to embed inline; it's extracted here so the single-doc multi-
- * window path can reuse it, and so the receive-side handler can
- * apply incoming slices through the exact same logic that an
- * in-window send would.
+ * The local insert flow (`insertSpeechSlice`) is shared by the
+ * multi-pane shell, the single-doc multi-window path, and the
+ * receive-side handler, so incoming slices apply through the exact
+ * same logic as an in-window send.
  */
 
 import type { EditorView } from 'prosemirror-view';
@@ -180,15 +179,15 @@ export function takeSendSlice(view: EditorView): Slice | null {
 }
 
 /** Insert a slice into the speech view at-cursor or at-end. Handles
- *  blank-line replace, mid-text confirmation, history-boundary
+ *  blank-line replace, boundary snapping, history-boundary
  *  isolation (closeHistory + addToHistory meta), trailing paragraph
  *  after the slice, scrollIntoView, focus, and heading-ID rewriting.
  *
  *  Wrapped in `setTimeout(..., 0)` so the dispatch happens off the
  *  source pane's keydown handler — dispatching cross-view inside the
- *  keymap chain was breaking Ctrl-Z (best guess: PM's history logic
- *  was treating the cross-view dispatch as an appended/non-event
- *  because of the surrounding keydown context). */
+ *  keymap chain breaks Ctrl-Z (best guess: PM's history treats the
+ *  cross-view dispatch as an appended/non-event because of the
+ *  surrounding keydown context). */
 export function insertSpeechSlice(
   speechView: EditorView,
   slice: Slice,
@@ -287,8 +286,7 @@ export function sendToSpeech(
     );
     // `window.alert` steals OS-level focus from the editor's contenteditable.
     // macOS Chromium hands it back on dismiss; Windows/Linux don't, leaving the
-    // editor unable to take edits. Reclaim it explicitly (same fix as the
-    // confirm above).
+    // editor unable to take edits. Reclaim it explicitly.
     sourceView.focus();
     return;
   }
@@ -299,8 +297,7 @@ export function sendToSpeech(
   if (localView) {
     // Same-window path. No-op if the user is sending FROM the speech
     // doc itself — Verbatim inserts a `~ Marked HH:MM ~` card-marker
-    // there which we agreed to skip until the schema gains a
-    // font_color mark.
+    // there; not implemented here.
     if (sourceView === localView) return;
     insertSpeechSlice(localView, slice, atEnd, afterInsert);
     return;

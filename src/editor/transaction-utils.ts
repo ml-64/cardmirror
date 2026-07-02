@@ -50,13 +50,9 @@ export function changedRange(
       stepMap.forEach((_oldFrom, _oldTo, newFrom, newTo) => {
         expand(subMapping.map(newFrom, -1), subMapping.map(newTo, 1));
       });
-      // Mark-only steps don't shift positions, so their stepMap is
-      // empty and the loop above contributes nothing. Surface their
-      // explicit from/to so mark-add/remove transactions still
-      // produce a non-null `changedRange`. Without this, plugins
-      // gated on the range (cite-classifier, named-style-normalizer)
-      // silently skip mark-only transactions, leaving e.g. a
-      // cite_mark-added body paragraph un-promoted to cite_paragraph.
+      // Mark-only steps have an empty stepMap, so the loop above
+      // contributes nothing; surface their explicit from/to (see the
+      // JSDoc above for why mark changes must count).
       if (step instanceof AddMarkStep || step instanceof RemoveMarkStep) {
         expand(subMapping.map(step.from, -1), subMapping.map(step.to, 1));
       }

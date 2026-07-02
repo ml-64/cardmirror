@@ -2,12 +2,11 @@
  * Probe tests for the "Copy Last Cite into the wrong slot when
  * cursor is at start of tag" bug.
  *
- * User report (Discord): a multi-paragraph card with a tag but no
- * cite; cursor at the BEGINNING of the card; pressing Alt+F8
- * (copy previous cite) inserts the cite at the start of the
- * SECOND paragraph of the card. With the cursor at the END of
- * the tag the cite lands in the right place (between tag and
- * first card_body).
+ * Repro: a multi-paragraph card with a tag but no cite; cursor at
+ * the BEGINNING of the card; pressing Alt+F8 (copy previous cite)
+ * inserts the cite at the start of the SECOND paragraph of the
+ * card. With the cursor at the END of the tag the cite lands in
+ * the right place (between tag and first `card_body`).
  */
 
 import { describe, expect, it } from 'vitest';
@@ -105,7 +104,7 @@ function runCmd(state: EditorState): EditorState {
 }
 
 describe('Copy Last Cite — placement when cursor is in the destination tag', () => {
-  // ─── Cursor at END of DEST tag (the case the user says works) ───
+  // ─── Cursor at END of DEST tag (the working case) ───
   it('cursor at END of "DEST TAG" → cite goes between tag and first card_body', () => {
     const state = buildDocAndSelect({ targetText: 'DEST TAG', offsetInText: 8 });
     const after = runCmd(state);
@@ -117,7 +116,7 @@ describe('Copy Last Cite — placement when cursor is in the destination tag', (
     `);
   });
 
-  // ─── Cursor at START of DEST tag (the user's bug) ───
+  // ─── Cursor at START of DEST tag (the reported bug) ───
   it('cursor at START of "DEST TAG" (offset 0 in tag text) → cite goes where?', () => {
     const state = buildDocAndSelect({ targetText: 'DEST TAG', offsetInText: 0 });
     const after = runCmd(state);

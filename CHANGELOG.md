@@ -32,10 +32,15 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Changed
 
-- **Settings reorganized:** voice options now sit at the bottom of
-  Accessibility; Timer profile and Timer durations moved to General (above
-  Editor spellcheck); Cite preview on hover and the Flashcards-due dot moved
-  to Appearance.
+- **Settings are easier to navigate.** The General, Appearance, and Editing
+  tabs now group related options under section headers (Workspace, Timer,
+  Document typography, Condense, …) instead of one long list, and a new
+  **Files** tab collects everything about where documents go: new-document
+  defaults, the Send / Read / Marked doc presets, and file search. Several
+  settings also moved to more sensible homes: voice options now sit at the
+  bottom of Accessibility, Timer profile and Timer durations moved to
+  General, and Cite preview on hover and the Flashcards-due dot moved to
+  Appearance.
 
 - **Convert's .zip output is now compressed.** When bulk **Convert** is set
   to produce a .zip, the archive is now deflate-compressed (it was

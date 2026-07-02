@@ -99,7 +99,7 @@ The first time you open CardMirror — and every time you press **New
 Document** — you get an interactive welcome guide built out of real
 Pockets, Hats, cards, and analytics. It's a live document: type in it,
 press the shortcuts, and try things as you read. When you're done, turn
-it off in **Settings → General → "Onboarding doc for new documents"** and
+it off in **Settings → Files → "Onboarding doc for new documents"** and
 new documents will open blank instead.
 
 ### A two-minute tour of the ribbon
@@ -1355,12 +1355,12 @@ copy:
   comments** in the saved file.
 
 **Save Send Doc (Mod-Alt-S)** does the Send Doc export in one keystroke,
-no dialog. Two Settings → General options control where it goes (the
+no dialog. Two Settings → Files options control where it goes (the
 source file's folder, or a fixed folder you pick).
 
 The filename prefixes for the preset saves — **Send Doc**, **Read Doc**, and
 **Marked Doc** (defaults `SEND_`, `READ_`, `MARKED_`) — are configurable under
-Settings → General; change any of them, or leave one empty for no prefix. They
+Settings → Files; change any of them, or leave one empty for no prefix. They
 apply to both the Save As preset buttons and the one-keystroke Save Send Doc /
 [Save Marked Cards](#saving-marked-cards) commands, gated on the existing
 "Prefix preset saves" toggle.
@@ -1388,12 +1388,41 @@ time.
 
 Open settings with the **gear** icon. Settings are grouped into tabs.
 
-Some rows are desktop-only (they need real file paths); they're marked
-*(desktop)* below and don't appear in the web edition.
+Some rows only exist on one platform — marked *(desktop)*, *(web)*, or
+*(Windows)* below — and don't appear elsewhere.
 
 ### General
 
-Workflow and document behavior.
+Workflow and editor behavior. Bold lines below mirror the section
+headers shown inside each tab.
+
+**Workspace**
+
+- **Three-pane workspace** — switch between one document per window and a
+  single window with three panes
+  (see [The multi-doc workspace](#7-the-multi-doc-workspace)).
+- **Multi-doc layout** — with three docs open, show all three at once
+  (compact) or two-and-a-bit with click-to-snap (wide). No effect with
+  one or two docs.
+- **Layout on this device** *(web)* — which layout the web edition uses:
+  Auto picks the view-first mobile layout on narrow or touch screens;
+  Mobile / Desktop force one. Changing this reloads the page.
+
+**Editor behavior**
+
+- **Editor spellcheck** — underline misspellings in the visible document,
+  including text in files you've opened (not just what you're typing).
+  Right-click a flagged word for suggestions, Add to Dictionary, or
+  Ignore. Off by default — debate evidence (author names, jargon) trips a
+  lot of false positives.
+- **Pinch / Ctrl+Scroll to zoom** — zoom the document with a trackpad
+  pinch or Ctrl + mouse-wheel, in the same 10% steps as the zoom buttons
+  and Mod-= / Mod--. Off by default; enable it if you'd rather zoom by
+  gesture.
+- **Jump to doc top when read mode toggles** — when on, toggling read
+  mode scrolls to the top and puts the cursor at the start.
+
+**Word counts**
 
 - **Readers for read-time estimates** — each reader is a name and a
   words-per-minute rate. The first two show live in the status bar; all
@@ -1402,34 +1431,53 @@ Workflow and document behavior.
 - **Live word count for the current selection** — off by default. When
   on, the status bar's count and read time follow your selection as you
   change it; leave it off on very large docs if you notice drag lag.
-- **Three-pane workspace** — switch between one document per window and a
-  single window with three panes
-  (see [The multi-doc workspace](#7-the-multi-doc-workspace)).
-- **Multi-doc layout** — with three docs open, show all three at once
-  (compact) or two-and-a-bit with click-to-snap (wide). No effect with
-  one or two docs.
+
+**Find**
+
+- **Find: remember the last search query** — when on, the find bar
+  reopens pre-filled with your last search.
+- **Find: category priority order** — the order Ctrl-F steps through
+  result groups (heading / tag / cite / other); Alt-F ignores it and goes
+  purely by proximity (see [Find and Find/Replace](#find-and-findreplace)).
+
+**Timer**
+
+- **Timer profile** — which duration set the timer runs: High school,
+  College, or Pomodoro. Each remembers its own edits.
+- **Timer durations** — the active profile's three speech presets (the
+  9 / 6 / 3 buttons) and per-side prep total.
+
+**Integrations**
+
+- **Keep a Verbatim Flow connection warm** *(Windows)* — start the
+  background Excel connection when CardMirror launches so your first
+  Send to Flow is fast; leave off to start it on demand
+  (see [Send to Verbatim Flow](#12-send-to-verbatim-flow)).
+
+### Files
+
+Where new documents go, how the save presets name their files, and what
+file search scans.
+
+**New documents**
+
 - **Onboarding doc for new documents** — when on, New Document opens the
   welcome doc; off opens a single blank paragraph.
 - **Default folder for new speech documents** *(desktop)* — where New
   Speech Document saves by default. Empty leaves the doc unsaved until
   you Save.
-- **File search folder** *(desktop)* — the root scanned for the palette's
-  file search (the `f` prefix). Empty disables file search (see
-  [The Search Everything palette](#the-search-everything-palette-mod-shift-space)).
-- **File search: objects to find within a file** *(desktop)* — which
-  structural objects (blocks, tags, cites, …) the palette lists when you
-  dive into a file.
-- **File search: default outline depth** *(desktop)* — how far a file's
-  outline is expanded the moment you dive in.
-- **File search: auto-pin recent & frequent files** *(desktop)* — keeps
-  recent and frequent files warm for instant dives; turn off to warm only
-  files you pin by hand.
 - **Default format for new speech documents** — `.docx`
   (Verbatim-compatible) or `.cmir` (native, and the only format that
   supports autosave).
 - **Default file format for new documents** — the format the Save As
   dialog defaults to for a doc you haven't saved yet. Existing files
   always re-save in their own format.
+- **Seed new speech docs with a Pocket heading** — when on, New Speech
+  Document opens with a Pocket carrying the speech's name; off starts
+  blank.
+
+**Send / Read / Marked docs**
+
 - **Prefix preset saves** — when on, the Save As Send Doc / Read Doc /
   Marked Doc presets and the silent Save Send Doc / Save Marked Cards commands
   prepend a filename prefix.
@@ -1446,34 +1494,29 @@ Workflow and document behavior.
   [Saving marked cards](#saving-marked-cards)).
 - **Marked Cards folder** *(desktop)* — the fixed folder used when the Marked
   Cards destination is "Fixed folder."
-- **Seed new speech docs with a Pocket heading** — when on, New Speech
-  Document opens with a Pocket carrying the speech's name; off starts
-  blank.
-- **Timer profile** — which duration set the timer runs: High school,
-  College, or Pomodoro. Each remembers its own edits.
-- **Timer durations** — the active profile's three speech presets (the
-  9 / 6 / 3 buttons) and per-side prep total.
-- **Editor spellcheck** — underline misspellings in the visible document,
-  including text in files you've opened (not just what you're typing).
-  Right-click a flagged word for suggestions, Add to Dictionary, or
-  Ignore. Off by default — debate evidence (author names, jargon) trips a
-  lot of false positives.
-- **Pinch / Ctrl+Scroll to zoom** — zoom the document with a trackpad
-  pinch or Ctrl + mouse-wheel, in the same 10% steps as the zoom buttons
-  and Mod-= / Mod--. Off by default; enable it if you'd rather zoom by
-  gesture.
-- **Jump to doc top when read mode toggles** — when on, toggling read
-  mode scrolls to the top and puts the cursor at the start.
-- **Find: remember the last search query** — when on, the find bar
-  reopens pre-filled with your last search.
-- **Find: category priority order** — the order Ctrl-F steps through
-  result groups (heading / tag / cite / other); Alt-F ignores it and goes
-  purely by proximity (see [Find and Find/Replace](#find-and-findreplace)).
+
+**File search**
+
+- **File search folders** *(desktop)* — the roots scanned for the palette's
+  file search (the `f` prefix). Empty disables file search (see
+  [The Search Everything palette](#the-search-everything-palette-mod-shift-space)).
+- **File search: file formats to list** *(desktop)* — which document
+  formats appear in results: both `.cmir` and `.docx`, or just one.
+- **File search: objects to find within a file** *(desktop)* — which
+  structural objects (blocks, tags, cites, …) the palette lists when you
+  dive into a file.
+- **File search: default outline depth** *(desktop)* — how far a file's
+  outline is expanded the moment you dive in.
+- **File search: auto-pin recent & frequent files** *(desktop)* — keeps
+  recent and frequent files warm for instant dives; turn off to warm only
+  files you pin by hand.
 
 ### Appearance
 
 How things look. None of these change the file — only your view (see
 [Appearance and accessibility](#16-appearance-and-accessibility)).
+
+**Theme & chrome**
 
 - **Theme** — light, dark, or follow the system.
 - **Apply theme to the document area** — off by default, so dark mode
@@ -1484,80 +1527,106 @@ How things look. None of these change the file — only your view (see
 - **Show doc name in ribbon** — show the active filename as a pill in the
   ribbon's center, handy when the title bar is hidden. Off by default;
   hidden in multi-pane (each pane shows its own chip).
+- **Ribbon tooltips** — what a hovered ribbon button shows: both, label
+  only, shortcut only, or none.
+
+**Document typography**
+
+- **Style font sizes (pt)** — render size for each named style.
+- **Style typography** — bold / italic / underline / box per named style.
+- **Body font** — the editor's content font, including dyslexia-friendly
+  options.
+- **Line spacing** — the line-height multiplier, per paragraph type.
+- **Paragraph spacing** — blank space before and after each paragraph
+  type, in points (distinct from line spacing, which is the gap between
+  lines).
+- **Style colors** — the color of Analytic and Undertag text (the same
+  control as Accessibility → Color overrides → Document text).
+- **Show character styles** — show the cite / underline / emphasis
+  buttons in the ribbon.
+
+**Formatting panel**
+
+- **Formatting panel** — how the Pocket / Hat / Block / Tag / Analytic
+  buttons read: labels, shortcuts, both, or hidden.
+- **Preview styles in formatting panel** — make the formatting buttons
+  preview the look of the style they apply.
+
+**Nav pane & indicators**
+
 - **Format nav pane entries by type** — style navigation entries by
   heading level and type (on), or as a uniform list where only
   indentation shows hierarchy (off).
-- **Style font sizes (pt)** — render size for each named style.
-- **Style typography** — bold / italic / underline / box per named style.
-- **Style colors** — the color of Analytic and Undertag text (the same
-  control as Accessibility → Color overrides → Document text).
 - **Cite preview on hover** — show a card's cite-formatted text beside its
   navigation-pane entry when you hover.
 - **Flashcards-due dot** — show a red dot on the ribbon's Manage
   Flashcards button when cards are due for review today. On by default.
+
+**Timer display**
+
 - **Prep button label style** — how the Aff / Neg prep buttons are
   marked: text (A: / N:), color, or both.
 - **Compact timer layout** — drop the 9 / 6 / 3 presets and tuck Reset
   under Start / Pause.
 - **Flash timer when countdown is low** — flash the speech timer red at
   the configured thresholds.
-- **Body font** — the editor's content font, including dyslexia-friendly
-  options.
-- **Line spacing** — the line-height multiplier, per paragraph type.
-- **Ribbon tooltips** — what a hovered ribbon button shows: both, label
-  only, shortcut only, or none.
-- **Formatting panel** — how the Pocket / Hat / Block / Tag / Analytic
-  buttons read: labels, shortcuts, both, or hidden.
-- **Show dropzone shelf** — show or hide the dropzone pill; the shelf
-  still works when hidden
-  (see [Send-to-speech and the dropzone](#send-to-speech-and-the-dropzone)).
-- **Preview styles in formatting panel** — make the formatting buttons
-  preview the look of the style they apply.
-- **Show character styles** — show the cite / underline / emphasis
-  buttons in the ribbon.
 
 ### Editing
 
-Behavior of the cutting and condense commands
+Typing helpers and the behavior of the cutting and condense commands
 (see [Cutting and formatting cards](#3-cutting-and-formatting-cards)).
+
+**Typing**
+
+- **Smart quotes** — curl a straight `'` / `"` to the right direction as you
+  type; Backspace right after reverts. Off by default.
+- **Custom dash** — turn a typed `---` into an en or em dash (spaced or
+  unspaced) on the third hyphen; Backspace right after reverts. Off by default.
+
+**Condense**
 
 - **F3 condense: preserve paragraph integrity** — keep paragraphs
   separate (on) or merge collapsible runs (off).
 - **F3 condense: use pilcrow markers** — when merging, mark each old
   paragraph break with a 6-pt ¶ so Uncondense can restore it.
-- **Extract Undertag: wrap in quotes** — wrap the excerpt that Extract
-  Undertag pulls in double quotes.
 - **Condense after Paste Text (F2)** — run your default condense
   automatically on pasted text.
-- **Smart quotes** — curl a straight `'` / `"` to the right direction as you
-  type; Backspace right after reverts. Off by default.
-- **Custom dash** — turn a typed `---` into an en or em dash (spaced or
-  unspaced) on the third hyphen; Backspace right after reverts. Off by default.
-- **Skip mid-text confirm when inserting quick cards** — insert a quick
-  card immediately even mid-sentence, skipping the confirm step (see
-  [Quick Cards](#6-quick-cards)).
-- **Show quick card buttons** — show the Quick Cards ribbon cluster (off by
-  default; quick cards still work while hidden, and the command bar still opens
-  by shortcut).
 - **Condense: heading handling** — how selection condense treats
   headings, cites, and undertags: Strict (block it), Respect (keep them
   separate, default), or Demolish (merge everything).
 - **Condense with warning: marker delimiter** — the bracket style around
   the PARAGRAPH INTEGRITY PAUSES / RESUMES markers.
-- **Shrink keeps protected text at Normal size** — keep Omitted spans,
-  warning markers, and your custom protections full-size when Shrinking.
-- **Custom shrink protections** — extra strings (or regexes) Shrink
-  should leave at Normal size.
-- **F9 toggle-off also clears direct formatting** — toggling underline
-  off also strips direct formatting in the range.
+
+**Formatting operations**
+
+- **Extract Undertag: wrap in quotes** — wrap the excerpt that Extract
+  Undertag pulls in double quotes.
 - **Bridge formatting across gaps automatically** — when you format a word
   next to an already-formatted one, close the small gap so the styling reads as
   continuous (the manual Fix Formatting Gaps command is unaffected). Body text
   only.
 - **Bridge formatting across** — which gaps the automatic bridging closes:
   whitespace and punctuation (default), or whitespace only.
+- **Shrink keeps protected text at Normal size** — keep Omitted spans,
+  warning markers, and your custom protections full-size when Shrinking.
+- **Custom shrink protections** — extra strings (or regexes) Shrink
+  should leave at Normal size.
+- **F9 toggle-off also clears direct formatting** — toggling underline
+  off also strips direct formatting in the range.
 - **Create Reference uses Gray-50% text** — render a Reference's body
   text in gray; the heading line stays black.
+
+**Insert surfaces**
+
+- **Show dropzone shelf** — show or hide the dropzone pill; the shelf
+  still works when hidden
+  (see [Send-to-speech and the dropzone](#send-to-speech-and-the-dropzone)).
+- **Show quick card buttons** — show the Quick Cards ribbon cluster (off by
+  default; quick cards still work while hidden, and the command bar still opens
+  by shortcut).
+
+**Translation**
+
 - **Translation** — backend (MyMemory / Anthropic / Google Cloud
   Translation), source and target languages, MyMemory email, and Google
   API key for the Translate command (Mod-Shift-T). See

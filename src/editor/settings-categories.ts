@@ -21,6 +21,7 @@ export const CATEGORY_TABS: {
   electronOnly?: boolean;
 }[] = [
   { id: 'general', label: 'General' },
+  { id: 'files', label: 'Files' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'editing', label: 'Editing' },
   { id: 'shortcuts', label: 'Keyboard' },

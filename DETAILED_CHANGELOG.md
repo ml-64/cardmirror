@@ -7,16 +7,49 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
-- **Settings menu reorganization** (`settings.ts` SETTING_METADATA order +
-  category fields, `MANUAL.md` mirrored). Per maintainer direction: the four
-  voice entries (microphone, auto-sleep, dash style, dictation model) moved
-  from the top to the bottom of Accessibility; Timer profile + Timer
-  durations moved Appearance → General, placed above Editor spellcheck (the
-  other three timer settings — prep label style, compact layout, low-time
-  flash — stay in Appearance); Cite preview on hover + Flashcards-due dot
-  moved General → Appearance, placed above the prep-label setting. MANUAL's
-  per-tab lists and the one "Settings → General → Flashcards-due dot" path
-  reference updated to match.
+- **Settings navigability: section headers, Files tab, category moves**
+  (`settings.ts`, `settings-categories.ts`, `settings-ui.ts`, `style.css`,
+  `MANUAL.md`).
+  The General / Appearance / Editing tabs had become walls of 20+ rows.
+  Two structural changes, per maintainer direction (a third layer — a
+  filter box — was proposed and declined): (1) `SettingMeta` gains an
+  optional presentational `section` field; the dialog's render loop emits
+  an `<h3 class="pmd-settings-section-title">` whenever `section` changes
+  between consecutive entries of a tab, so entries sharing a section must
+  stay contiguous in SETTING_METADATA (documented on the field). No
+  per-tab config table — the manifest stays the single source of truth.
+  (2) A new `files` category (tab between General and Appearance)
+  collects the 18 file-flow settings that dominated General: new-document
+  defaults (onboarding doc, speech-doc folder/format, save format, Pocket
+  seed), the Send/Read/Marked preset family (prefix toggle + three
+  prefixes + two destination/folder pairs), and the five file-search
+  settings. General keeps Workspace / Editor behavior / Word counts /
+  Find / Timer / Integrations; Appearance gets Theme & chrome / Document
+  typography / Formatting panel / Nav pane & indicators / Timer display;
+  Editing gets Typing / Condense / Formatting operations / Insert
+  surfaces / Translation. MANUAL's settings-reference chapter rewritten
+  to mirror the tab + section order (bold lines = in-app section
+  headers). While restructuring, three pre-existing MANUAL drifts were
+  fixed: "Show dropzone shelf" was listed under Appearance but has been
+  an Editing setting; a "Skip mid-text confirm when inserting quick
+  cards" bullet documented a setting that doesn't exist (the mid-text
+  guard is a plain `window.confirm` with no toggle) and was dropped; and
+  three undocumented settings gained bullets (Layout on this device,
+  Keep a Verbatim Flow connection warm, Paragraph spacing), with the
+  platform-marker note extended to *(web)* / *(Windows)*. In the same
+  push, several settings changed category per maintainer direction: the
+  four voice entries (microphone, auto-sleep, dash style, dictation
+  model) moved from the top to the bottom of Accessibility; Timer
+  profile + Timer durations moved Appearance → General (now the Timer
+  section — the other three timer settings, prep label style / compact
+  layout / low-time flash, stay in Appearance under Timer display); Cite
+  preview on hover + Flashcards-due dot moved General → Appearance (Nav
+  pane & indicators), and the one "Settings → General → Flashcards-due
+  dot" path reference was updated. Header styling matches the existing
+  "About this install" heading; all settings dividers — between rows and
+  between sections — share the faint token, with a `:has()` rule
+  dropping a row's own divider when it sits against a section boundary
+  so lines never stack.
 
 - **Accessibility: color-vision friendly palette preset** (`settings.ts`,
   `index.ts`, `style.css`, `MANUAL.md`, `ARCHITECTURE.md`). New

@@ -440,7 +440,18 @@ class SettingsModal {
           (!m.webOnly || hostKind === 'browser') &&
           (!m.revealWhen || !!settings.get(m.revealWhen)),
       );
+      let lastSection: string | undefined;
       for (const meta of entries) {
+        // Section headers: emitted when consecutive entries' `section`
+        // changes (entries sharing a section are contiguous in
+        // SETTING_METADATA by convention — see SettingMeta.section).
+        if (meta.section && meta.section !== lastSection) {
+          const heading = document.createElement('h3');
+          heading.className = 'pmd-settings-section-title';
+          heading.textContent = meta.section;
+          panel.appendChild(heading);
+        }
+        lastSection = meta.section;
         const row = this.renderEntry(meta);
         if (meta.dependsOn) {
           const bucket = this.dependentRows.get(meta.dependsOn) ?? [];
@@ -1412,8 +1423,8 @@ function buildBenchmarkSection(closeDialog: () => void): HTMLElement {
   const section = document.createElement('section');
   section.className = 'pmd-settings-benchmark';
 
-  const title = document.createElement('div');
-  title.className = 'pmd-settings-row-title';
+  const title = document.createElement('h3');
+  title.className = 'pmd-settings-section-title';
   title.textContent = 'Performance benchmark';
   section.appendChild(title);
 

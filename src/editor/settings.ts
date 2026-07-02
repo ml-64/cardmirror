@@ -1248,6 +1248,7 @@ export const SETTINGS_DEFAULTS: Readonly<Settings> = DEFAULTS;
  */
 export type SettingsCategory =
   | 'general'
+  | 'files'
   | 'appearance'
   | 'accessibility'
   | 'editing'
@@ -1263,6 +1264,11 @@ export interface SettingMeta {
   key: keyof Settings;
   label: string;
   description?: string;
+  /** Optional section header within the tab. The settings dialog emits
+   *  a header row whenever this changes between consecutive entries of
+   *  a category — so entries sharing a section must be contiguous in
+   *  SETTING_METADATA. Purely presentational. */
+  section?: string;
   /** Optional dynamic description that takes precedence over
    *  `description` at render time. Used by entries whose copy needs
    *  to vary by host capability (e.g. the workspace-layout entry,
@@ -1370,30 +1376,13 @@ export interface SettingMeta {
 }
 
 export const SETTING_METADATA: SettingMeta[] = [
-  // ─── General ────────────────────────────────────────────────────
-  {
-    key: 'readers',
-    label: 'Readers for read-time estimates',
-    description:
-      'Each reader has a name and a words-per-minute rate. The first two are displayed live in the bottom bar; all show up in the Word Count Selection dialog.',
-    kind: 'readers',
-    category: 'general',
-    mobile: true,
-  },
-  {
-    key: 'liveSelectionWordCount',
-    label: 'Live word count for the current selection',
-    description:
-      "Off by default. When on, the bottom bar's word count / read time updates the moment you change the selection, showing the selection's read time. Off keeps the bar on the whole-doc count — use the Word Count button (Σ) for a selection's read time on demand. Live updates re-count on every selection change, so leave this off on very large documents if you notice drag lag.",
-    kind: 'toggle',
-    category: 'general',
-  },
   {
     key: 'multiDocWorkspace',
     label: 'Three-pane workspace',
     descriptionFn: workspaceLayoutDescription,
     kind: 'toggle',
     category: 'general',
+    section: 'Workspace',
     aliases: ['split view', 'split screen', 'multi pane', 'multi-doc'],
   },
   {
@@ -1403,6 +1392,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'When three docs are open, choose compact (all three visible at once, narrow) or wide-scroll (two full panes + edge of third; click the peek to snap). With 1 or 2 docs open, both modes render identically.',
     kind: 'multiDocLayoutMode',
     category: 'general',
+    section: 'Workspace',
     dependsOn: 'multiDocWorkspace',
   },
   {
@@ -1412,174 +1402,76 @@ export const SETTING_METADATA: SettingMeta[] = [
       'Which layout the web edition uses here. Auto picks the view-first mobile layout on windows narrower than 768px, and up to 1024px on touch screens; Mobile / Desktop force one. Changing this reloads the page.',
     kind: 'mobileLayout',
     category: 'general',
+    section: 'Workspace',
     webOnly: true,
     mobile: true,
     searchHidden: true,
   },
   {
-    key: 'showOnboardingStarter',
-    label: 'Onboarding doc for new documents',
+    key: 'editorSpellcheck',
+    label: 'Editor spellcheck',
     description:
-      'When on (default), New Document opens the CardMirror welcome doc — the same starter you get the first time you launch. When off, New opens a blank doc with a single empty paragraph. Affects every freshly created doc, including newly spawned windows.',
+      "Underline misspellings in the visible part of the document — including text in files you've opened, not just words you're typing. Right-click a flagged word for suggestions, Add to Dictionary, or Ignore. Off by default: debate evidence (author names, jargon, citations) generates a lot of false-positive squiggles.",
     kind: 'toggle',
     category: 'general',
+    section: 'Editor behavior',
   },
   {
-    key: 'flowHostOnLaunch',
-    label: 'Keep a Verbatim Flow connection warm',
+    key: 'gestureZoom',
+    label: 'Pinch / Ctrl+Scroll to zoom',
     description:
-      'Start the background connection to Excel when CardMirror launches, so your first Send to Flow is fast instead of waiting a second or two for it to spin up. Leave off to start it on demand the first time you use a Flow command (every send after that is fast either way). You can also start it any time with the "Start Flow Connection" command.',
+      'Zoom the document with a trackpad pinch or Ctrl + mouse-wheel (in 10% steps, same as the zoom buttons and Ctrl-= / Ctrl-- chords). Off by default; enable for pinch / Ctrl-scroll zooming.',
     kind: 'toggle',
     category: 'general',
-    windowsOnly: true,
-    aliases: ['flow', 'verbatim flow', 'powershell', 'warm', 'prewarm', 'excel'],
+    section: 'Editor behavior',
+    aliases: ['gesture zoom', 'pinch zoom', 'ctrl scroll', 'wheel zoom', 'trackpad zoom'],
   },
   {
-    key: 'defaultSpeechDocFolder',
-    label: 'Default folder for new speech documents',
+    key: 'jumpToDocTopOnReadModeToggle',
+    label: 'Jump to doc top when read mode toggles',
     description:
-      'When set, "New Speech Document" saves the new doc into this folder by default. Leave empty (the default) to keep the current behavior of leaving the doc unsaved until you explicitly Save / Save As.',
-    kind: 'folder',
-    category: 'general',
-    electronOnly: true,
-  },
-  {
-    key: 'fileSearchRoots',
-    label: 'File search folders',
-    description:
-      'Folders for the command-palette file search (type "f " in the search bar). Each is scanned recursively for .cmir and .docx files. Add as many as you like — overlapping folders are fine; a file found under more than one is searched only once. Leave the list empty to disable file search.',
-    kind: 'folderList',
-    category: 'general',
-    electronOnly: true,
-  },
-  {
-    key: 'fileSearchFormats',
-    label: 'File search: file formats to list',
-    description:
-      'Which document formats appear in the file search results — both .cmir and .docx, or just one. Each result shows its format on its badge.',
-    kind: 'fileSearchFormats',
-    category: 'general',
-    electronOnly: true,
-  },
-  {
-    key: 'fileSearchObjectTypes',
-    label: 'File search: objects to find within a file',
-    description:
-      'After picking a file in the search palette (Tab), which structural objects show up as you search inside it. Inserting one drops the matching card (tag/cite), block section (block/hat/pocket), or analytic unit into your document. Tags are always findable by their citation, so Cite (standalone cite rows) is off by default — turn it on to also list cites on their own.',
-    kind: 'fileSearchObjectTypes',
-    category: 'general',
-    electronOnly: true,
-  },
-  {
-    key: 'fileSearchOutlineDepth',
-    label: 'File search: default outline depth',
-    description:
-      "How far the outline is expanded when you first dive into a file (before typing). Pocket shows only top-level headings; Tag expands everything. Default Block. Right-click any pocket / hat / block in the outline to expand or collapse it.",
-    kind: 'fileSearchOutlineDepth',
-    category: 'general',
-    electronOnly: true,
-  },
-  {
-    key: 'pinAutoEnabled',
-    label: 'File search: auto-pin recent & frequent files',
-    description:
-      "On by default. Keeps your recent and frequently-used .cmir files 'warm' (parsed and held in memory) so diving into them from the search palette is instant. Turn off if you're sensitive to memory use — then only files you pin by hand (★ / Alt+P) are kept warm.",
+      'When on, toggling read mode (in either direction) scrolls to the top of the doc and places the cursor at the start. Off by default — the viewport stays where it was.',
     kind: 'toggle',
     category: 'general',
-    electronOnly: true,
+    section: 'Editor behavior',
   },
+  // ─── General ────────────────────────────────────────────────────
   {
-    key: 'defaultSpeechDocFormat',
-    label: 'Default format for new speech documents',
+    key: 'readers',
+    label: 'Readers for read-time estimates',
     description:
-      'Docx is the Verbatim-compatible default — best when you\'re sharing speech docs with teammates who use Verbatim. Picking .cmir enables autosave on the new doc (autosave only fires for .cmir files; the Docx serializer is too expensive to run on a debounce).',
-    kind: 'speechDocFormat',
+      'Each reader has a name and a words-per-minute rate. The first two are displayed live in the bottom bar; all show up in the Word Count Selection dialog.',
+    kind: 'readers',
     category: 'general',
-  },
-  {
-    key: 'defaultSaveFormat',
-    label: 'Default file format for new documents',
-    description:
-      'Sets the format the Save-As dialog defaults to for a doc you haven\'t saved before. .docx is the default — Word- and Verbatim-compatible. Pick .cmir to make every new doc save in CardMirror\'s native format (lossless, and the only format that supports autosave). Doesn\'t affect existing files on disk — those always re-save in whatever format they were opened from.',
-    kind: 'saveFormat',
-    category: 'general',
+    section: 'Word counts',
     mobile: true,
   },
   {
-    key: 'prefixPresetSaveFilenames',
-    label: 'Prefix preset saves',
+    key: 'liveSelectionWordCount',
+    label: 'Live word count for the current selection',
     description:
-      'When on (default), the Save As dialog\'s Send Doc / Read Doc / Marked Doc presets (and their commands) prepend the prefixes below to the file name (e.g. SEND_1AC.docx). The As-Is preset and the Save Custom button are never prefixed. Turn off to save presets under the exact name shown in the box.',
+      "Off by default. When on, the bottom bar's word count / read time updates the moment you change the selection, showing the selection's read time. Off keeps the bar on the whole-doc count — use the Word Count button (Σ) for a selection's read time on demand. Live updates re-count on every selection change, so leave this off on very large documents if you notice drag lag.",
     kind: 'toggle',
     category: 'general',
+    section: 'Word counts',
   },
   {
-    key: 'sendDocPrefix',
-    label: 'Send Doc filename prefix',
-    description: 'Prepended to Send Doc saves when the option above is on. Default SEND_. Leave empty for no prefix.',
-    kind: 'text',
-    category: 'general',
-    dependsOn: 'prefixPresetSaveFilenames',
-  },
-  {
-    key: 'readDocPrefix',
-    label: 'Read Doc filename prefix',
-    description: 'Prepended to Read Doc saves when the option above is on. Default READ_. Leave empty for no prefix.',
-    kind: 'text',
-    category: 'general',
-    dependsOn: 'prefixPresetSaveFilenames',
-  },
-  {
-    key: 'markedDocPrefix',
-    label: 'Marked Doc filename prefix',
-    description: 'Prepended to Marked Doc saves when the option above is on. Default MARKED_. Leave empty for no prefix.',
-    kind: 'text',
-    category: 'general',
-    dependsOn: 'prefixPresetSaveFilenames',
-  },
-  {
-    key: 'sendDocDestination',
-    label: 'Send Doc destination',
+    key: 'findRememberLastQuery',
+    label: 'Find: remember the last search query',
     description:
-      'Where the Save Send Doc command (and its shortcut) writes — a send doc is the document with comments, analytics, and undertags stripped, the same content the Save As dialog\'s Send Doc preset produces. "Same folder as the document" drops it beside the source file; "Fixed folder" always writes into the folder below. Either way, a doc you haven\'t saved yet (same-folder mode) or an unset fixed folder falls back to the normal Save As dialog. The send doc is written in your default new-document format, and prefixed SEND_ when that option is on.',
-    kind: 'sendDocDestination',
-    category: 'general',
-    electronOnly: true,
-  },
-  {
-    key: 'sendDocFolder',
-    label: 'Send Doc folder',
-    description:
-      'Destination folder for Save Send Doc when the destination above is set to "Fixed folder". Leave empty to fall back to the Save As dialog.',
-    kind: 'folder',
-    category: 'general',
-    electronOnly: true,
-  },
-  {
-    key: 'markedCardsDestination',
-    label: 'Marked Cards destination',
-    description:
-      'Where the Save Marked Cards command (and its shortcut) writes — a marked-cards doc is just the cards that contain a reading marker, flattened (no headings, no analytics), the same content the Save As dialog\'s Marked Cards preset produces. "Same folder as the document" drops it beside the source file; "Fixed folder" always writes into the folder below. Either way, a doc you haven\'t saved yet (same-folder mode) or an unset fixed folder falls back to the normal Save As dialog. Written in your default new-document format, and prefixed MARKED_ when that option is on.',
-    kind: 'markedCardsDestination',
-    category: 'general',
-    electronOnly: true,
-  },
-  {
-    key: 'markedCardsFolder',
-    label: 'Marked Cards folder',
-    description:
-      'Destination folder for Save Marked Cards when the destination above is set to "Fixed folder". Leave empty to fall back to the Save As dialog.',
-    kind: 'folder',
-    category: 'general',
-    electronOnly: true,
-  },
-  {
-    key: 'includeSpeechDocPocket',
-    label: 'Seed new speech docs with a Pocket heading',
-    description:
-      'When on (default), New Speech Document opens with a Pocket carrying the speech\'s name (e.g. "Speech 1NC 5-15 9-30AM") at the top. Turn off to start with a fully blank doc — one empty paragraph.',
+      "When on, reopening the find bar (Ctrl-F / Ctrl-H / Alt-F) pre-fills the input with whatever you last searched for. Off by default — the bar opens empty so each search is a clean slate.",
     kind: 'toggle',
     category: 'general',
+    section: 'Find',
+  },
+  {
+    key: 'findCategoryOrder',
+    label: 'Find: category priority order',
+    description:
+      'Ctrl-F groups search results by which kind of paragraph they appear in, and Next steps through groups in this order. Within each group, the first match is whichever is closest to your cursor (the cursor counts as the top — matches AFTER it come first, then matches before, like wrap-around). Reorder via the up / down buttons. Alt-F ignores this and goes purely by proximity.',
+    kind: 'findCategoryOrder',
+    category: 'general',
+    section: 'Find',
   },
   {
     key: 'timerProfile',
@@ -1588,6 +1480,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       "Picks which set of durations the timer is currently running on. Each profile remembers its own customizations, so changing values below saves to the active profile (no separate 'custom' option). Defaults: High school = 3/5/8 + 8 min prep, College = 3/6/9 + 10 min prep, Pomodoro = 25/15/5 + 0 prep.",
     kind: 'timerProfile',
     category: 'general',
+    section: 'Timer',
     aliases: ['timer preset', 'timer presets'],
   },
   {
@@ -1597,23 +1490,191 @@ export const SETTING_METADATA: SettingMeta[] = [
       "Edit the active profile's three preset durations (in minutes, biggest first — these become the top-right 9 / 6 / 3 buttons on the panel) and the per-side prep total. Changes save into the currently-selected profile only.",
     kind: 'timerProfileDurations',
     category: 'general',
+    section: 'Timer',
   },
   {
-    key: 'editorSpellcheck',
-    label: 'Editor spellcheck',
+    key: 'flowHostOnLaunch',
+    label: 'Keep a Verbatim Flow connection warm',
     description:
-      "Underline misspellings in the visible part of the document — including text in files you've opened, not just words you're typing. Right-click a flagged word for suggestions, Add to Dictionary, or Ignore. Off by default: debate evidence (author names, jargon, citations) generates a lot of false-positive squiggles.",
+      'Start the background connection to Excel when CardMirror launches, so your first Send to Flow is fast instead of waiting a second or two for it to spin up. Leave off to start it on demand the first time you use a Flow command (every send after that is fast either way). You can also start it any time with the "Start Flow Connection" command.',
     kind: 'toggle',
     category: 'general',
+    section: 'Integrations',
+    windowsOnly: true,
+    aliases: ['flow', 'verbatim flow', 'powershell', 'warm', 'prewarm', 'excel'],
   },
   {
-    key: 'gestureZoom',
-    label: 'Pinch / Ctrl+Scroll to zoom',
+    key: 'showOnboardingStarter',
+    label: 'Onboarding doc for new documents',
     description:
-      'Zoom the document with a trackpad pinch or Ctrl + mouse-wheel (in 10% steps, same as the zoom buttons and Ctrl-= / Ctrl-- chords). Off by default; enable for pinch / Ctrl-scroll zooming.',
+      'When on (default), New Document opens the CardMirror welcome doc — the same starter you get the first time you launch. When off, New opens a blank doc with a single empty paragraph. Affects every freshly created doc, including newly spawned windows.',
     kind: 'toggle',
-    category: 'general',
-    aliases: ['gesture zoom', 'pinch zoom', 'ctrl scroll', 'wheel zoom', 'trackpad zoom'],
+    category: 'files',
+    section: 'New documents',
+  },
+  {
+    key: 'defaultSpeechDocFolder',
+    label: 'Default folder for new speech documents',
+    description:
+      'When set, "New Speech Document" saves the new doc into this folder by default. Leave empty (the default) to keep the current behavior of leaving the doc unsaved until you explicitly Save / Save As.',
+    kind: 'folder',
+    category: 'files',
+    section: 'New documents',
+    electronOnly: true,
+  },
+  {
+    key: 'defaultSpeechDocFormat',
+    label: 'Default format for new speech documents',
+    description:
+      'Docx is the Verbatim-compatible default — best when you\'re sharing speech docs with teammates who use Verbatim. Picking .cmir enables autosave on the new doc (autosave only fires for .cmir files; the Docx serializer is too expensive to run on a debounce).',
+    kind: 'speechDocFormat',
+    category: 'files',
+    section: 'New documents',
+  },
+  {
+    key: 'defaultSaveFormat',
+    label: 'Default file format for new documents',
+    description:
+      'Sets the format the Save-As dialog defaults to for a doc you haven\'t saved before. .docx is the default — Word- and Verbatim-compatible. Pick .cmir to make every new doc save in CardMirror\'s native format (lossless, and the only format that supports autosave). Doesn\'t affect existing files on disk — those always re-save in whatever format they were opened from.',
+    kind: 'saveFormat',
+    category: 'files',
+    section: 'New documents',
+    mobile: true,
+  },
+  {
+    key: 'includeSpeechDocPocket',
+    label: 'Seed new speech docs with a Pocket heading',
+    description:
+      'When on (default), New Speech Document opens with a Pocket carrying the speech\'s name (e.g. "Speech 1NC 5-15 9-30AM") at the top. Turn off to start with a fully blank doc — one empty paragraph.',
+    kind: 'toggle',
+    category: 'files',
+    section: 'New documents',
+  },
+  {
+    key: 'prefixPresetSaveFilenames',
+    label: 'Prefix preset saves',
+    description:
+      'When on (default), the Save As dialog\'s Send Doc / Read Doc / Marked Doc presets (and their commands) prepend the prefixes below to the file name (e.g. SEND_1AC.docx). The As-Is preset and the Save Custom button are never prefixed. Turn off to save presets under the exact name shown in the box.',
+    kind: 'toggle',
+    category: 'files',
+    section: 'Send / Read / Marked docs',
+  },
+  {
+    key: 'sendDocPrefix',
+    label: 'Send Doc filename prefix',
+    description: 'Prepended to Send Doc saves when the option above is on. Default SEND_. Leave empty for no prefix.',
+    kind: 'text',
+    category: 'files',
+    section: 'Send / Read / Marked docs',
+    dependsOn: 'prefixPresetSaveFilenames',
+  },
+  {
+    key: 'readDocPrefix',
+    label: 'Read Doc filename prefix',
+    description: 'Prepended to Read Doc saves when the option above is on. Default READ_. Leave empty for no prefix.',
+    kind: 'text',
+    category: 'files',
+    section: 'Send / Read / Marked docs',
+    dependsOn: 'prefixPresetSaveFilenames',
+  },
+  {
+    key: 'markedDocPrefix',
+    label: 'Marked Doc filename prefix',
+    description: 'Prepended to Marked Doc saves when the option above is on. Default MARKED_. Leave empty for no prefix.',
+    kind: 'text',
+    category: 'files',
+    section: 'Send / Read / Marked docs',
+    dependsOn: 'prefixPresetSaveFilenames',
+  },
+  {
+    key: 'sendDocDestination',
+    label: 'Send Doc destination',
+    description:
+      'Where the Save Send Doc command (and its shortcut) writes — a send doc is the document with comments, analytics, and undertags stripped, the same content the Save As dialog\'s Send Doc preset produces. "Same folder as the document" drops it beside the source file; "Fixed folder" always writes into the folder below. Either way, a doc you haven\'t saved yet (same-folder mode) or an unset fixed folder falls back to the normal Save As dialog. The send doc is written in your default new-document format, and prefixed SEND_ when that option is on.',
+    kind: 'sendDocDestination',
+    category: 'files',
+    section: 'Send / Read / Marked docs',
+    electronOnly: true,
+  },
+  {
+    key: 'sendDocFolder',
+    label: 'Send Doc folder',
+    description:
+      'Destination folder for Save Send Doc when the destination above is set to "Fixed folder". Leave empty to fall back to the Save As dialog.',
+    kind: 'folder',
+    category: 'files',
+    section: 'Send / Read / Marked docs',
+    electronOnly: true,
+  },
+  {
+    key: 'markedCardsDestination',
+    label: 'Marked Cards destination',
+    description:
+      'Where the Save Marked Cards command (and its shortcut) writes — a marked-cards doc is just the cards that contain a reading marker, flattened (no headings, no analytics), the same content the Save As dialog\'s Marked Cards preset produces. "Same folder as the document" drops it beside the source file; "Fixed folder" always writes into the folder below. Either way, a doc you haven\'t saved yet (same-folder mode) or an unset fixed folder falls back to the normal Save As dialog. Written in your default new-document format, and prefixed MARKED_ when that option is on.',
+    kind: 'markedCardsDestination',
+    category: 'files',
+    section: 'Send / Read / Marked docs',
+    electronOnly: true,
+  },
+  {
+    key: 'markedCardsFolder',
+    label: 'Marked Cards folder',
+    description:
+      'Destination folder for Save Marked Cards when the destination above is set to "Fixed folder". Leave empty to fall back to the Save As dialog.',
+    kind: 'folder',
+    category: 'files',
+    section: 'Send / Read / Marked docs',
+    electronOnly: true,
+  },
+  {
+    key: 'fileSearchRoots',
+    label: 'File search folders',
+    description:
+      'Folders for the command-palette file search (type "f " in the search bar). Each is scanned recursively for .cmir and .docx files. Add as many as you like — overlapping folders are fine; a file found under more than one is searched only once. Leave the list empty to disable file search.',
+    kind: 'folderList',
+    category: 'files',
+    section: 'File search',
+    electronOnly: true,
+  },
+  {
+    key: 'fileSearchFormats',
+    label: 'File search: file formats to list',
+    description:
+      'Which document formats appear in the file search results — both .cmir and .docx, or just one. Each result shows its format on its badge.',
+    kind: 'fileSearchFormats',
+    category: 'files',
+    section: 'File search',
+    electronOnly: true,
+  },
+  {
+    key: 'fileSearchObjectTypes',
+    label: 'File search: objects to find within a file',
+    description:
+      'After picking a file in the search palette (Tab), which structural objects show up as you search inside it. Inserting one drops the matching card (tag/cite), block section (block/hat/pocket), or analytic unit into your document. Tags are always findable by their citation, so Cite (standalone cite rows) is off by default — turn it on to also list cites on their own.',
+    kind: 'fileSearchObjectTypes',
+    category: 'files',
+    section: 'File search',
+    electronOnly: true,
+  },
+  {
+    key: 'fileSearchOutlineDepth',
+    label: 'File search: default outline depth',
+    description:
+      "How far the outline is expanded when you first dive into a file (before typing). Pocket shows only top-level headings; Tag expands everything. Default Block. Right-click any pocket / hat / block in the outline to expand or collapse it.",
+    kind: 'fileSearchOutlineDepth',
+    category: 'files',
+    section: 'File search',
+    electronOnly: true,
+  },
+  {
+    key: 'pinAutoEnabled',
+    label: 'File search: auto-pin recent & frequent files',
+    description:
+      "On by default. Keeps your recent and frequently-used .cmir files 'warm' (parsed and held in memory) so diving into them from the search palette is instant. Turn off if you're sensitive to memory use — then only files you pin by hand (★ / Alt+P) are kept warm.",
+    kind: 'toggle',
+    category: 'files',
+    section: 'File search',
+    electronOnly: true,
   },
   {
     key: 'defaultZoomPct',
@@ -1623,168 +1684,6 @@ export const SETTING_METADATA: SettingMeta[] = [
     kind: 'defaultZoomPct',
     category: 'accessibility',
     aliases: ['zoom', 'default zoom', 'text size', 'document zoom'],
-  },
-  {
-    key: 'jumpToDocTopOnReadModeToggle',
-    label: 'Jump to doc top when read mode toggles',
-    description:
-      'When on, toggling read mode (in either direction) scrolls to the top of the doc and places the cursor at the start. Off by default — the viewport stays where it was.',
-    kind: 'toggle',
-    category: 'general',
-  },
-  {
-    key: 'findRememberLastQuery',
-    label: 'Find: remember the last search query',
-    description:
-      "When on, reopening the find bar (Ctrl-F / Ctrl-H / Alt-F) pre-fills the input with whatever you last searched for. Off by default — the bar opens empty so each search is a clean slate.",
-    kind: 'toggle',
-    category: 'general',
-  },
-  {
-    key: 'findCategoryOrder',
-    label: 'Find: category priority order',
-    description:
-      'Ctrl-F groups search results by which kind of paragraph they appear in, and Next steps through groups in this order. Within each group, the first match is whichever is closest to your cursor (the cursor counts as the top — matches AFTER it come first, then matches before, like wrap-around). Reorder via the up / down buttons. Alt-F ignores this and goes purely by proximity.',
-    kind: 'findCategoryOrder',
-    category: 'general',
-  },
-
-  // ─── Appearance ─────────────────────────────────────────────────
-  {
-    key: 'theme',
-    label: 'Theme',
-    description:
-      "Light, dark, or follow the operating system's preference. System mode tracks OS-level changes live.",
-    kind: 'theme',
-    category: 'appearance',
-    mobile: true,
-    aliases: ['light mode', 'dark mode', 'toggle theme', 'system theme', 'color scheme'],
-  },
-  {
-    key: 'themeAppliesToDocument',
-    label: 'Apply theme to the document area',
-    description:
-      "Off by default: when the theme is dark (or system-resolved dark), only the chrome — ribbon, nav, status bar — goes dark. The document area stays light, so cards still read like paper. Turn on to make the document itself follow the theme.",
-    kind: 'toggle',
-    category: 'appearance',
-    aliases: ['dark document', 'dark paper', 'dark mode document'],
-  },
-  {
-    key: 'iconSet',
-    label: 'Icon style',
-    description:
-      "Modern (default) draws the toolbar, banner, and dialog icons from the Untitled UI line-icon set, tinted to match the theme. Classic reverts to the original emoji / text glyphs. Affects the app chrome only — the document is untouched.",
-    kind: 'iconSet',
-    category: 'appearance',
-  },
-  {
-    key: 'showDocNameChip',
-    label: 'Show doc name in ribbon',
-    description:
-      "Off by default. When on, the active document's filename appears as a pill in the center of the ribbon — useful when the OS title bar is hidden, unstyled, or non-existent (tiling window managers, frameless windows, web embeds). Hidden in multi-pane mode because each per-pane chip already shows its slot's filename.",
-    kind: 'toggle',
-    category: 'appearance',
-  },
-  {
-    key: 'formatNavPaneByType',
-    label: 'Format nav pane entries by type',
-    description:
-      "On by default. When on, top-level headings render bold, lower levels in lighter weight and size, and analytic entries in the analytic-blue accent. Turn off for a uniform list where only indentation conveys hierarchy.",
-    kind: 'toggle',
-    category: 'appearance',
-  },
-  {
-    key: 'displaySizes',
-    label: 'Style font sizes (pt)',
-    description:
-      "Render size for each named style. Doesn't change the underlying doc — only how it looks here.",
-    kind: 'displaySizes',
-    category: 'appearance',
-    mobile: true,
-  },
-  {
-    key: 'displayTypography',
-    label: 'Style typography',
-    kind: 'displayTypography',
-    category: 'appearance',
-    mobile: true,
-  },
-  {
-    key: 'bodyFont',
-    label: 'Body font',
-    description:
-      'Font family for body text.',
-    kind: 'bodyFont',
-    category: 'appearance',
-    aliases: ['document font', 'card font', 'editor font'],
-  },
-  {
-    key: 'lineHeight',
-    label: 'Line spacing',
-    description:
-      'Line-spacing multiplier per paragraph type (unitless × font-size).',
-    kind: 'lineHeights',
-    category: 'appearance',
-    aliases: ['line height'],
-  },
-  {
-    key: 'displayParagraphSpacing',
-    label: 'Paragraph spacing',
-    description:
-      'Blank space before and after each paragraph type, in points (the paragraph’s top/bottom margin — distinct from line spacing, which is the gap between lines).',
-    kind: 'paragraphSpacing',
-    category: 'appearance',
-    aliases: ['space before', 'space after', 'paragraph margin', 'before spacing', 'after spacing'],
-  },
-  {
-    key: 'displayColors',
-    label: 'Style colors',
-    description:
-      'Pick the color used for Analytic and Undertag text. The same colors appear under Accessibility → Color overrides (Document text) — editing either place changes both. In dark mode they stay on these colors as long as the theme isn’t applied to the document; when it is, the document switches to a lighter built-in blue/green for contrast.',
-    kind: 'displayColors',
-    category: 'appearance',
-  },
-  {
-    key: 'showCitePreview',
-    label: 'Cite preview on hover',
-    description:
-      'Show the cite-formatted text from a card on the right side of its nav-pane entry when you hover.',
-    kind: 'toggle',
-    category: 'appearance',
-    aliases: ['hover preview'],
-  },
-  {
-    key: 'flashcardDueDot',
-    label: 'Flashcards-due dot',
-    description:
-      "Show a red dot on the ribbon's Manage Flashcards button when one or more flashcards are due for review today. On by default; turn off if you'd rather not be nudged.",
-    kind: 'toggle',
-    category: 'appearance',
-    aliases: ['flashcard due', 'review reminder', 'due indicator', 'red dot'],
-  },
-  {
-    key: 'timerPrepLabel',
-    label: 'Prep button label style',
-    description:
-      "How the Aff / Neg prep buttons identify which side they belong to. 'Text' uses A: / N: prefixes with no special color. 'Color' uses blue / red without the prefix. 'Both' (default) uses prefix and color together.",
-    kind: 'timerPrepLabel',
-    category: 'appearance',
-  },
-  {
-    key: 'timerCompact',
-    label: 'Compact timer layout',
-    description:
-      "Drops the 9 / 6 / 3 speech-preset buttons and tucks Reset under Start / Pause. Useful when the ribbon is tight.",
-    kind: 'toggle',
-    category: 'appearance',
-  },
-  {
-    key: 'timerFlashEnabled',
-    label: 'Flash timer when countdown is low',
-    description:
-      "Flash the speech-timer display red when remaining time crosses one of the configured thresholds (5 / 3 / 1 seconds by default).",
-    kind: 'toggle',
-    category: 'appearance',
   },
   {
     key: 'colorVisionFriendly',
@@ -1913,6 +1812,47 @@ export const SETTING_METADATA: SettingMeta[] = [
     kind: 'voiceDictationModel',
     category: 'accessibility',
   },
+
+  // ─── Appearance ─────────────────────────────────────────────────
+  {
+    key: 'theme',
+    label: 'Theme',
+    description:
+      "Light, dark, or follow the operating system's preference. System mode tracks OS-level changes live.",
+    kind: 'theme',
+    category: 'appearance',
+    section: 'Theme & chrome',
+    mobile: true,
+    aliases: ['light mode', 'dark mode', 'toggle theme', 'system theme', 'color scheme'],
+  },
+  {
+    key: 'themeAppliesToDocument',
+    label: 'Apply theme to the document area',
+    description:
+      "Off by default: when the theme is dark (or system-resolved dark), only the chrome — ribbon, nav, status bar — goes dark. The document area stays light, so cards still read like paper. Turn on to make the document itself follow the theme.",
+    kind: 'toggle',
+    category: 'appearance',
+    section: 'Theme & chrome',
+    aliases: ['dark document', 'dark paper', 'dark mode document'],
+  },
+  {
+    key: 'iconSet',
+    label: 'Icon style',
+    description:
+      "Modern (default) draws the toolbar, banner, and dialog icons from the Untitled UI line-icon set, tinted to match the theme. Classic reverts to the original emoji / text glyphs. Affects the app chrome only — the document is untouched.",
+    kind: 'iconSet',
+    category: 'appearance',
+    section: 'Theme & chrome',
+  },
+  {
+    key: 'showDocNameChip',
+    label: 'Show doc name in ribbon',
+    description:
+      "Off by default. When on, the active document's filename appears as a pill in the center of the ribbon — useful when the OS title bar is hidden, unstyled, or non-existent (tiling window managers, frameless windows, web embeds). Hidden in multi-pane mode because each per-pane chip already shows its slot's filename.",
+    kind: 'toggle',
+    category: 'appearance',
+    section: 'Theme & chrome',
+  },
   {
     key: 'ribbonTooltipMode',
     label: 'Ribbon tooltips',
@@ -1920,22 +1860,64 @@ export const SETTING_METADATA: SettingMeta[] = [
       'What hovering a ribbon button reveals. "Both" shows the action label and its current keyboard shortcut. "Label only" hides the shortcut. "Shortcut only" hides the label and is recommended for users who already know what each button does but still want a key reminder. "None" disables ribbon tooltips entirely. Dropdown menu items (Doc / Card / Table menus, etc.) always show shortcut-only — the menu label already says what the action does.',
     kind: 'ribbonTooltipMode',
     category: 'appearance',
+    section: 'Theme & chrome',
   },
   {
-    key: 'formattingPanelMode',
-    label: 'Formatting panel',
+    key: 'displaySizes',
+    label: 'Style font sizes (pt)',
     description:
-      'How the Pocket / Hat / Block / Tag / Analytic buttons in the ribbon are displayed. "Labels" shows the style name, "Shortcuts" shows the keyboard binding, "Both" shows name · shortcut, "Hidden" removes the panel.',
-    kind: 'formattingPanelMode',
+      "Render size for each named style. Doesn't change the underlying doc — only how it looks here.",
+    kind: 'displaySizes',
     category: 'appearance',
+    section: 'Document typography',
+    mobile: true,
   },
   {
-    key: 'formattingPanelPreview',
-    label: 'Preview styles in formatting panel',
-    description:
-      'When on, formatting-panel buttons preview the visual treatment of the style they apply.',
-    kind: 'toggle',
+    key: 'displayTypography',
+    label: 'Style typography',
+    kind: 'displayTypography',
     category: 'appearance',
+    section: 'Document typography',
+    mobile: true,
+  },
+  {
+    key: 'bodyFont',
+    label: 'Body font',
+    description:
+      'Font family for body text.',
+    kind: 'bodyFont',
+    category: 'appearance',
+    section: 'Document typography',
+    aliases: ['document font', 'card font', 'editor font'],
+  },
+  {
+    key: 'lineHeight',
+    label: 'Line spacing',
+    description:
+      'Line-spacing multiplier per paragraph type (unitless × font-size).',
+    kind: 'lineHeights',
+    category: 'appearance',
+    section: 'Document typography',
+    aliases: ['line height'],
+  },
+  {
+    key: 'displayParagraphSpacing',
+    label: 'Paragraph spacing',
+    description:
+      'Blank space before and after each paragraph type, in points (the paragraph’s top/bottom margin — distinct from line spacing, which is the gap between lines).',
+    kind: 'paragraphSpacing',
+    category: 'appearance',
+    section: 'Document typography',
+    aliases: ['space before', 'space after', 'paragraph margin', 'before spacing', 'after spacing'],
+  },
+  {
+    key: 'displayColors',
+    label: 'Style colors',
+    description:
+      'Pick the color used for Analytic and Undertag text. The same colors appear under Accessibility → Color overrides (Document text) — editing either place changes both. In dark mode they stay on these colors as long as the theme isn’t applied to the document; when it is, the document switches to a lighter built-in blue/green for contrast.',
+    kind: 'displayColors',
+    category: 'appearance',
+    section: 'Document typography',
   },
   {
     key: 'showCharacterStyles',
@@ -1944,6 +1926,81 @@ export const SETTING_METADATA: SettingMeta[] = [
       'Show the cite / underline / emphasis character-style buttons in the ribbon. When off, just that sub-panel is hidden; the rest of the formatting panel stays visible.',
     kind: 'toggle',
     category: 'appearance',
+    section: 'Document typography',
+  },
+  {
+    key: 'formattingPanelMode',
+    label: 'Formatting panel',
+    description:
+      'How the Pocket / Hat / Block / Tag / Analytic buttons in the ribbon are displayed. "Labels" shows the style name, "Shortcuts" shows the keyboard binding, "Both" shows name · shortcut, "Hidden" removes the panel.',
+    kind: 'formattingPanelMode',
+    category: 'appearance',
+    section: 'Formatting panel',
+  },
+  {
+    key: 'formattingPanelPreview',
+    label: 'Preview styles in formatting panel',
+    description:
+      'When on, formatting-panel buttons preview the visual treatment of the style they apply.',
+    kind: 'toggle',
+    category: 'appearance',
+    section: 'Formatting panel',
+  },
+  {
+    key: 'formatNavPaneByType',
+    label: 'Format nav pane entries by type',
+    description:
+      "On by default. When on, top-level headings render bold, lower levels in lighter weight and size, and analytic entries in the analytic-blue accent. Turn off for a uniform list where only indentation conveys hierarchy.",
+    kind: 'toggle',
+    category: 'appearance',
+    section: 'Nav pane & indicators',
+  },
+  {
+    key: 'showCitePreview',
+    label: 'Cite preview on hover',
+    description:
+      'Show the cite-formatted text from a card on the right side of its nav-pane entry when you hover.',
+    kind: 'toggle',
+    category: 'appearance',
+    section: 'Nav pane & indicators',
+    aliases: ['hover preview'],
+  },
+  {
+    key: 'flashcardDueDot',
+    label: 'Flashcards-due dot',
+    description:
+      "Show a red dot on the ribbon's Manage Flashcards button when one or more flashcards are due for review today. On by default; turn off if you'd rather not be nudged.",
+    kind: 'toggle',
+    category: 'appearance',
+    section: 'Nav pane & indicators',
+    aliases: ['flashcard due', 'review reminder', 'due indicator', 'red dot'],
+  },
+  {
+    key: 'timerPrepLabel',
+    label: 'Prep button label style',
+    description:
+      "How the Aff / Neg prep buttons identify which side they belong to. 'Text' uses A: / N: prefixes with no special color. 'Color' uses blue / red without the prefix. 'Both' (default) uses prefix and color together.",
+    kind: 'timerPrepLabel',
+    category: 'appearance',
+    section: 'Timer display',
+  },
+  {
+    key: 'timerCompact',
+    label: 'Compact timer layout',
+    description:
+      "Drops the 9 / 6 / 3 speech-preset buttons and tucks Reset under Start / Pause. Useful when the ribbon is tight.",
+    kind: 'toggle',
+    category: 'appearance',
+    section: 'Timer display',
+  },
+  {
+    key: 'timerFlashEnabled',
+    label: 'Flash timer when countdown is low',
+    description:
+      "Flash the speech-timer display red when remaining time crosses one of the configured thresholds (5 / 3 / 1 seconds by default).",
+    kind: 'toggle',
+    category: 'appearance',
+    section: 'Timer display',
   },
 
   // ─── Editing ────────────────────────────────────────────────────
@@ -1954,6 +2011,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'As you type a straight \' or ", curl it to the right direction based on context — opening after a space, dash, or start of line; closing (and apostrophe) otherwise. Press Backspace right after to revert to the straight character. Off by default.',
     kind: 'toggle',
     category: 'editing',
+    section: 'Typing',
     aliases: ['curly quotes', 'smart quotes', 'autocorrect quotes', 'typographic quotes'],
   },
   {
@@ -1963,6 +2021,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'As you type, replace "---" with a dash of your choice (en or em dash, with or without surrounding spaces). The replacement happens on the third hyphen; press Backspace right after to revert to the literal "---". Off by default.',
     kind: 'customDash',
     category: 'editing',
+    section: 'Typing',
     aliases: ['dash', 'em dash', 'en dash', 'triple dash', 'autocorrect dash'],
   },
   {
@@ -1972,6 +2031,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'When on, F3 only removes intra-paragraph whitespace — paragraphs stay separate. When off, F3 merges consecutive collapsible paragraphs.',
     kind: 'toggle',
     category: 'editing',
+    section: 'Condense',
   },
   {
     key: 'usePilcrows',
@@ -1980,15 +2040,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'When paragraph integrity is off and this is on, F3 inserts a 6-pt ¶ at each original paragraph boundary in the merged result, so that the split can be reversed via Ctrl/Cmd+Alt+Shift+F3 (Uncondense).',
     kind: 'toggle',
     category: 'editing',
-  },
-  {
-    key: 'extractUndertagInQuotes',
-    label: 'Extract Undertag: wrap in quotes',
-    description:
-      'When on, the Extract Undertag command (Card menu → Excerpt) wraps the excerpt it pulls into the new undertag in double quotes. Off by default — the text is inserted as-is.',
-    kind: 'toggle',
-    category: 'editing',
-    aliases: ['extract undertag'],
+    section: 'Condense',
   },
   {
     key: 'condenseOnPaste',
@@ -1997,23 +2049,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'When on, text that you paste will be condensed using your default "condense" settings.',
     kind: 'toggle',
     category: 'editing',
-  },
-
-  {
-    key: 'autoBridgeFormattingGaps',
-    label: 'Bridge formatting across gaps automatically',
-    description:
-      'When on, applying highlight / underline / etc. next to an already-formatted word extends it across the small gap between them. Off disables this automatic bridging; the manual "Fix Formatting Gaps" command still works.',
-    kind: 'toggle',
-    category: 'editing',
-  },
-  {
-    key: 'formattingGapClass',
-    label: 'Bridge formatting across',
-    description:
-      'Which gaps between two formatted words get bridged — both the automatic bridge and the manual "Fix Formatting Gaps" command.',
-    kind: 'formattingGapClass',
-    category: 'editing',
+    section: 'Condense',
   },
 
   {
@@ -2023,6 +2059,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'How selection-based condense without paragraph integrity treats structural elements (headings, cites, undertags) inside the selection. "Strict" blocks attempts to condense that include structural elements. "Respect" (default) keeps structural paragraphs unmerged and merges everything else in the selection. "Demolish" merges everything in the selection.',
     kind: 'headingMode',
     category: 'editing',
+    section: 'Condense',
   },
   {
     key: 'condenseWarningDelimiter',
@@ -2031,6 +2068,36 @@ export const SETTING_METADATA: SettingMeta[] = [
       'Which bracket style wraps the PARAGRAPH INTEGRITY PAUSES / RESUMES markers added by "Condense with warning" (Card menu).',
     kind: 'condenseWarningDelimiter',
     category: 'editing',
+    section: 'Condense',
+  },
+  {
+    key: 'extractUndertagInQuotes',
+    label: 'Extract Undertag: wrap in quotes',
+    description:
+      'When on, the Extract Undertag command (Card menu → Excerpt) wraps the excerpt it pulls into the new undertag in double quotes. Off by default — the text is inserted as-is.',
+    kind: 'toggle',
+    category: 'editing',
+    section: 'Formatting operations',
+    aliases: ['extract undertag'],
+  },
+
+  {
+    key: 'autoBridgeFormattingGaps',
+    label: 'Bridge formatting across gaps automatically',
+    description:
+      'When on, applying highlight / underline / etc. next to an already-formatted word extends it across the small gap between them. Off disables this automatic bridging; the manual "Fix Formatting Gaps" command still works.',
+    kind: 'toggle',
+    category: 'editing',
+    section: 'Formatting operations',
+  },
+  {
+    key: 'formattingGapClass',
+    label: 'Bridge formatting across',
+    description:
+      'Which gaps between two formatted words get bridged — both the automatic bridge and the manual "Fix Formatting Gaps" command.',
+    kind: 'formattingGapClass',
+    category: 'editing',
+    section: 'Formatting operations',
   },
   {
     key: 'shrinkRestoresOmissionsToNormal',
@@ -2039,6 +2106,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'When on, Shrink (Mod-8) leaves bracketed "Omitted" spans, the PARAGRAPH INTEGRITY PAUSES/RESUMES markers from "Condense with warning", and any custom protections (below) at Normal size so they stay visible in the shrunken output. When off, all of these are shrunk along with the rest of the text.',
     kind: 'toggle',
     category: 'editing',
+    section: 'Formatting operations',
   },
   {
     key: 'shrinkCustomProtections',
@@ -2047,6 +2115,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'Strings (or regex sources, if the box is checked) that Shrink should leave at Normal size whenever protection is on. Literal entries are matched case-insensitively after escaping; regex entries are compiled with `gi` flags. Invalid regex entries are skipped.',
     kind: 'shrinkCustomProtections',
     category: 'editing',
+    section: 'Formatting operations',
   },
   {
     key: 'clearFormattingOnNamedStyleToggleOff',
@@ -2055,6 +2124,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'When on, pressing F9 to toggle underlining off also strips direct formatting in the range. When off, only the underline style mark is removed; direct formatting applied to the underlined text is preserved.',
     kind: 'toggle',
     category: 'editing',
+    section: 'Formatting operations',
   },
   {
     key: 'forReferenceUseGray50',
@@ -2063,6 +2133,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'When on, the body text of a "Create Reference" excerpt is rendered in Gray-50% (#808080) instead of black. The heading line stays black either way.',
     kind: 'toggle',
     category: 'editing',
+    section: 'Formatting operations',
   },
   {
     key: 'showDropzonePill',
@@ -2071,6 +2142,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       "When on, the cross-window dropzone pill sits in the editor's bottom-left corner (the editor nearest the nav pane in multi-pane layouts). Turning it off hides the pill from the chrome; the shelf state and the Send to Dropzone shortcut still work — items pile up in the store and can be retrieved from any window that has the pill visible.",
     kind: 'toggle',
     category: 'editing',
+    section: 'Insert surfaces',
   },
   {
     key: 'showQuickCardButtons',
@@ -2079,6 +2151,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'When on, the Quick Cards cluster — the command bar, tag picker, manage, and add buttons — appears in the ribbon. Off by default. Turning it off hides all four; quick cards still work, and the command bar still opens with its keyboard shortcut.',
     kind: 'toggle',
     category: 'editing',
+    section: 'Insert surfaces',
   },
   {
     key: 'translationProvider',
@@ -2087,6 +2160,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'Translate the selected text and copy the result to the clipboard (the document is left unchanged). Pick a backend, the source and target languages, and any keys below.',
     kind: 'translationConfig',
     category: 'editing',
+    section: 'Translation',
     aliases: ['translate', 'translator', 'language', 'mymemory', 'google translate', 'deepl'],
   },
   {
@@ -2096,6 +2170,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'When on, the Translator puts a marker line — e.g. [TRANSLATION BY OPUS 4.8], [TRANSLATION BY MYMEMORY], or [TRANSLATION BY GOOGLE TRANSLATE] — above the translated text on the clipboard. It uses the same delimiter as “Condense with warning” above, and (when “Shrink keeps protected text at Normal size” is on) all of these markers are protected from Shrink. On by default.',
     kind: 'toggle',
     category: 'editing',
+    section: 'Translation',
     aliases: ['translation marker', 'translation by', 'attribution'],
   },
 

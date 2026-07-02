@@ -4520,6 +4520,35 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   display: none;
 }
 
+/* Section headers inside a settings tab (SettingMeta.section).
+ * Sized to match .pmd-install-info-heading ("About this install").
+ * All settings dividers — between rows and between sections — use the
+ * same faint token; each boundary draws exactly one line (see the
+ * row de-dup rule below). */
+.pmd-settings-section-title {
+  /* Same vertical rhythm as a row boundary: the preceding row's
+     0.75rem padding-bottom, the divider, then 0.75rem down to the
+     header text. */
+  margin: 0 0 0.3rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--pmd-c-divider-faint);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-settings-section-title:first-child {
+  margin-top: 0.3rem;
+  padding-top: 0;
+  border-top: none;
+}
+/* The last row of a section sits against the next boundary's divider —
+   drop its own so the lines don't stack. */
+.pmd-settings-row:has(+ .pmd-settings-section-title),
+.pmd-settings-row:has(+ .pmd-settings-benchmark) {
+  border-bottom: none;
+}
 .pmd-settings-empty {
   text-align: center;
   color: var(--pmd-c-text-faint);
@@ -4536,7 +4565,7 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 .pmd-settings-backup {
   margin-top: 1.5rem;
   padding-top: 1rem;
-  border-top: 1px solid var(--pmd-c-border-soft);
+  border-top: 1px solid var(--pmd-c-divider-faint);
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
@@ -4565,7 +4594,7 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 }
 .pmd-install-info-divider {
   border: none;
-  border-top: 1px solid var(--pmd-c-border-soft);
+  border-top: 1px solid var(--pmd-c-divider-faint);
   margin: 0 0 1rem 0;
 }
 .pmd-install-info-heading {
@@ -11935,7 +11964,7 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
 .pmd-settings-benchmark {
   margin-top: 1.5rem;
   padding-top: 1rem;
-  border-top: 1px solid var(--pmd-c-border-soft);
+  border-top: 1px solid var(--pmd-c-divider-faint);
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
@@ -11943,7 +11972,7 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
 .pmd-settings-manual {
   margin-top: 1rem;
   padding-top: 0.85rem;
-  border-top: 1px solid var(--pmd-c-border-soft);
+  border-top: 1px solid var(--pmd-c-divider-faint);
   display: flex;
   justify-content: center;
 }

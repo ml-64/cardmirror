@@ -51,6 +51,31 @@ in each release, see `CHANGELOG.md`.
   dropping a row's own divider when it sits against a section boundary
   so lines never stack.
 
+- **"No color" is a paintable pen for highlight & shading**
+  (`settings.ts`, `ribbon-commands.ts`, `color-panel.ts`, `MANUAL.md`).
+  Font color's "Automatic" already worked this way (null persists in
+  `lastFontColor`, paint strips); highlight/shading's none swatch was a
+  one-shot selection strip that never became the pen.
+  `lastHighlightColor` / `lastShadingColor` are now `string | null`
+  (null = no-color pen; sanitizers preserve explicit null; defaults
+  unchanged). Pen consumers updated: `applyHighlight` / `applyShading`
+  (F11 / Mod-F11 / main button / paintbrush) with a null pen always
+  strip — the color toggle branch is untouched; `highlightAcronym`
+  strips the first-letter ranges; `uniHighlight` / `uniShade`
+  ("standardize onto none") strip every marked run in scope, leaving
+  unmarked text untouched. The picker's none swatch now persists the
+  pick AND strips the selection (the same persist-and-apply shape as
+  colored swatches — its strip keeps the trailing-space trim via the
+  existing helper, which `setHighlightColor` deliberately doesn't do).
+  Indicator bars and the paint-cursor swatch render the null pen as
+  plain white (maintainer call: no strikethrough). Untouched by
+  design: `setHighlightColor`/`setShadingColor` stay string-only (their
+  only null-adjacent caller is the picker, and voice's `applyPen`
+  guards on `pen.color`); the card-cutter port already null-safes with
+  `|| 'yellow'` (no changes near the live experiment); the status-bar
+  Hl:/Sh: names read marks at the cursor, not the pen. Two null-pen
+  regression tests added to ribbon-commands.test.ts.
+
 - **Accessibility: nav-pane analytic italics toggle** (`settings.ts`,
   `index.ts`, `style.css`, `MANUAL.md`). Color-audit item (LOW-MEDIUM):
   analytic entries in the nav pane are marked by text color alone

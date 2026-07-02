@@ -712,17 +712,21 @@ export interface Settings {
   showCharacterStyles: boolean;
   /**
    * Last highlight color picked from the ribbon dropdown. One of the
-   * 15 Word named highlight colors (`yellow`, `green`, `darkRed`, …).
-   * Used as the active color when F11 toggles highlight on; persisted
-   * so the editor remembers each user's preferred color.
+   * 15 Word named highlight colors (`yellow`, `green`, `darkRed`, …),
+   * or null for "No highlight" — the pen paints nothing, so F11 / the
+   * paintbrush strip the mark instead of applying one. Used as the
+   * active color when F11 toggles highlight on; persisted so the
+   * editor remembers each user's preferred color.
    */
-  lastHighlightColor: string;
+  lastHighlightColor: string | null;
   /**
    * Last shading color picked from the ribbon dropdown. 6-char hex
-   * (no leading `#`). Default is Verbatim's D2D2D2 protected-highlight
-   * grey. Used as the active color when Ctrl-F11 toggles shading on.
+   * (no leading `#`), or null for "No background color" (the pen
+   * strips the mark, mirroring lastHighlightColor). Default is
+   * Verbatim's D2D2D2 protected-highlight grey. Used as the active
+   * color when Ctrl-F11 toggles shading on.
    */
-  lastShadingColor: string;
+  lastShadingColor: string | null;
   /**
    * Last font color picked from the ribbon dropdown. 6-char hex
    * (no leading `#`), or null for "Automatic" (no font_color mark).
@@ -2757,12 +2761,18 @@ function sanitize(s: Settings): Settings {
       s.showCharacterStyles === undefined
         ? DEFAULTS.showCharacterStyles
         : !!s.showCharacterStyles,
-    lastHighlightColor: isWordHighlightName(String(s.lastHighlightColor ?? ''))
-      ? String(s.lastHighlightColor)
-      : DEFAULTS.lastHighlightColor,
-    lastShadingColor: isHex6(s.lastShadingColor)
-      ? String(s.lastShadingColor).toUpperCase()
-      : DEFAULTS.lastShadingColor,
+    lastHighlightColor:
+      s.lastHighlightColor === null
+        ? null
+        : isWordHighlightName(String(s.lastHighlightColor ?? ''))
+        ? String(s.lastHighlightColor)
+        : DEFAULTS.lastHighlightColor,
+    lastShadingColor:
+      s.lastShadingColor === null
+        ? null
+        : isHex6(s.lastShadingColor)
+        ? String(s.lastShadingColor).toUpperCase()
+        : DEFAULTS.lastShadingColor,
     lastFontColor:
       s.lastFontColor === null || s.lastFontColor === undefined
         ? DEFAULTS.lastFontColor

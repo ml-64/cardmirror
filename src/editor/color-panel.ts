@@ -10,9 +10,10 @@
  *     active color automatically until Escape or the button is clicked
  *     again. Behaviour mirrors Word's highlighter pen.
  *   - Arrow button: opens a 16-swatch picker. Top-left swatch is always
- *     the strip/automatic option (No highlight / No background /
- *     Automatic). Picking a swatch updates the persisted color and
- *     applies it to the current selection in one click.
+ *     the none/automatic option (No highlight / No background /
+ *     Automatic). Picking any swatch — including "none" — updates the
+ *     persisted color and applies it to the current selection in one
+ *     click; a "none" pen paints by stripping the mark.
  *
  * Active color persists via `settings.lastHighlightColor` /
  * `lastShadingColor` / `lastFontColor`; the bar under each main
@@ -218,11 +219,12 @@ export function wireColorPanel(viewRef: ViewRef): ColorPanelHandle {
 function resolvePaintbrushColor(mode: PaintbrushMode): string {
   if (mode === 'highlight') {
     const name = settings.get('lastHighlightColor');
-    const rgb = highlightRgbFor(name) ?? 'ffff00';
+    // Null pen paints "none" — the cursor swatch shows white.
+    const rgb = name === null ? 'ffffff' : highlightRgbFor(name) ?? 'ffff00';
     return '#' + rgb;
   }
   if (mode === 'shading') {
-    const rgb = settings.get('lastShadingColor') || 'cccccc';
+    const rgb = settings.get('lastShadingColor') ?? 'ffffff';
     return '#' + rgb;
   }
   // fontcolor
@@ -281,7 +283,9 @@ function buildHighlightControl(): ColorControlSetup {
       const bar = document.getElementById('highlight-bar');
       if (!bar) return;
       const name = settings.get('lastHighlightColor');
-      const rgb = highlightRgbFor(name) ?? 'FFFF00';
+      // Null pen ("No highlight") reads as plain white — absence of
+      // color is paper-white, matching the none swatch's constant.
+      const rgb = name === null ? 'FFFFFF' : highlightRgbFor(name) ?? 'FFFF00';
       bar.style.background = `#${rgb}`;
     },
   };
@@ -310,7 +314,8 @@ function buildShadingControl(): ColorControlSetup {
     updateIndicator: () => {
       const bar = document.getElementById('shading-bar');
       if (!bar) return;
-      bar.style.background = `#${settings.get('lastShadingColor')}`;
+      const rgb = settings.get('lastShadingColor') ?? 'FFFFFF';
+      bar.style.background = `#${rgb}`;
     },
   };
 }
@@ -400,8 +405,10 @@ function openPicker(
 
     if (setup.mainBtnId === 'highlight-btn') {
       if (value === null) {
-        // "No highlight": strip across the selection. One-shot — does
-        // not persist as the active color (lastHighlightColor stays put).
+        // "No highlight": persists as the active pen (F11 / paintbrush
+        // then strip) AND strips across the current selection, same
+        // persist-and-apply shape as the colored swatches.
+        settings.set('lastHighlightColor', null);
         stripMarkInSelection(view, 'highlight');
       } else {
         settings.set('lastHighlightColor', value);
@@ -409,6 +416,7 @@ function openPicker(
       }
     } else if (setup.mainBtnId === 'shading-btn') {
       if (value === null) {
+        settings.set('lastShadingColor', null);
         stripMarkInSelection(view, 'shading');
       } else {
         settings.set('lastShadingColor', value);

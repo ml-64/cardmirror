@@ -414,9 +414,13 @@ into shading so it isn't affected by "standardize highlighting" in the
 future.
 
 Each of the three color controls is a **split button**: the main button
-applies the active color, and the small arrow opens a 16-swatch picker
-(the top-left swatch removes the color). The picker remembers your last
-color per control.
+applies the active color, and the small arrow opens a 16-swatch picker.
+The picker remembers your last color per control. The top-left swatch
+selects **no color** (No highlight / No background / Automatic) — and
+"no color" is a real pen, not just a one-off eraser: it stays active
+(the indicator bar under the button turns white), and the main button,
+paintbrush mode, and F11 / Mod-F11 then *strip* the mark wherever you
+paint, until you pick a color again.
 
 - **Highlight (F11)** — toggles the active highlight on the selection.
   Supports all 15 Word highlight colors.
@@ -435,8 +439,9 @@ selection: **Alt-F10** (emphasis) and **Alt-F11** (highlight) — for
 marking the source letters of an acronym, like **U**nited **S**tates.
 
 For cleanup, the Card/Doc menus include **Standardize Highlighting** (and
-background) to convert every color in scope to your active one, and
-converters between highlight and background.
+background) to convert every color in scope to your active one (with the
+"no color" pen active, they remove every highlight or background in
+scope), and converters between highlight and background.
 
 **Tip:** right-click any structural-style or character-style button to
 select *every* instance of that style in the document — then apply a

@@ -24,6 +24,13 @@ see `DETAILED_CHANGELOG.md`.
   palette engineered to stay distinguishable under red-green and blue-yellow
   color-vision deficiencies. Works in light and dark themes, and any colors
   you've set by hand still win.
+- **"No color" is now a real pen.** Picking **No highlight** or **No
+  background color** in the ribbon dropdowns now keeps "none" as your
+  active color (the indicator bar turns white) — the main button,
+  paintbrush mode, and F11 / Mod-F11 then erase wherever you paint, until
+  you pick a color again. Standardize Highlighting / Background with the
+  "no color" pen active removes every highlight or background in scope.
+  Previously the "none" swatch only stripped the current selection.
 - **Analytics can be italicized in the nav pane.** A new Accessibility
   toggle, **Italicize analytic entries in the nav pane**, marks Analytic
   entries by shape instead of color alone — handy under color-vision

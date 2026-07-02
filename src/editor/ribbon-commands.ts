@@ -1196,7 +1196,7 @@ export function emphasizeAcronym(): Command {
  * No-op on empty selection (matches the emphasize-acronym contract
  * — no "highlight the word at the cursor" fallback).
  */
-export function highlightAcronym(activeColor: () => string): Command {
+export function highlightAcronym(activeColor: () => string | null): Command {
   return (state, dispatch) => {
     const markType = schema.marks['highlight'];
     if (!markType) return false;
@@ -1269,9 +1269,10 @@ export function highlightAcronym(activeColor: () => string): Command {
     for (const r of firstLetterRanges) {
       // Replace any existing highlight color on this character so
       // the new acronym mark wins (parallel to applyHighlight's
-      // remove-then-add for the "apply" branch).
+      // remove-then-add for the "apply" branch). A null pen ("No
+      // highlight") strips the first letters instead.
       tr.removeMark(r.from, r.to, markType);
-      tr.addMark(r.from, r.to, markType.create({ color }));
+      if (color !== null) tr.addMark(r.from, r.to, markType.create({ color }));
     }
     dispatch(tr);
     return true;
@@ -1898,7 +1899,7 @@ export function toggleBold(): Command {
  * Empty selection: no-op (no word expansion — highlights typically
  * span multiple words and users select before applying).
  */
-export function applyHighlight(activeColor: () => string): Command {
+export function applyHighlight(activeColor: () => string | null): Command {
   return withGapFix((state, dispatch) => {
     const highlightType = schema.marks['highlight'];
     if (!highlightType) return false;
@@ -1920,7 +1921,10 @@ export function applyHighlight(activeColor: () => string): Command {
 
     if (!dispatch) return true;
     const tr = state.tr;
-    if (allMarked) {
+    const color = activeColor();
+    // A null pen ("No highlight" picked in the dropdown) paints
+    // nothing: always strip, no toggle branch.
+    if (allMarked || color === null) {
       for (const { from, to } of op.ranges) tr.removeMark(from, to, highlightType);
     } else {
       // Replace any existing highlight color with the active one
@@ -1928,7 +1932,7 @@ export function applyHighlight(activeColor: () => string): Command {
       // color wins even where a different highlight already exists.
       for (const { from, to } of op.ranges) {
         tr.removeMark(from, to, highlightType);
-        tr.addMark(from, to, highlightType.create({ color: activeColor() }));
+        tr.addMark(from, to, highlightType.create({ color }));
       }
     }
     if (op.fromShadow) tr.setMeta(META_OPERATING_ON_SHADOW, true);
@@ -1946,7 +1950,7 @@ export function applyHighlight(activeColor: () => string): Command {
  * shading remains in the data for round-trip and as the "protected
  * highlight" fallback that survives Word's Remove Highlighting.
  */
-export function applyShading(activeColor: () => string): Command {
+export function applyShading(activeColor: () => string | null): Command {
   return withGapFix((state, dispatch) => {
     const shadingType = schema.marks['shading'];
     if (!shadingType) return false;
@@ -1965,12 +1969,14 @@ export function applyShading(activeColor: () => string): Command {
 
     if (!dispatch) return true;
     const tr = state.tr;
-    if (allMarked) {
+    const color = activeColor();
+    // Null pen ("No background color") — strip, mirroring highlight.
+    if (allMarked || color === null) {
       for (const { from, to } of op.ranges) tr.removeMark(from, to, shadingType);
     } else {
       for (const { from, to } of op.ranges) {
         tr.removeMark(from, to, shadingType);
-        tr.addMark(from, to, shadingType.create({ color: activeColor() }));
+        tr.addMark(from, to, shadingType.create({ color }));
       }
     }
     if (op.fromShadow) tr.setMeta(META_OPERATING_ON_SHADOW, true);
@@ -2031,7 +2037,8 @@ export function setShadingColor(rgb: string): Command {
  * target range, finds every text run that carries a `highlight` mark,
  * and rewrites its color to the current active highlight color —
  * useful for collapsing a mix of cyan / yellow / etc. back to one
- * consistent color. Unhighlighted text is untouched.
+ * consistent color. Unhighlighted text is untouched. A null pen
+ * ("No highlight" active) strips highlights in scope instead.
  *
  * `scope`:
  *   - `'document'` — walk the whole doc (Verbatim parity).
@@ -2039,7 +2046,7 @@ export function setShadingColor(rgb: string): Command {
  *     the selection is empty.
  */
 export function uniHighlight(
-  activeColor: () => string,
+  activeColor: () => string | null,
   scope: 'document' | 'selection' = 'document',
 ): Command {
   return runUniColor('highlight', activeColor, scope, false);
@@ -2051,7 +2058,7 @@ export function uniHighlight(
  * color is normalized to uppercase to match the schema.
  */
 export function uniShade(
-  activeColor: () => string,
+  activeColor: () => string | null,
   scope: 'document' | 'selection' = 'document',
 ): Command {
   return runUniColor('shading', activeColor, scope, true);
@@ -2180,7 +2187,7 @@ export function shadingToHighlight(): Command {
 
 function runUniColor(
   markName: 'highlight' | 'shading',
-  activeColor: () => string,
+  activeColor: () => string | null,
   scope: 'document' | 'selection',
   upperHex: boolean,
 ): Command {
@@ -2201,7 +2208,10 @@ function runUniColor(
       from = 0;
       to = state.doc.content.size;
     }
-    const color = upperHex ? activeColor().toUpperCase() : activeColor();
+    const raw = activeColor();
+    // Null pen: "standardize onto none" — strip the mark from every
+    // marked run in scope. Unmarked text stays untouched either way.
+    const color = raw === null ? null : upperHex ? raw.toUpperCase() : raw;
     if (!dispatch) return true;
     const tr = state.tr;
     state.doc.nodesBetween(from, to, (node, pos) => {
@@ -2211,7 +2221,7 @@ function runUniColor(
       const end = Math.min(to, pos + node.nodeSize);
       if (start >= end) return true;
       tr.removeMark(start, end, type);
-      tr.addMark(start, end, type.create({ color }));
+      if (color !== null) tr.addMark(start, end, type.create({ color }));
       return true;
     });
     dispatch(tr);
@@ -5172,8 +5182,8 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
  * call `getRibbonCommand('applyHighlight')` without wiring settings.
  */
 export interface RibbonContext {
-  highlightColor: () => string;
-  shadingColor: () => string;
+  highlightColor: () => string | null;
+  shadingColor: () => string | null;
   /** Whether F3 (default condense) preserves paragraph integrity. */
   paragraphIntegrity: () => boolean;
   /** Whether F3 inserts 6-pt ¶ markers when merging (consulted only when

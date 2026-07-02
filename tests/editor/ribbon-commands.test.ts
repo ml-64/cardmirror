@@ -2845,6 +2845,33 @@ describe('applyHighlight (F11)', () => {
     expect(next).not.toBeNull();
     expect(highlightedOffsets(next!.doc, 'word  here')).toEqual(new Set([0, 1, 2, 3]));
   });
+
+  it('null pen ("No highlight" active): strips a partially-highlighted range instead of applying', () => {
+    const doc = makeDoc([
+      cardWithChildren(
+        tag('T'),
+        schema.nodes['card_body']!.create(null, [
+          schema.text('ab', [schema.marks['highlight']!.create({ color: 'yellow' })]),
+          schema.text('cd'),
+        ]),
+      ),
+    ]);
+    let start = -1;
+    doc.descendants((n, p) => {
+      if (n.isText && n.text === 'ab') start = p;
+      return true;
+    });
+    const base = EditorState.create({ doc });
+    const state = base.apply(
+      base.tr.setSelection(TextSelection.create(base.doc, start, start + 4)),
+    );
+    // Mixed range would normally take the apply branch — a null pen
+    // must strip instead.
+    const next = apply(state, applyHighlight(() => null));
+    expect(next).not.toBeNull();
+    expect(hasMarkOfNameWithAttr(next!.doc, 'ab', 'highlight', 'color')).toBeUndefined();
+    expect(hasMarkOfNameWithAttr(next!.doc, 'cd', 'highlight', 'color')).toBeUndefined();
+  });
 });
 
 // ---- applyShading (Mod-F11) ----
@@ -2915,6 +2942,30 @@ describe('applyShading (Mod-F11)', () => {
 
   it('default key binding: Mod-F11 → applyShading', () => {
     expect(DEFAULT_RIBBON_KEYS['applyShading']).toBe('Mod-F11');
+  });
+
+  it('null pen ("No background color" active): strips instead of applying', () => {
+    const doc = makeDoc([
+      cardWithChildren(
+        tag('T'),
+        schema.nodes['card_body']!.create(null, [
+          schema.text('ab', [schema.marks['shading']!.create({ color: 'D2D2D2' })]),
+          schema.text('cd'),
+        ]),
+      ),
+    ]);
+    let start = -1;
+    doc.descendants((n, p) => {
+      if (n.isText && n.text === 'ab') start = p;
+      return true;
+    });
+    const base = EditorState.create({ doc });
+    const state = base.apply(
+      base.tr.setSelection(TextSelection.create(base.doc, start, start + 4)),
+    );
+    const next = apply(state, applyShading(() => null));
+    expect(next).not.toBeNull();
+    expect(hasMarkOfNameWithAttr(next!.doc, 'ab', 'shading', 'color')).toBeUndefined();
   });
 });
 

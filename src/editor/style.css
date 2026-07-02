@@ -9180,9 +9180,6 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
   line-height: 1;
 }
 .pmd-pane-chip-expand:hover { color: var(--pmd-c-text-strong); }
-.pmd-pane-chip-expand[aria-pressed="true"] {
-  color: var(--pmd-c-accent);
-}
 .pmd-pane-chip-nav {
   flex: 0 0 auto;
   width: 18px;
@@ -9196,8 +9193,14 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
   line-height: 1;
 }
 .pmd-pane-chip-nav:hover { color: var(--pmd-c-text-strong); }
+/* Pressed = this pane's outline (nav) / expand mode is active. A subtle
+   box with the glyph color unchanged: an accent-colored glyph reads as
+   noise rather than state, since outlines default open on every pane.
+   Matches the focused chip's box treatment above. */
+.pmd-pane-chip-expand[aria-pressed="true"],
 .pmd-pane-chip-nav[aria-pressed="true"] {
-  color: var(--pmd-c-accent);
+  background: var(--pmd-c-hover-strong);
+  border-radius: 3px;
 }
 .pmd-pane-chip-close {
   flex: 0 0 auto;

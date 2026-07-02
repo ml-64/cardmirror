@@ -7,6 +7,17 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Multi-pane chip: pressed nav/expand buttons use a box, not an accent
+  glyph** (`src/editor/style.css`). `aria-pressed` on the unfocused chip's
+  outline + expand buttons colored the glyph `--pmd-c-accent` (from the
+  nav-rail PR, 5743557). Because outlines default open on every pane, the
+  accent glyph was effectively always-on — reading as an inexplicably blue
+  icon rather than a state indicator (user report). Now a subtle
+  `--pmd-c-hover-strong` box with the glyph color unchanged, consolidating
+  the two rules into one and matching the on-accent-overlay box the FOCUSED
+  chip already uses for the same states. Also a marginal win for the
+  colorblind-hazard list: state is now shape+contrast, not hue.
+
 - **Fix: invisible hover states on multi-pane footer buttons + receive pill**
   (`src/editor/style.css`). The pane open-file button, doc-stack chip,
   slot-picker buttons, and recovery-sidebar Done button had hover rules

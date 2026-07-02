@@ -48,6 +48,10 @@ see `DETAILED_CHANGELOG.md`.
   one:** the per-pane open-file button and doc-stack chip in the three-pane
   workspace, the slot-picker buttons, the recovery sidebar's Done button, and
   the card-sharing receive pill.
+- **Three-pane: the chip's outline and expand buttons now show their "on"
+  state as a subtle box instead of turning blue.** Since outlines are open
+  by default on every pane, the blue glyph read as noise rather than state;
+  the box matches how the focused pane's chip already flags the same thing.
 
 ## 0.1.0-beta.5 — 2026-07-01
 

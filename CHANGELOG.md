@@ -24,6 +24,9 @@ see `DETAILED_CHANGELOG.md`.
   palette engineered to stay distinguishable under red-green and blue-yellow
   color-vision deficiencies. Works in light and dark themes, and any colors
   you've set by hand still win.
+- **The timer can sit on either end of the ribbon.** A new Appearance
+  setting, **Timer position in the ribbon**, moves the timer panel to the
+  far right if you'd rather keep the file buttons anchored on the left.
 - **The timer is keyboard-drivable.** Eight new bindable commands — show/hide
   the panel, Start / Pause, start each of the three speech presets, start Aff
   or Neg prep, and Reset — all unbound by default (assign keys under Settings →

@@ -478,6 +478,11 @@ export interface Settings {
    *  Color-blind users can pick 'text'; minimalist users can pick
    *  'color' to drop the redundant A:/N: prefix. */
   timerPrepLabel: 'text' | 'color' | 'both';
+  /** Which edge of the ribbon the timer panel occupies when shown.
+   *  'left' (default) is the original placement — first flex child;
+   *  'right' moves it past the settings/right stack via flex order
+   *  (see html.pmd-timer-right in style.css). */
+  timerPosition: 'left' | 'right';
   /** When read mode is toggled (either direction), scroll the
    *  editor to the very top of the doc and place the cursor at
    *  the start. Default off — toggling read mode keeps the
@@ -1133,6 +1138,7 @@ const DEFAULTS: Settings = {
   timerFlashSeconds: [5, 3, 1],
   timerCompact: false,
   timerPrepLabel: 'both',
+  timerPosition: 'left',
   jumpToDocTopOnReadModeToggle: false,
   findResultsExpanded: false,
   findRememberLastQuery: false,
@@ -1338,6 +1344,7 @@ export interface SettingMeta {
     | 'timerProfile'
     | 'timerProfileDurations'
     | 'timerPrepLabel'
+    | 'timerPosition'
     | 'password'
     | 'voiceInputDevice'
     | 'voiceDashStyle'
@@ -2014,6 +2021,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     aliases: ['flashcard due', 'review reminder', 'due indicator', 'red dot'],
   },
   {
+    key: 'timerPosition',
+    label: 'Timer position in the ribbon',
+    description:
+      'Which edge of the ribbon the timer panel sits on when shown: the far left (default) or the far right.',
+    kind: 'timerPosition',
+    category: 'appearance',
+    section: 'Timer display',
+    aliases: ['timer left', 'timer right', 'timer side', 'move timer'],
+  },
+  {
     key: 'timerPrepLabel',
     label: 'Prep button label style',
     description:
@@ -2683,6 +2700,7 @@ function sanitize(s: Settings): Settings {
       s.timerPrepLabel === 'text' || s.timerPrepLabel === 'color'
         ? s.timerPrepLabel
         : 'both',
+    timerPosition: s.timerPosition === 'right' ? 'right' : 'left',
     jumpToDocTopOnReadModeToggle: !!s.jumpToDocTopOnReadModeToggle,
     findResultsExpanded: !!s.findResultsExpanded,
     findRememberLastQuery:

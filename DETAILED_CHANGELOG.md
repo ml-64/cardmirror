@@ -51,6 +51,17 @@ in each release, see `CHANGELOG.md`.
   dropping a row's own divider when it sits against a section boundary
   so lines never stack.
 
+- **Timer position setting** (`settings.ts`, `settings-ui.ts`,
+  `index.ts`, `style.css`, `MANUAL.md`). New `timerPosition`
+  ('left' | 'right', default left) at the top of Appearance's Timer
+  display section, rendered as a two-button segmented control (the
+  prep-label pattern). Applied as an `html.pmd-timer-right` class →
+  one CSS rule gives `#timer-panel` flex `order: 99`, which lands it
+  past the right stack at the true edge because `.ribbon-center`'s
+  flex-grow absorbs the slack; the panel's separator margin/border
+  flips from its right side to its left. No DOM surgery and no
+  timer-ui changes — the panel stays the ribbon's first child.
+
 - **Timer transport as bindable commands** (`ribbon-commands.ts`,
   `ribbon-groups.ts`, `MANUAL.md`). Eight new RibbonCommandIds —
   `timerToggleVisible`, `timerStartPause`, `timerPreset1/2/3`,

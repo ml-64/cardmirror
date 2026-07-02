@@ -2456,6 +2456,12 @@ function applyAnnotationShapes(on: boolean): void {
   else document.documentElement.removeAttribute('data-annotation-shapes');
 }
 
+/** Timer panel edge: html class consumed by style.css — 'right'
+ *  moves #timer-panel past the ribbon's right stack via flex order. */
+function applyTimerPosition(pos: 'left' | 'right'): void {
+  document.documentElement.classList.toggle('pmd-timer-right', pos === 'right');
+}
+
 /** Nav-pane analytic italics: an html class (same pattern as
  *  `pmd-nav-flat`) that italicizes analytic nav entries so they don't
  *  rely on the color cue — which dark mode and the flat nav both
@@ -2668,6 +2674,7 @@ settings.subscribe((s) => {
   applyColorVision(s.colorVisionFriendly);
   applyAnnotationShapes(s.annotationShapes);
   applyNavAnalyticItalics(s.navAnalyticItalics);
+  applyTimerPosition(s.timerPosition);
   applyCursorBlink(s.disableCursorBlink);
   if (s.readMode !== lastReadMode || s.hideEmphasisBordersInReadMode !== lastReadModeBorders) {
     lastReadMode = s.readMode;
@@ -2884,6 +2891,7 @@ applyReduceMotion(settings.get('reduceMotion'));
 applyColorVision(settings.get('colorVisionFriendly'));
 applyAnnotationShapes(settings.get('annotationShapes'));
 applyNavAnalyticItalics(settings.get('navAnalyticItalics'));
+applyTimerPosition(settings.get('timerPosition'));
 applyPillVisibility(); // default-off dropzone pill + quick-card cluster, at boot
 // Build the timer panel + button bindings. Visibility is gated
 // on `timerVisible` (transient per-window setting); the panel

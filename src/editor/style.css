@@ -10270,6 +10270,19 @@ html.pmd-emphasis-box .pmd-pane-editor .pmd-emphasis {
   font-family: var(--pmd-ui-font);
 }
 .pmd-timer-panel[hidden] { display: none; }
+/* "Timer position in the ribbon" = Far right (timerPosition setting,
+   html class set by applyTimerPosition). Flex order moves the panel
+   past every other ribbon section — .ribbon-center's flex-grow keeps
+   it pinned to the edge — and the separator flips sides. */
+html.pmd-timer-right #timer-panel {
+  order: 99;
+  margin-right: 0;
+  padding-right: 0;
+  border-right: none;
+  margin-left: 0.4rem;
+  padding-left: 0.4rem;
+  border-left: 1px solid var(--pmd-c-border-soft);
+}
 
 /* `#ribbon` prefix is required to beat the generic `#ribbon
    button` rule (1 ID + 1 element = higher specificity than

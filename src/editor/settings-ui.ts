@@ -826,6 +826,10 @@ class SettingsModal {
       row.appendChild(text);
       row.appendChild(buildTimerPrepLabelEditor());
       return row;
+    } else if (meta.kind === 'timerPosition') {
+      row.appendChild(text);
+      row.appendChild(buildTimerPositionEditor());
+      return row;
     } else if (meta.kind === 'colorOverrides') {
       row.appendChild(text);
       row.appendChild(buildColorOverridesEditor());
@@ -2906,6 +2910,36 @@ function buildTimerProfileDurationsEditor(): HTMLElement {
     lastProfile = active;
     buildFields();
   });
+  registerRowCleanup(wrap, () => unsub());
+  return wrap;
+}
+
+/** Two-button segmented control for which ribbon edge the timer
+ *  panel occupies. Same visual language as the prep-label control. */
+function buildTimerPositionEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-theme-editor';
+  const options: { value: Settings['timerPosition']; label: string }[] = [
+    { value: 'left', label: 'Far left' },
+    { value: 'right', label: 'Far right' },
+  ];
+  for (const o of options) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pmd-theme-editor-btn';
+    btn.textContent = o.label;
+    btn.dataset['value'] = o.value;
+    btn.addEventListener('click', () => settings.set('timerPosition', o.value));
+    wrap.appendChild(btn);
+  }
+  function refresh(): void {
+    const cur = settings.get('timerPosition');
+    for (const btn of wrap.querySelectorAll<HTMLButtonElement>('.pmd-theme-editor-btn')) {
+      btn.setAttribute('aria-pressed', btn.dataset['value'] === cur ? 'true' : 'false');
+    }
+  }
+  refresh();
+  const unsub = settings.subscribe(refresh);
   registerRowCleanup(wrap, () => unsub());
   return wrap;
 }

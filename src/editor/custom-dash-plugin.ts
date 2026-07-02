@@ -1,14 +1,17 @@
 /**
  * Custom dash autoformat, gated on the `customDash*` settings (default off).
  *
- * As you type the third hyphen of `---`, it's replaced with the configured dash
- * output (en/em dash, with or without surrounding spaces). Converting on the
- * third hyphen — rather than waiting for the next character — is why only `---`
- * is offered: a `--` rule would have to fire on the second hyphen and could
- * never tell a forthcoming `---` apart.
+ * As you type the last hyphen of the configured trigger (`---` classic, or
+ * `--`), it's replaced with the configured dash output (en/em dash, with or
+ * without surrounding spaces). The `--` trigger fires on the second hyphen —
+ * historically not offered because such a rule "could never tell a
+ * forthcoming --- apart", but as an explicit setting the ambiguity is
+ * resolved by the user's choice. In `--` mode the rule refuses to fire
+ * mid-hyphen-run (e.g. after pasted hyphens), so it only converts a clean
+ * pair.
  *
  * Word-parity revert: pressing Backspace immediately after the substitution
- * restores the literal `---` (rather than deleting a character). The pending
+ * restores the literal trigger (rather than deleting a character). The pending
  * revert is tracked in plugin state and invalidated by the very next
  * transaction, so it only applies to the keystroke right after the substitution.
  */
@@ -61,12 +64,23 @@ export function customDashPlugin(): Plugin<CustomDashState> {
         if (!settings.get('customDashEnabled')) return false;
         const { state } = view;
         const $from = state.doc.resolve(from);
-        // Need two hyphens immediately before this one (within the textblock) so
-        // this keystroke completes `---`.
-        if ($from.parentOffset < 2) return false;
-        if (state.doc.textBetween(from - 2, from) !== '--') return false;
+        const trigger = settings.get('customDashTrigger');
+        // Need trigger.length - 1 hyphens immediately before this one
+        // (within the textblock) so this keystroke completes the trigger.
+        const need = trigger.length - 1;
+        if ($from.parentOffset < need) return false;
+        if (state.doc.textBetween(from - need, from) !== '-'.repeat(need)) return false;
+        // `--` mode: don't convert inside a longer hyphen run (pasted
+        // hyphens, ASCII art) — only a clean pair fires.
+        if (
+          trigger === '--' &&
+          $from.parentOffset > need &&
+          state.doc.textBetween(from - need - 1, from - need) === '-'
+        ) {
+          return false;
+        }
         const output = dashOutput();
-        const start = from - 2;
+        const start = from - need;
         // Replace the two existing hyphens + the one being typed with the output.
         const tr = state.tr.insertText(output, start, to);
         const end = start + output.length;
@@ -86,8 +100,9 @@ export function customDashPlugin(): Plugin<CustomDashState> {
         if (!sel.empty || sel.from !== to) return false;
         // …and that text is still the configured output (defensive).
         if (view.state.doc.textBetween(from, to) !== dashOutput()) return false;
-        const tr = view.state.tr.insertText('---', from, to);
-        tr.setSelection(TextSelection.create(tr.doc, from + 3));
+        const trigger = settings.get('customDashTrigger');
+        const tr = view.state.tr.insertText(trigger, from, to);
+        tr.setSelection(TextSelection.create(tr.doc, from + trigger.length));
         view.dispatch(tr.scrollIntoView());
         return true;
       },

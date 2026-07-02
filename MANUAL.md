@@ -1609,8 +1609,9 @@ Typing helpers and the behavior of the cutting and condense commands
 
 - **Smart quotes** — curl a straight `'` / `"` to the right direction as you
   type; Backspace right after reverts. Off by default.
-- **Custom dash** — turn a typed `---` into an en or em dash (spaced or
-  unspaced) on the third hyphen; Backspace right after reverts. Off by default.
+- **Custom dash** — turn a typed `---` (or `--`, your choice) into an en
+  or em dash (spaced or unspaced) on the trigger's last hyphen;
+  Backspace right after reverts to the literal hyphens. Off by default.
 
 **New paragraph on Enter**
 

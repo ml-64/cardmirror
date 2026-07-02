@@ -2445,17 +2445,30 @@ const CUSTOM_DASH_OPTIONS: ReadonlyArray<[Settings['customDashStyle'], string]> 
   ['em-spaced', ' — em dash (spaced)'],
 ];
 
-/** A checkbox enabling the `---` remapping + an output dropdown that's disabled
- *  until the checkbox is on. */
+/** A checkbox enabling the remapping + a trigger dropdown ("---" or
+ *  "--") + an output dropdown, both disabled until the checkbox is on:
+ *  "Replace [---] with [-- em dash]". */
 function buildCustomDashEditor(): HTMLElement {
   const row = document.createElement('label');
   row.className = 'pmd-multi-doc-layout-mode-row';
   const cb = document.createElement('input');
   cb.type = 'checkbox';
   cb.checked = settings.get('customDashEnabled');
-  const labelText = document.createElement('span');
-  labelText.className = 'pmd-multi-doc-layout-mode-row-label';
-  labelText.textContent = 'Replace --- with';
+  const replaceText = document.createElement('span');
+  replaceText.className = 'pmd-multi-doc-layout-mode-row-label';
+  replaceText.textContent = 'Replace';
+  const triggerSelect = document.createElement('select');
+  triggerSelect.className = 'pmd-body-font-select';
+  for (const value of ['---', '--'] as const) {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = value;
+    opt.selected = value === settings.get('customDashTrigger');
+    triggerSelect.appendChild(opt);
+  }
+  const withText = document.createElement('span');
+  withText.className = 'pmd-multi-doc-layout-mode-row-label';
+  withText.textContent = 'with';
   const select = document.createElement('select');
   select.className = 'pmd-body-font-select';
   for (const [value, text] of CUSTOM_DASH_OPTIONS) {
@@ -2465,15 +2478,20 @@ function buildCustomDashEditor(): HTMLElement {
     opt.selected = value === settings.get('customDashStyle');
     select.appendChild(opt);
   }
+  triggerSelect.disabled = !cb.checked;
   select.disabled = !cb.checked;
   cb.addEventListener('change', () => {
     settings.set('customDashEnabled', cb.checked);
+    triggerSelect.disabled = !cb.checked;
     select.disabled = !cb.checked;
+  });
+  triggerSelect.addEventListener('change', () => {
+    settings.set('customDashTrigger', triggerSelect.value as Settings['customDashTrigger']);
   });
   select.addEventListener('change', () => {
     settings.set('customDashStyle', select.value as Settings['customDashStyle']);
   });
-  row.append(cb, labelText, select);
+  row.append(cb, replaceText, triggerSelect, withText, select);
   return row;
 }
 

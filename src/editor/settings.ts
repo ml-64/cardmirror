@@ -570,6 +570,11 @@ export interface Settings {
   enterAfterAnalytic: EnterAfterStyle;
   enterAfterUndertag: EnterAfterStyle;
   customDashStyle: 'en' | 'en-spaced' | 'em' | 'em-spaced';
+  /** What typed sequence the custom dash replaces: '---' (classic,
+   *  fires on the third hyphen) or '--' (fires on the second). An
+   *  explicit choice, so the old "a -- rule can't tell a forthcoming
+   *  --- apart" ambiguity doesn't apply — picking '--' IS the answer. */
+  customDashTrigger: '---' | '--';
   /** Microphone for voice control (MediaDeviceInfo.deviceId).
    *  Empty string = system default. Desktop only. */
   voiceInputDeviceId: string;
@@ -1188,6 +1193,7 @@ const DEFAULTS: Settings = {
   enterAfterAnalytic: 'normal',
   enterAfterUndertag: 'normal',
   customDashStyle: 'em',
+  customDashTrigger: '---',
   voiceInputDeviceId: '',
   voiceAutoSleepSeconds: 60,
   voiceDashStyle: 'em',
@@ -2121,7 +2127,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'customDashEnabled',
     label: 'Custom dash',
     description:
-      'As you type, replace "---" with a dash of your choice (en or em dash, with or without surrounding spaces). The replacement happens on the third hyphen; press Backspace right after to revert to the literal "---". Off by default.',
+      'As you type, replace "---" (or "--" — your choice) with a dash of your choice (en or em dash, with or without surrounding spaces). The replacement happens on the last hyphen of the trigger; press Backspace right after to revert to the literal hyphens. Off by default.',
     kind: 'customDash',
     category: 'editing',
     section: 'Typing',
@@ -2785,6 +2791,7 @@ function sanitize(s: Settings): Settings {
     customDashStyle: CUSTOM_DASH_STYLES.includes(s.customDashStyle as Settings['customDashStyle'])
       ? (s.customDashStyle as Settings['customDashStyle'])
       : 'em',
+    customDashTrigger: s.customDashTrigger === '--' ? '--' : '---',
     voiceInputDeviceId: typeof s.voiceInputDeviceId === 'string' ? s.voiceInputDeviceId : '',
     voiceAutoSleepSeconds:
       typeof s.voiceAutoSleepSeconds === 'number' && s.voiceAutoSleepSeconds >= 0

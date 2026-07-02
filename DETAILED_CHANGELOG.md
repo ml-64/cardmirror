@@ -51,6 +51,19 @@ in each release, see `CHANGELOG.md`.
   dropping a row's own divider when it sits against a section boundary
   so lines never stack.
 
+- **Custom dash: configurable trigger** (`settings.ts`,
+  `custom-dash-plugin.ts`, `settings-ui.ts`, `MANUAL.md`). New
+  `customDashTrigger` ('---' default | '--'). The plugin's original
+  header ruled out a `--` rule because it "could never tell a
+  forthcoming --- apart" — as an explicit user choice that ambiguity
+  dissolves (picking '--' IS the answer). The conversion fires on the
+  trigger's last hyphen; in '--' mode the rule refuses to fire
+  mid-hyphen-run (a preceding third hyphen — pasted runs, ASCII art —
+  blocks it) so only a clean pair converts. Backspace-revert restores
+  the configured trigger. The settings row reads "Replace [---|--]
+  with [dash style]", both dropdowns gated on the enable checkbox.
+  5 new tests (12 total in custom-dash.test.ts).
+
 - **"New paragraph on Enter" settings** (`enter-style.ts` NEW,
   `settings.ts`, `settings-ui.ts`, `index.ts`, `MANUAL.md`). Six
   `enterAfter{Pocket,Hat,Block,Tag,Analytic,Undertag}` settings

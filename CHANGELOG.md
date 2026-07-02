@@ -24,6 +24,9 @@ see `DETAILED_CHANGELOG.md`.
   palette engineered to stay distinguishable under red-green and blue-yellow
   color-vision deficiencies. Works in light and dark themes, and any colors
   you've set by hand still win.
+- **Custom dash can trigger on `--`.** The custom dash setting now lets you
+  choose what gets replaced — the classic `---`, or just `--` for a quicker
+  dash. Backspace right after still reverts to the literal hyphens.
 - **Choose what Enter creates after each structural style.** Six new
   Editing settings — one each for Pocket, Hat, Block, Tag, Analytic, and
   Undertag — control what pressing Enter at the end of that style creates:

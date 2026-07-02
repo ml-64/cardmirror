@@ -60,9 +60,14 @@ function makeView(body: string) {
   };
 }
 
-function configure(enabled: boolean, style: 'en' | 'en-spaced' | 'em' | 'em-spaced' = 'em') {
+function configure(
+  enabled: boolean,
+  style: 'en' | 'en-spaced' | 'em' | 'em-spaced' = 'em',
+  trigger: '---' | '--' = '---',
+) {
   settings.set('customDashEnabled', enabled);
   settings.set('customDashStyle', style);
+  settings.set('customDashTrigger', trigger);
 }
 
 describe('dashOutput', () => {
@@ -114,5 +119,41 @@ describe('custom dash plugin', () => {
   it('does not fire without two preceding hyphens', () => {
     configure(true, 'em');
     expect(makeView('ab').typeHyphen()).toBe(false);
+  });
+});
+
+describe('custom dash with the "--" trigger', () => {
+  it('converts on the second hyphen', () => {
+    configure(true, 'em', '--');
+    const v = makeView('a -');
+    expect(v.typeHyphen()).toBe(true);
+    expect(v.body()).toBe('a \u2014');
+  });
+
+  it('Backspace immediately after reverts to the literal --', () => {
+    configure(true, 'em', '--');
+    const v = makeView('a -');
+    v.typeHyphen();
+    expect(v.backspace()).toBe(true);
+    expect(v.body()).toBe('a --');
+  });
+
+  it('does not fire mid-hyphen-run (pasted hyphens before the pair)', () => {
+    configure(true, 'em', '--');
+    const v = makeView('a ---');
+    expect(v.typeHyphen()).toBe(false);
+    expect(v.body()).toBe('a ---');
+  });
+
+  it('does not fire on the first hyphen', () => {
+    configure(true, 'em', '--');
+    const v = makeView('a ');
+    expect(v.typeHyphen()).toBe(false);
+  });
+
+  it('"---" trigger still ignores the second hyphen', () => {
+    configure(true, 'em', '---');
+    const v = makeView('a -');
+    expect(v.typeHyphen()).toBe(false);
   });
 });

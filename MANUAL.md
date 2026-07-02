@@ -1193,9 +1193,11 @@ reach. On macOS, voice requires Apple Silicon.
 ### Starting a session
 
 **Ctrl-Shift-V** turns the microphone on. A **status pill** appears
-showing whether CardMirror is listening, the active **pen**, what it last
-heard, and a live mic level. Click the pill to choose which microphone to
-use. To park the mic without ending the session, say **`voice sleep`**; say
+showing whether CardMirror is listening, the current **mode** as a
+labeled badge (command / dictation / paint / asleep — always visible, so
+you never have to read the mode from the dot's color alone), the active
+**pen**, what it last heard, and a live mic level. Click the pill to
+choose which microphone to use. To park the mic without ending the session, say **`voice sleep`**; say
 **`voice wake`** to start listening again. The mic also **auto-sleeps**
 after a stretch of silence (configurable) so a forgotten session doesn't
 keep transcribing the room — the pill dims as a warning before it does.

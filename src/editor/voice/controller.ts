@@ -186,7 +186,7 @@ export class VoiceController {
         this.pill?.setAutoSleepCountdown(level.autoSleepRemainingMs ?? null);
         if (!announcedReady && !level.calibrating) {
           announcedReady = true;
-          this.pill?.setEcho('listening — command mode', true);
+          this.pill?.setEcho('listening', true);
           this.pill?.earconMode('command');
         }
       }),

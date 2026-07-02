@@ -51,6 +51,28 @@ in each release, see `CHANGELOG.md`.
   dropping a row's own divider when it sits against a section boundary
   so lines never stack.
 
+- **Accessibility: persistent voice-mode badge** (`voice/ui.ts`,
+  `style.css`, `MANUAL.md`). Color-audit item (MEDIUM-HIGH): the voice
+  session's mode was conveyed by dot hue + a matching editor-boundary
+  ring — dictation green vs paint amber is a classic red-green
+  confusion pair — and the only text redundancy was the transition hint
+  `setMode()` wrote into the echo slot, silently overwritten by the
+  next recognized word. The pill now carries a dedicated mode badge
+  (command / dictation / paint / asleep chip between the dot and the
+  pen badge, styled in the pen chip's language: mixed case, mode-
+  colored text on the matching soft tint — accent/success/warning-soft,
+  the same tokens as the editor ring) that only `setMode()` writes, so
+  echo traffic can never clobber it. The color-vision preset remaps the
+  tokens for free. With the badge naming the mode persistently, the
+  echo's mode narration became redundant on screen and was trimmed:
+  `setMode` now clears the echo for command/dictation and keeps only
+  guidance the badge can't carry ('say "voice wake" to resume', 'speak
+  words to ink them'), and the post-calibration message dropped
+  '— command mode'. The badge is aria-live polite so mode changes stay
+  announced to screen readers now that the echo no longer narrates
+  them. Always-on by design (no toggle — it corrects a feedback gap
+  rather than adding a presentation preference).
+
 - **Accessibility: annotation underline shapes toggle** (`settings.ts`,
   `index.ts`, `style.css`, `MANUAL.md`). The color audit flagged the
   in-document annotation ranges as HIGH severity for red-green CVD: the

@@ -19,6 +19,7 @@ export class VoicePill {
   private dismissMenu: (() => void) | null = null;
 
   private penEl: HTMLElement;
+  private modeEl: HTMLElement;
 
   constructor(private onStop?: () => void) {
     this.el = document.createElement('div');
@@ -33,6 +34,15 @@ export class VoicePill {
     const dot = document.createElement('span');
     dot.className = 'pmd-voice-dot';
     dot.setAttribute('aria-hidden', 'true');
+    // Persistent mode badge — unlike the transition hint in the echo
+    // slot (overwritten by the next recognized word), this always shows
+    // the current mode as text, so mode never rests on dot hue alone
+    // (color-vision audit). Only setMode() writes it.
+    this.modeEl = document.createElement('span');
+    this.modeEl.className = 'pmd-voice-mode-badge';
+    // The badge is the announcement channel for mode changes now that
+    // the echo no longer narrates them (it was redundant on screen).
+    this.modeEl.setAttribute('aria-live', 'polite');
     this.penEl = document.createElement('span');
     this.penEl.className = 'pmd-voice-pen';
     this.echoEl = document.createElement('span');
@@ -43,7 +53,7 @@ export class VoicePill {
     meter.setAttribute('aria-hidden', 'true');
     this.meterFill = document.createElement('div');
     meter.appendChild(this.meterFill);
-    this.el.append(dot, this.penEl, this.echoEl, meter);
+    this.el.append(dot, this.modeEl, this.penEl, this.echoEl, meter);
     // Click/Enter/Space opens the session menu (mic picker + stop) —
     // an accidental activation must not kill the session.
     this.el.addEventListener('click', () => this.toggleMenu());
@@ -156,13 +166,17 @@ export class VoicePill {
       'pmd-voice-mode-asleep',
     );
     this.el.classList.add(`pmd-voice-mode-${mode}`);
-    const label =
+    this.modeEl.textContent = mode;
+    // The badge names the mode; the echo carries only guidance the
+    // badge can't (how to leave the mode). Command/dictation need
+    // none — clear instead of restating the badge.
+    const hint =
       mode === 'asleep'
-        ? 'asleep — say "voice wake"'
+        ? 'say "voice wake" to resume'
         : mode === 'paint'
-          ? 'paint — speak words to ink them'
-          : mode;
-    this.setEcho(label, true);
+          ? 'speak words to ink them'
+          : '';
+    this.setEcho(hint, true);
   }
 
   /** Active-pen badge (sticky state, §3.1 — always visible). */

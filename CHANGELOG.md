@@ -24,6 +24,11 @@ see `DETAILED_CHANGELOG.md`.
   palette engineered to stay distinguishable under red-green and blue-yellow
   color-vision deficiencies. Works in light and dark themes, and any colors
   you've set by hand still win.
+- **The voice pill always names its mode.** The voice status pill now
+  carries a persistent COMMAND / DICTATION / PAINT / ASLEEP badge, so the
+  current mode is readable as text instead of only as the colored dot —
+  previously the mode name flashed briefly and was overwritten by the next
+  thing you said.
 - **Annotations distinguishable by shape.** A new Accessibility toggle,
   **Distinguish annotations by underline shape**, adds a shape-coded
   underline to each kind of in-document annotation: comments dotted,

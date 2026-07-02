@@ -10614,6 +10614,35 @@ body.pmd-multi-doc .pmd-voice-pill {
 .pmd-voice-pill.pmd-voice-mode-command .pmd-voice-dot { background: var(--pmd-c-accent); }
 .pmd-voice-pill.pmd-voice-mode-dictation .pmd-voice-dot { background: var(--pmd-c-success); }
 .pmd-voice-pill.pmd-voice-mode-asleep .pmd-voice-dot { background: var(--pmd-c-text-faint); }
+/* Persistent mode badge — the text channel for the mode (the dot/ring
+   hue alone is a red-green trap: dictation green vs paint amber).
+   Same chip language as the pen badge (.pmd-voice-pen): mixed case,
+   mode-colored text on the matching soft tint. The text does the
+   accessibility work, the tint just echoes the dot. */
+.pmd-voice-mode-badge {
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--pmd-c-text-muted);
+  background: var(--pmd-c-divider-faint);
+  border-radius: 999px;
+  padding: 0 0.4rem;
+}
+.pmd-voice-pill.pmd-voice-mode-command .pmd-voice-mode-badge {
+  background: var(--pmd-c-accent-soft);
+  color: var(--pmd-c-accent);
+}
+.pmd-voice-pill.pmd-voice-mode-dictation .pmd-voice-mode-badge {
+  background: var(--pmd-c-success-soft);
+  color: var(--pmd-c-success);
+}
+.pmd-voice-pill.pmd-voice-mode-paint .pmd-voice-mode-badge {
+  background: var(--pmd-c-warning-soft);
+  color: var(--pmd-c-warning);
+}
+.pmd-voice-pill.pmd-voice-mode-asleep .pmd-voice-mode-badge {
+  color: var(--pmd-c-text-faint);
+}
 .pmd-voice-echo {
   overflow: hidden;
   text-overflow: ellipsis;

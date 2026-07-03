@@ -5,6 +5,31 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## Unreleased
+
+- **Relay hardening: blocking DB work moved off the event loop**
+  (`relay/server.py`, `relay/Dockerfile`). Load-testing found the
+  single-worker relay wedged permanently at ~200 POST/s: the async
+  POST handler ran synchronous SQLAlchemy commits on the asyncio event
+  loop, and under burst the loop + threadpool-dependency convoy stopped
+  reading new connections entirely (CPU idle, DB pool idle, established
+  SSE streams unaffected — but new requests dead until restart).
+  `POST /relay/messages` is now a sync `def` handler (Starlette runs it
+  in the threadpool, like GET/DELETE already were), with the request
+  body read on the loop via a small async dependency. Because
+  asyncio.Queues are loop-owned and not thread-safe, the store-then-push
+  fan-out is scheduled onto the loop with `call_soon_threadsafe` instead
+  of being touched from the worker thread. The connection pool is sized
+  to the threadpool (40/0, `pool_timeout=5`) and pool exhaustion maps to
+  a clean 503; the Dockerfile adds `--limit-concurrency 4096` as a
+  connection-storm backstop (it counts long-lived SSE streams, so it
+  must stay far above the expected stream population). Measured: the
+  ~200 msg/s permanent-wedge cliff is gone — ~590 msg/s sustained on
+  the test box with stable latencies (ack p95 ≤51 ms), delivery p95
+  90 ms → 25 ms at 100 msg/s, zero lost pushes across an 18,443-message
+  ramp, and the 20-check wire-contract suite passes identically before
+  and after (old clients unaffected by construction).
+
 ## 0.1.0-beta.7 — 2026-07-02
 
 - **Card sharing v2 transport: SSE push + self-hosted relays**

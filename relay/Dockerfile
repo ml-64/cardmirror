@@ -6,4 +6,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY server.py .
 
 # Single worker ONLY: the SSE push registry is in-process.
-CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# --limit-concurrency is a connection-storm backstop; it counts
+# long-lived SSE streams too, so keep it far above the expected
+# concurrent-stream population.
+CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-8000} --limit-concurrency 4096"]

@@ -25,6 +25,13 @@ Design notes:
     (lazy expiry via a created_at cutoff on reads + a background sweeper).
   - The in-process push registry requires a SINGLE worker process (run
     plain `uvicorn`, no --workers).
+  - DB-touching handlers are sync `def` on purpose: Starlette runs them
+    in its threadpool, keeping the blocking psycopg2 driver off the
+    event loop (which must stay free to serve SSE streams and accept
+    connections). The pool is sized to the threadpool; exhaustion sheds
+    as 503. Run uvicorn with `--limit-concurrency` sized WELL ABOVE the
+    expected number of concurrent SSE streams (it counts long-lived
+    connections) — e.g. 4096 — as a connection-storm backstop.
 
 PRIVACY: the card payload is end-to-end encrypted by the CardMirror
 client. This server stores the bundle OPAQUELY (the `body` column) and
@@ -57,6 +64,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from sqlalchemy import Column, DateTime, Index, String, create_engine
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.exc import TimeoutError as SATimeoutError
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 logging.basicConfig(level=logging.INFO)
@@ -68,7 +76,17 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL environment variable is required")
 
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+# Pool sized to Starlette's sync-handler threadpool (AnyIO default: 40
+# tokens) so worker threads never convoy behind connection checkout. A
+# short pool_timeout turns exhaustion into a clean 503 (see the
+# TimeoutError handler below) instead of an unbounded queue.
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_size=40,
+    max_overflow=0,
+    pool_timeout=5,
+)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()
 
@@ -106,6 +124,25 @@ STREAM_QUEUE_MAX = 100
 # routing code → open stream queues (single-worker only; see module doc)
 _streams: dict[str, set["asyncio.Queue[dict]"]] = {}
 
+# The server's one event loop, captured at startup. Sync (threadpool)
+# handlers must never touch _streams or its asyncio.Queues directly —
+# they are loop-owned and not thread-safe. All push fan-out is scheduled
+# onto the loop via call_soon_threadsafe(_push_to_streams, …).
+_loop: Optional[asyncio.AbstractEventLoop] = None
+
+
+def _push_to_streams(recipient: str, message: dict) -> None:
+    """Runs ON the event loop. A full queue sheds the push — the
+    client's next catch-up poll covers it (at-least-once delivery)."""
+    queues = _streams.get(recipient)
+    if not queues:
+        return
+    for q in list(queues):
+        try:
+            q.put_nowait(message)
+        except asyncio.QueueFull:
+            pass
+
 
 def _sweep(db: Session) -> int:
     cutoff = datetime.utcnow() - TTL
@@ -134,12 +171,22 @@ def _sweeper_loop() -> None:
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
+    global _loop
+    _loop = asyncio.get_running_loop()
     Base.metadata.create_all(engine)
     threading.Thread(target=_sweeper_loop, daemon=True).start()
     yield
 
 
 app = FastAPI(title="CardMirror relay", lifespan=_lifespan)
+
+
+@app.exception_handler(SATimeoutError)
+async def _pool_exhausted(_request: Request, _exc: SATimeoutError) -> JSONResponse:
+    # Connection-pool checkout timed out: the server is at capacity.
+    # Shed with a clean 503 — clients retry (send is user-driven; polls
+    # retry next interval; streams reconnect with backoff).
+    return JSONResponse({"detail": "relay busy, retry shortly"}, status_code=503)
 
 
 # ── Auth ─────────────────────────────────────────────────────────────
@@ -171,14 +218,28 @@ def relay_health() -> dict:
     return {"ok": True}
 
 
+async def _raw_body(request: Request) -> bytes:
+    """Reads the request body on the event loop (a sync handler cannot
+    await); everything after this runs on a worker thread."""
+    return await request.body()
+
+
+# Deliberately a sync `def`: Starlette runs it in the threadpool, so the
+# blocking psycopg2 commit never executes on the event loop. Under
+# sustained load the loop previously convoyed and stopped reading new
+# connections entirely (permanent accept-path stall at ~200 msg/s,
+# CPU idle); threadpool execution + the pool sizing above removes the
+# failure mode — overload now degrades to clean 503s instead.
 @app.post("/relay/messages", status_code=202, dependencies=[Depends(require_relay_token)])
-async def post_message(request: Request, db: Session = Depends(get_db)) -> JSONResponse:
-    raw = await request.body()
+def post_message(
+    raw: bytes = Depends(_raw_body),
+    content_encoding: Optional[str] = Header(None),
+    db: Session = Depends(get_db),
+) -> JSONResponse:
     if len(raw) > MAX_COMPRESSED_BYTES:
         raise HTTPException(413, "payload too large")
 
-    encoding = (request.headers.get("content-encoding") or "").lower()
-    if "gzip" in encoding:
+    if "gzip" in (content_encoding or "").lower():
         try:
             data = gzip.decompress(raw)
         except Exception:
@@ -206,16 +267,12 @@ async def post_message(request: Request, db: Session = Depends(get_db)) -> JSONR
     db.commit()
     logger.info("[relay] POST recipient=%s… msgId=%s", recipient[:8], msg_id[:8])
 
-    # Store-then-push. A full queue sheds the push — the client's next
-    # catch-up poll covers it.
-    queues = _streams.get(recipient)
-    if queues:
+    # Store-then-push. This runs on a worker thread; asyncio.Queues are
+    # loop-owned and NOT thread-safe, so the fan-out is scheduled onto
+    # the loop rather than touched here.
+    if _loop is not None:
         message = {**payload, "msgId": msg_id, "receivedAt": _epoch_ms(row.created_at)}
-        for q in list(queues):
-            try:
-                q.put_nowait(message)
-            except asyncio.QueueFull:
-                pass
+        _loop.call_soon_threadsafe(_push_to_streams, recipient, message)
     return JSONResponse({"msgId": msg_id}, status_code=202)
 
 

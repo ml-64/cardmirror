@@ -5,6 +5,18 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## Unreleased
+
+### Changed
+
+- **Self-hosted relay: hardened against heavy traffic.** The bundled
+  relay server (`relay/`) now stays responsive under sustained send
+  bursts that could previously stall it until restarted. When genuinely
+  overloaded it declines new requests cleanly (the app just retries)
+  instead of hanging. No configuration changes needed; the wire
+  protocol is unchanged, so existing apps and older CardMirror versions
+  work exactly as before.
+
 ## 0.1.0-beta.7 — 2026-07-02
 
 ### Added

@@ -32,6 +32,9 @@ a VPS…). Requirements:
   string — it's the shared bearer, not the privacy mechanism).
 - **Exactly one worker process** (`uvicorn server:app`, no
   `--workers`): the live-push registry is in-process.
+- Recommended: `--limit-concurrency 4096` (the Dockerfile sets this) as
+  a connection-storm backstop. It counts long-lived SSE streams too, so
+  keep it far above the number of apps you expect connected at once.
 - The tables are created automatically on first start.
 
 Health check: `GET /relay/health` → `{"ok": true}` (no auth).

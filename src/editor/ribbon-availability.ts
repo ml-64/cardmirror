@@ -21,6 +21,7 @@
 
 import { RIBBON_COMMAND_IDS, type RibbonCommandId } from './ribbon-commands.js';
 import { settings } from './settings.js';
+import { collabEnabled } from './collab/collab-gate.js';
 import { getElectronHost, isWindowsHost } from './host/index.js';
 
 const FLOW_COMMANDS = new Set<RibbonCommandId>([
@@ -34,6 +35,13 @@ const FLOW_COMMANDS = new Set<RibbonCommandId>([
 ]);
 
 /** Whether a command should be offered in the discovery surfaces now. */
+const COLLAB_COMMANDS = new Set<RibbonCommandId>([
+  'collabStartSession',
+  'collabJoinSession',
+  'collabCopyShareCode',
+  'collabEndSession',
+]);
+
 export function isRibbonCommandAvailable(id: RibbonCommandId): boolean {
   if (FLOW_COMMANDS.has(id)) return isWindowsHost();
   if (id === 'toggleVoice') return getElectronHost() !== null;
@@ -47,6 +55,7 @@ export function isRibbonCommandAvailable(id: RibbonCommandId): boolean {
     );
   }
   if (id === 'openCardCutter') return settings.get('cardCutterEnabled') === true;
+  if (COLLAB_COMMANDS.has(id)) return collabEnabled();
   return true;
 }
 

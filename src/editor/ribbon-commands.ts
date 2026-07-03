@@ -4515,6 +4515,10 @@ export type RibbonCommandId =
   | 'addQuickCard'
   | 'manageQuickCards'
   | 'openQuickCardSearch'
+  | 'collabStartSession'
+  | 'collabJoinSession'
+  | 'collabCopyShareCode'
+  | 'collabEndSession'
   | 'insertImage'
   | 'zoomIn'
   | 'zoomOut'
@@ -4705,6 +4709,10 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'addQuickCard',
   'manageQuickCards',
   'openQuickCardSearch',
+  'collabStartSession',
+  'collabJoinSession',
+  'collabCopyShareCode',
+  'collabEndSession',
   'insertImage',
   'zoomIn',
   'zoomOut',
@@ -4862,6 +4870,10 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   addQuickCard: 'Add Quick Card',
   manageQuickCards: 'Manage Quick Cards',
   openQuickCardSearch: 'Search Everything',
+  collabStartSession: 'Start Collaboration Session',
+  collabJoinSession: 'Join Collaboration Session',
+  collabCopyShareCode: 'Copy Session Share Code',
+  collabEndSession: 'End or Leave Collaboration Session',
   insertImage: 'Insert Image at Cursor',
   zoomIn: 'Zoom In',
   zoomOut: 'Zoom Out',
@@ -4926,6 +4938,10 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
  * Keep entries lowercase. Only commands that need an alias appear here.
  */
 export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly string[]>> = {
+  collabStartSession: ['collaborate', 'coedit', 'co-edit', 'share session', 'live edit'],
+  collabJoinSession: ['join session', 'share code', 'coedit'],
+  collabCopyShareCode: ['share code', 'invite code', 'session code'],
+  collabEndSession: ['leave session', 'stop session', 'stop collaborating'],
   repairParagraphIntegrity: [
     'paragraph integrity',
     'split paragraphs',
@@ -5126,6 +5142,10 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   addQuickCard: '',
   manageQuickCards: '',
   openQuickCardSearch: 'Mod-Shift-Space',
+  collabStartSession: '',
+  collabJoinSession: '',
+  collabCopyShareCode: '',
+  collabEndSession: '',
   newSpeechDocument: '',
   markActiveAsSpeech: '',
   insertImage: '',
@@ -5341,6 +5361,10 @@ export interface RibbonContext {
   /** Open the floating quick-card search palette. Works with no
    *  active doc (browse-only; insert no-ops). */
   openQuickCardSearch: () => void;
+  collabStartSession: () => void;
+  collabJoinSession: () => void;
+  collabCopyShareCode: () => void;
+  collabEndSession: () => void;
   /** Open the file picker that prompts for an image to insert at
    *  the editor's current cursor. Pasting an image from the
    *  clipboard goes through paste-plugin instead — no ctx hook
@@ -5465,6 +5489,10 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   addQuickCard: () => {},
   manageQuickCards: () => {},
   openQuickCardSearch: () => {},
+  collabStartSession: () => {},
+  collabJoinSession: () => {},
+  collabCopyShareCode: () => {},
+  collabEndSession: () => {},
   insertImage: () => {},
   zoomIn: () => {},
   zoomOut: () => {},
@@ -5948,6 +5976,30 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.openQuickCardSearch();
+        return true;
+      };
+    case 'collabStartSession':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.collabStartSession();
+        return true;
+      };
+    case 'collabJoinSession':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.collabJoinSession();
+        return true;
+      };
+    case 'collabCopyShareCode':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.collabCopyShareCode();
+        return true;
+      };
+    case 'collabEndSession':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.collabEndSession();
         return true;
       };
     case 'insertImage':

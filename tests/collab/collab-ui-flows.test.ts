@@ -1,0 +1,141 @@
+// @vitest-environment jsdom
+/**
+ * UI-flow integration: startSessionFlow / endSessionFlow drive the real
+ * seams (collab-hooks plugin source + transaction tagger) the way
+ * index.ts does — including the M0 payoff: with read mode ON, a
+ * partner's remote edit still lands because the tagger stamps
+ * sync-origin on the binding's transactions before filterTransaction
+ * runs.
+ */
+
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { EditorState, type Plugin } from 'prosemirror-state';
+import { EditorView } from 'prosemirror-view';
+import { schema } from '../../src/schema/index.js';
+import { readModePlugin, PMD_READ_MODE_TOGGLE } from '../../src/editor/read-mode-plugin.js';
+import {
+  collabPluginSource,
+  tagCollabTransaction,
+} from '../../src/editor/collab/collab-hooks.js';
+import { settings } from '../../src/editor/settings.js';
+import { CollabSession } from '../../src/editor/collab/collab-session.js';
+import * as collabUi from '../../src/editor/collab/collab-ui.js';
+import { decodeShareCode } from '../../src/editor/collab/collab-crypto.js';
+import { RoomsClient } from '../../src/editor/collab/room-client.js';
+import { startRoomsMock, type RoomsMock } from './_rooms-mock.js';
+import { settle, sleep, simpleDoc, docText, typeAfter, mkView } from './_loro-helpers.js';
+
+let mock: RoomsMock;
+
+beforeAll(async () => {
+  mock = await startRoomsMock();
+  localStorage.setItem('pmd-collab', '1'); // open the gate
+  settings.set('pairingRelayUrl', mock.url);
+  settings.set('pairingRelayToken', mock.token);
+  const chip = document.createElement('div');
+  chip.id = 'collab-chip';
+  chip.hidden = true;
+  document.body.appendChild(chip);
+  window.confirm = vi.fn(() => true);
+});
+afterAll(async () => {
+  await mock.close();
+  localStorage.removeItem('pmd-collab');
+});
+
+/** index.ts's plugin assembly in miniature: read mode + whatever the
+ *  collab plugin source supplies, with the dispatch tagger applied. */
+function buildMiniPlugins(): Plugin[] {
+  return [readModePlugin, ...(collabPluginSource()?.plugins() ?? [])];
+}
+
+function mkIndexStyleView(): EditorView {
+  const el = document.createElement('div');
+  document.body.appendChild(el);
+  const state = EditorState.create({ doc: simpleDoc('shared prep doc contents'), plugins: buildMiniPlugins() });
+  const view: EditorView = new EditorView(el, {
+    state,
+    dispatchTransaction(tx) {
+      tagCollabTransaction(tx);
+      view.updateState(view.state.apply(tx));
+    },
+  });
+  return view;
+}
+
+describe('collab UI flows through the editor seams', () => {
+  it('start → partner joins → read-mode host still receives edits → end', async () => {
+    let hostView = mkIndexStyleView();
+    const deps = {
+      getView: () => hostView,
+      refreshPlugins: () => {
+        hostView.updateState(hostView.state.reconfigure({ plugins: buildMiniPlugins() }));
+      },
+      newSessionDoc: () => {},
+    };
+
+    // The start flow copies the share code to the clipboard; capture it.
+    let shareCode = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: (t: string) => {
+          shareCode = t;
+          return Promise.resolve();
+        },
+      },
+    });
+
+    // Start a session on the host's current doc.
+    await collabUi.startSessionFlow(deps);
+    expect(collabUi.activeSession()).not.toBeNull();
+    expect(collabPluginSource()?.ownsUndo()).toBe(true);
+    await settle();
+    const chip = document.getElementById('collab-chip')!;
+    expect(chip.hidden).toBe(false);
+    expect(chip.textContent).toContain('Session');
+    expect(shareCode.startsWith('cmshare1.')).toBe(true);
+
+    // A partner joins with the share code (session layer directly — the
+    // join *flow* differs only by the paste dialog).
+    let partnerEnded = false;
+    const client = new RoomsClient({ baseUrl: () => mock.url, token: () => mock.token });
+    const partner = await CollabSession.join({
+      ...decodeShareCode(shareCode)!,
+      client,
+      flushMs: 25,
+      minBackoffMs: 20,
+      maxBackoffMs: 60,
+      callbacks: { onEnded: () => (partnerEnded = true) },
+    });
+    const partnerView = mkView(partner.plugins());
+    await settle();
+    partner.start();
+    await sleep(80);
+    expect(docText(partnerView.state.doc)).toContain('shared prep doc contents');
+
+    // Put the HOST in read mode, then the partner edits: the remote
+    // transaction must land anyway (tagger stamps sync-origin; the M0
+    // read-mode whitelist admits it).
+    hostView.dispatch(hostView.state.tr.setMeta(PMD_READ_MODE_TOGGLE, true));
+    typeAfter(partnerView, 'prep doc', ' updated');
+    await sleep(250);
+    expect(docText(hostView.state.doc)).toContain('prep doc updated');
+    // ...while the read-mode lock still blocks the host's own typing.
+    const before = docText(hostView.state.doc);
+    hostView.dispatch(hostView.state.tr.insertText('X', 2));
+    expect(docText(hostView.state.doc)).toBe(before);
+    hostView.dispatch(hostView.state.tr.setMeta(PMD_READ_MODE_TOGGLE, false));
+
+    // Host ends the session: partner is notified, seams clear, chip hides.
+    await collabUi.endSessionFlow(deps);
+    await sleep(120);
+    expect(collabUi.activeSession()).toBeNull();
+    expect(collabPluginSource()).toBeNull();
+    expect(chip.hidden).toBe(true);
+    expect(partnerEnded).toBe(true);
+    await partner.stop();
+    partnerView.destroy();
+    hostView.destroy();
+  }, 20_000);
+});

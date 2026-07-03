@@ -7,6 +7,30 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Collab M2 (coediting branch): session UI wiring** (`collab-gate.ts`
+  NEW, `collab-hooks.ts` NEW, `collab-ui.ts` NEW; `index.ts`,
+  `index.html`, `ribbon-commands.ts`, `ribbon-groups.ts`,
+  `ribbon-availability.ts`). Four view-less ribbon commands under a new
+  "Collaboration" group — Start / Join / Copy Session Share Code /
+  End-or-Leave — all unbound, searchable in the command bar, and hidden
+  entirely unless the collab gate is open (`VITE_COLLAB=1` at build
+  time or a manual localStorage flip; packaged releases stay dormant).
+  Everything heavy loads lazily: the editor core touches only two
+  loro-free seams (`collab-hooks.ts`) — a transaction tagger in
+  `dispatchTransaction` that stamps sync-origin on the Loro binding's
+  transactions BEFORE filters run (so read mode and the AI coordinator
+  admit remote edits — the M0 contract cashing in), and a plugin source
+  consulted by `buildEditorPlugins` that appends the session's binding
+  plugins and swaps `history()` for the CRDT undo manager while a
+  session is live (undo never reverts a partner's edits). Session flows
+  in `collab-ui.ts`: host = share code auto-copied to the clipboard;
+  join = paste-code prompt into a fresh unsaved doc populated by the
+  binding; a `#collab-chip` status segment shows synced / sending /
+  offline-with-queue; end/leave confirms and restores the normal plugin
+  stack. Integration test (`collab-ui-flows.test.ts`) drives the real
+  flows end-to-end over the mock relay, including read-mode-on remote
+  delivery with local typing still locked.
+
 - **Collab M2 (coediting branch): rooms protocol + client sync core**
   (`relay/server.py` rooms endpoints; `src/editor/collab/` NEW —
   `collab-crypto.ts`, `room-client.ts`, `collab-session.ts`;

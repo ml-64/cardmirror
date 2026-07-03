@@ -40,6 +40,15 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
     ],
   },
   {
+    title: 'Collaboration',
+    commands: [
+      'collabStartSession',
+      'collabJoinSession',
+      'collabCopyShareCode',
+      'collabEndSession',
+    ],
+  },
+  {
     title: 'Quick Cards',
     commands: ['addQuickCard', 'manageQuickCards'],
   },

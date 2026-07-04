@@ -294,6 +294,27 @@ export class CollabSession {
     return this.outQueue.length;
   }
 
+  /** Introspection for diagnostics and the sync-status UI. */
+  debugState(): {
+    connected: boolean;
+    streamRunning: boolean;
+    streamConnected: boolean;
+    queued: number;
+    lastSeq: number;
+    awaitingEchoSeq: number | null;
+    ended: boolean;
+  } {
+    return {
+      connected: this.connected,
+      streamRunning: this.stream?.running ?? false,
+      streamConnected: this.stream?.connected ?? false,
+      queued: this.outQueue.length,
+      lastSeq: this.lastSeq,
+      awaitingEchoSeq: this.awaitingEcho?.seq ?? null,
+      ended: this.ended,
+    };
+  }
+
   /** Self-echo watchdog (see field docs on `awaitingEcho`). */
   private checkEcho(): void {
     if (!this.awaitingEcho || !this.stream?.connected) return;

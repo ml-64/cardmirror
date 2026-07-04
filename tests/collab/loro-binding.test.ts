@@ -123,6 +123,49 @@ describe('Peritext criteria (inline marks)', () => {
     a.destroy(); b.destroy();
   });
 
+  it('P11: sequential separate-transaction highlights union across peers (differ regression)', async () => {
+    // The unpatched binding differ emitted blanket `highlight: null`
+    // retains over every unmarked run on EVERY transaction — local
+    // no-ops that LWW-killed concurrent marks from the other peer
+    // (field-observed: per-paragraph winner-take-all highlighting).
+    // patches/loro-prosemirror+0.4.3.patch makes the differ emit
+    // per-run diffs only; this pins it.
+    const [a, b] = await merged(simpleDoc('alpha bravo charlie delta echo foxtrot'));
+    for (const w of ['alpha', 'charlie']) {
+      addMarkOn(a.view, w, hl('yellow'));
+      await settle();
+    }
+    for (const w of ['bravo', 'echo']) {
+      addMarkOn(b.view, w, hl('yellow'));
+      await settle();
+    }
+    await converge(a, b);
+    for (const w of ['alpha', 'bravo', 'charlie', 'echo']) {
+      const r = findText(a.doc(), w);
+      expect(
+        rangeFullyMarked(a.doc(), r.from, r.to, schema.marks['highlight']!, { color: 'yellow' }),
+        w,
+      ).toBe(true);
+    }
+    a.destroy(); b.destroy();
+  });
+
+  it('P12: a concurrent mark does not clobber a concurrent paragraph attr (differ regression)', async () => {
+    // Sibling defect: the differ unconditionally delete()d every
+    // null PM attr from the node's attribute map on every transaction,
+    // LWW-killing a peer's concurrent attr set (e.g. alignment).
+    const [a, b] = await merged(simpleDoc('alpha bravo charlie'));
+    a.view.dispatch(
+      a.view.state.tr.setNodeMarkup(0, null, { alignment: 'center', indent: null, spacing: null }),
+    );
+    addMarkOn(b.view, 'bravo', hl('yellow'));
+    await converge(a, b);
+    expect(a.doc().child(0).attrs['alignment']).toBe('center');
+    const r = findText(a.doc(), 'bravo');
+    expect(rangeFullyMarked(a.doc(), r.from, r.to, schema.marks['highlight']!)).toBe(true);
+    a.destroy(); b.destroy();
+  });
+
   it('P9: concurrent same-position typing does not interleave', async () => {
     const [a, b] = await merged();
     typeAfter(a.view, 'quick', 'AAAAA');

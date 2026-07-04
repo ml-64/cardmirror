@@ -1,0 +1,195 @@
+diff --git a/node_modules/loro-prosemirror/dist/index.cjs b/node_modules/loro-prosemirror/dist/index.cjs
+index 74c4b30..f6f59f2 100644
+--- a/node_modules/loro-prosemirror/dist/index.cjs
++++ b/node_modules/loro-prosemirror/dist/index.cjs
+@@ -83,19 +83,70 @@ function createLoroText(parentList, pos, nodes, mapping) {
+ function updateLoroText(obj, nodes, mapping) {
+ 	mapping.set(obj.id, nodes);
+ 	let str = obj.toString();
+-	const attrs = {};
+-	for (const delta of obj.toDelta()) for (const key of Object.keys(delta.attributes ?? {})) attrs[key] = null;
+ 	const content = nodes.map((p) => ({
+ 		insert: p.text,
+-		attributes: Object.assign({}, attrs, nodeMarksToAttributes(p.marks))
++		attributes: nodeMarksToAttributes(p.marks)
+ 	}));
+-	const { insert, remove, index } = (0, lib0_diff.simpleDiff)(str, content.map((c) => c.insert).join(""));
++	const { insert, remove, index } = simpleDiff(str, content.map((c) => c.insert).join(""));
+ 	if (remove > 0) obj.delete(index, remove);
+ 	if (insert.length) obj.insert(index, insert);
+-	obj.applyDelta(content.map((c) => ({
+-		retain: c.insert.length,
+-		attributes: c.attributes
+-	})));
++	// PATCHED (cardmirror): per-run attribute DIFF against the post-edit
++	// layout instead of blanket `key: null` retains over every run. The
++	// blanket form emits REAL unmark ops for unchanged unmarked ranges;
++	// locally they are no-ops, but they LWW-kill CONCURRENT marks from
++	// other peers (observed: two users highlighting disjoint ranges of
++	// one paragraph while offline -> one side's highlights vanish on
++	// merge). Normalization must not generate ops where nothing changed.
++	const layout = [];
++	{
++		let off = 0;
++		for (const d of obj.toDelta()) {
++			const len = (d.insert ?? "").length;
++			layout.push({ start: off, end: off + len, attributes: d.attributes ?? {} });
++			off += len;
++		}
++	}
++	const overlapping = (start, end) => {
++		const out = [];
++		for (const seg of layout) {
++			const s = Math.max(seg.start, start);
++			const e = Math.min(seg.end, end);
++			if (s < e) out.push({ len: e - s, attributes: seg.attributes });
++		}
++		return out;
++	};
++	const deltas = [];
++	let pos = 0;
++	let pending = 0;
++	const flush = () => {
++		if (pending > 0) {
++			deltas.push({ retain: pending });
++			pending = 0;
++		}
++	};
++	for (const run of content) {
++		const len = run.insert.length;
++		if (len === 0) continue;
++		for (const seg of overlapping(pos, pos + len)) {
++			const diff = {};
++			const keys = new Set([...Object.keys(seg.attributes), ...Object.keys(run.attributes)]);
++			for (const key of keys) {
++				const oldV = seg.attributes[key] ?? null;
++				const newV = run.attributes[key] ?? null;
++				if (JSON.stringify(oldV) !== JSON.stringify(newV)) diff[key] = newV;
++			}
++			if (Object.keys(diff).length === 0) pending += seg.len;
++			else {
++				flush();
++				deltas.push({ retain: seg.len, attributes: diff });
++			}
++		}
++		pos += len;
++	}
++	if (deltas.some((d) => d.attributes !== void 0)) {
++		while (deltas.length && deltas[deltas.length - 1].attributes === void 0) deltas.pop();
++		obj.applyDelta(deltas);
++	}
+ }
+ function nodeMarksToAttributes(marks) {
+ 	const pattrs = {};
+@@ -226,10 +277,12 @@ function updateLoroMapAttributes(obj, node, _mapping) {
+ 	for (const [key, value] of Object.entries(pAttrs)) {
+ 		if (value !== null) {
+ 			if (!(0, lib0_function.equalityDeep)(attrs.get(key), value)) attrs.set(key, value);
+-		} else attrs.delete(key);
++		} else if (attrs.get(key) !== void 0) attrs.delete(key);
+ 		keys.delete(key);
+ 	}
+-	for (const key of keys) attrs.delete(key);
++	for (const key of keys) {
++		if (attrs.get(key) !== void 0) attrs.delete(key);
++	}
+ }
+ function getLoroMapChildren(obj) {
+ 	return obj.getOrCreateContainer(CHILDREN_KEY, new loro_crdt.LoroList());
+diff --git a/node_modules/loro-prosemirror/dist/index.js b/node_modules/loro-prosemirror/dist/index.js
+index e41095d..783fbb7 100644
+--- a/node_modules/loro-prosemirror/dist/index.js
++++ b/node_modules/loro-prosemirror/dist/index.js
+@@ -82,19 +82,70 @@ function createLoroText(parentList, pos, nodes, mapping) {
+ function updateLoroText(obj, nodes, mapping) {
+ 	mapping.set(obj.id, nodes);
+ 	let str = obj.toString();
+-	const attrs = {};
+-	for (const delta of obj.toDelta()) for (const key of Object.keys(delta.attributes ?? {})) attrs[key] = null;
+ 	const content = nodes.map((p) => ({
+ 		insert: p.text,
+-		attributes: Object.assign({}, attrs, nodeMarksToAttributes(p.marks))
++		attributes: nodeMarksToAttributes(p.marks)
+ 	}));
+ 	const { insert, remove, index } = simpleDiff(str, content.map((c) => c.insert).join(""));
+ 	if (remove > 0) obj.delete(index, remove);
+ 	if (insert.length) obj.insert(index, insert);
+-	obj.applyDelta(content.map((c) => ({
+-		retain: c.insert.length,
+-		attributes: c.attributes
+-	})));
++	// PATCHED (cardmirror): per-run attribute DIFF against the post-edit
++	// layout instead of blanket `key: null` retains over every run. The
++	// blanket form emits REAL unmark ops for unchanged unmarked ranges;
++	// locally they are no-ops, but they LWW-kill CONCURRENT marks from
++	// other peers (observed: two users highlighting disjoint ranges of
++	// one paragraph while offline -> one side's highlights vanish on
++	// merge). Normalization must not generate ops where nothing changed.
++	const layout = [];
++	{
++		let off = 0;
++		for (const d of obj.toDelta()) {
++			const len = (d.insert ?? "").length;
++			layout.push({ start: off, end: off + len, attributes: d.attributes ?? {} });
++			off += len;
++		}
++	}
++	const overlapping = (start, end) => {
++		const out = [];
++		for (const seg of layout) {
++			const s = Math.max(seg.start, start);
++			const e = Math.min(seg.end, end);
++			if (s < e) out.push({ len: e - s, attributes: seg.attributes });
++		}
++		return out;
++	};
++	const deltas = [];
++	let pos = 0;
++	let pending = 0;
++	const flush = () => {
++		if (pending > 0) {
++			deltas.push({ retain: pending });
++			pending = 0;
++		}
++	};
++	for (const run of content) {
++		const len = run.insert.length;
++		if (len === 0) continue;
++		for (const seg of overlapping(pos, pos + len)) {
++			const diff = {};
++			const keys = new Set([...Object.keys(seg.attributes), ...Object.keys(run.attributes)]);
++			for (const key of keys) {
++				const oldV = seg.attributes[key] ?? null;
++				const newV = run.attributes[key] ?? null;
++				if (JSON.stringify(oldV) !== JSON.stringify(newV)) diff[key] = newV;
++			}
++			if (Object.keys(diff).length === 0) pending += seg.len;
++			else {
++				flush();
++				deltas.push({ retain: seg.len, attributes: diff });
++			}
++		}
++		pos += len;
++	}
++	if (deltas.some((d) => d.attributes !== void 0)) {
++		while (deltas.length && deltas[deltas.length - 1].attributes === void 0) deltas.pop();
++		obj.applyDelta(deltas);
++	}
+ }
+ function nodeMarksToAttributes(marks) {
+ 	const pattrs = {};
+@@ -225,10 +276,12 @@ function updateLoroMapAttributes(obj, node, _mapping) {
+ 	for (const [key, value] of Object.entries(pAttrs)) {
+ 		if (value !== null) {
+ 			if (!equalityDeep(attrs.get(key), value)) attrs.set(key, value);
+-		} else attrs.delete(key);
++		} else if (attrs.get(key) !== void 0) attrs.delete(key);
+ 		keys.delete(key);
+ 	}
+-	for (const key of keys) attrs.delete(key);
++	for (const key of keys) {
++		if (attrs.get(key) !== void 0) attrs.delete(key);
++	}
+ }
+ function getLoroMapChildren(obj) {
+ 	return obj.getOrCreateContainer(CHILDREN_KEY, new LoroList());

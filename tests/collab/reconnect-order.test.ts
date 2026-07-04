@@ -134,3 +134,42 @@ describe('reconnect ordering', () => {
     }
   }, 20_000);
 });
+
+describe('stale-instance watchdog', () => {
+  it('reconnects when own posts stop echoing on the stream', async () => {
+    // Zombie-deploy simulation: the stream stays open (heartbeats fine)
+    // but receives no pushes — posts are acked by "another instance".
+    // The self-echo watchdog must notice and hard-restart the stream.
+    const FAST = { flushMs: 30, minBackoffMs: 20, maxBackoffMs: 60, catchUpMs: 60_000, echoTimeoutMs: 250 };
+    const { session: host, shareCode } = await CollabSession.host({
+      pmDoc: simpleDoc('watchdog doc'),
+      client,
+      ...FAST,
+    });
+    const hostView = mkView(host.plugins());
+    await settle();
+    host.start();
+    const joiner = await CollabSession.join({ ...decodeShareCode(shareCode)!, client, ...FAST });
+    const joinView = mkView(joiner.plugins());
+    await settle();
+    joiner.start();
+    await sleep(100);
+
+    const attemptsBefore = mock.streamAttempts();
+    mock.mutePush(true); // zombie mode: acks, no fan-out
+    typeAfter(hostView, 'watchdog', ' STALE');
+    await sleep(700); // echo deadline (250ms) passes -> watchdog restarts
+    expect(mock.streamAttempts()).toBeGreaterThan(attemptsBefore);
+    mock.mutePush(false);
+    typeAfter(hostView, 'watchdog', ' LIVE');
+    await sleep(400);
+    expect(docText(joinView.state.doc)).toContain('LIVE');
+    // The muted-window edit arrives too (catch-up on the reconnect hello).
+    expect(docText(joinView.state.doc)).toContain('STALE');
+    expect(joinView.state.doc.eq(hostView.state.doc)).toBe(true);
+    await joiner.stop();
+    await host.stop();
+    hostView.destroy();
+    joinView.destroy();
+  }, 20_000);
+});

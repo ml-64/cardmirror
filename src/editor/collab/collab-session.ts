@@ -92,6 +92,8 @@ export interface CollabSessionOptions {
   /** Host compaction cadence: upload an encrypted snapshot every N
    *  posted updates. */
   snapshotEvery?: number;
+  /** Self-echo watchdog deadline (see field docs); injectable for tests. */
+  echoTimeoutMs?: number;
 }
 
 export class CollabSession {
@@ -105,6 +107,7 @@ export class CollabSession {
   private readonly flushMs: number;
   private readonly catchUpMs: number;
   private readonly snapshotEvery: number;
+  private readonly echoTimeoutMs: number;
 
   private stream: RoomStream | null = null;
   private lastSeq = 0;
@@ -118,6 +121,14 @@ export class CollabSession {
   private ended = false;
   private postedCount = 0;
   private catchUpRunning = false;
+  /** Self-echo watchdog: the server pushes our own posted update back
+   *  to our stream, so "posted seq N, stream never showed ≥ N" proves
+   *  the stream is attached to a stale relay instance (a deploy's old
+   *  process lingers unbound but keeps serving heartbeats to streams it
+   *  still holds — posts go to the new instance, pushes fan out where
+   *  nobody listens). Hard-restart reconnects to the live instance. */
+  private awaitingEcho: { seq: number; at: number } | null = null;
+  private maxStreamSeq = 0;
 
   private constructor(opts: CollabSessionOptions & { loroDoc: LoroDoc }) {
     this.loroDoc = opts.loroDoc;
@@ -129,6 +140,7 @@ export class CollabSession {
     this.flushMs = opts.flushMs ?? 500;
     this.catchUpMs = opts.catchUpMs ?? 300_000;
     this.snapshotEvery = opts.snapshotEvery ?? 50;
+    this.echoTimeoutMs = opts.echoTimeoutMs ?? 8000;
     this.lastSentVersion = this.loroDoc.version();
     this.streamOpts = {
       minBackoffMs: opts.minBackoffMs,
@@ -214,7 +226,11 @@ export class CollabSession {
           void this.catchUp();
           void this.drainQueue();
         },
-        onUpdate: (u) => void this.applyRemote(u),
+        onUpdate: (u) => {
+          if (u.seq > this.maxStreamSeq) this.maxStreamSeq = u.seq;
+          if (this.awaitingEcho && u.seq >= this.awaitingEcho.seq) this.awaitingEcho = null;
+          void this.applyRemote(u);
+        },
         onPresence: (blob) => {
           void (async () => {
             try {
@@ -230,12 +246,16 @@ export class CollabSession {
         },
         onDown: () => {
           this.connected = false;
+          this.awaitingEcho = null;
           this.emitStatus();
         },
       },
     });
     this.stream.start();
-    this.flushTimer = setInterval(() => this.flush(), this.flushMs);
+    this.flushTimer = setInterval(() => {
+      this.flush();
+      this.checkEcho();
+    }, this.flushMs);
     this.catchUpTimer = setInterval(() => void this.catchUp(), this.catchUpMs);
   }
 
@@ -274,6 +294,16 @@ export class CollabSession {
     return this.outQueue.length;
   }
 
+  /** Self-echo watchdog (see field docs on `awaitingEcho`). */
+  private checkEcho(): void {
+    if (!this.awaitingEcho || !this.stream?.connected) return;
+    if (Date.now() - this.awaitingEcho.at > this.echoTimeoutMs) {
+      console.warn('[collab] posted update never echoed on the stream — reconnecting (stale relay instance?)');
+      this.awaitingEcho = null;
+      this.stream.restart();
+    }
+  }
+
   // --- outbound ---
 
   /** Export any local ops since the last flush into the send queue.
@@ -299,10 +329,11 @@ export class CollabSession {
       while (this.outQueue.length > 0) {
         const blob = this.outQueue[0]!;
         try {
-          await this.client.postUpdate(this.roomId, await encryptBlob(this.key, blob));
+          const seq = await this.client.postUpdate(this.roomId, await encryptBlob(this.key, blob));
           this.outQueue.shift();
           this.postedCount++;
           this.sendRetryMs = 1000;
+          if (this.stream?.connected) this.awaitingEcho = { seq, at: Date.now() };
           // Deliberately NOT advancing lastSeq to our own posted seq:
           // the cursor means "I have imported everything ≤ this", and a
           // peer's concurrent post can hold a LOWER seq we haven't seen
@@ -377,19 +408,25 @@ export class CollabSession {
     this.sendRetryMs = 1000;
     // Ops whose causal dependencies we lack (a shed push frame, or a
     // window the cursor skipped) sit pending until the deps arrive —
-    // fetch them now instead of waiting for the periodic catch-up.
+    // fetch them now instead of waiting for the periodic catch-up. The
+    // missing deps sit BELOW our cursor (this frame advanced it), so
+    // the catch-up must be allowed to escalate to a full resync.
     if (status.pending && status.pending.size > 0) {
-      void this.catchUp();
+      void this.catchUp(true);
     }
   }
 
   /** Fetch and import everything after our cursor (join, reconnect,
-   *  and the periodic shed-frame healer). */
-  async catchUp(): Promise<void> {
+   *  and the periodic shed-frame healer). `expectMissingDeps` marks a
+   *  call made because an import parked ops on missing causal deps —
+   *  those deps live BELOW the cursor, so if the tail fetch yields
+   *  nothing the full resync must still run. */
+  async catchUp(expectMissingDeps = false): Promise<void> {
     if (this.ended || this.catchUpRunning) return;
     this.catchUpRunning = true;
     try {
       let pendingLeft = false;
+      let importedAny = false;
       for (;;) {
         const page = await this.client.fetchUpdates(this.roomId, this.lastSeq);
         const blobs: Uint8Array[] = [];
@@ -405,6 +442,7 @@ export class CollabSession {
           }
         }
         if (blobs.length > 0) {
+          importedAny = true;
           this.flush();
           const status = this.loroDoc.importBatch(blobs);
           this.lastSentVersion = this.loroDoc.version();
@@ -413,6 +451,7 @@ export class CollabSession {
         if (page.lastSeq > this.lastSeq) this.lastSeq = page.lastSeq;
         if (!page.more) break;
       }
+      if (expectMissingDeps && !importedAny) pendingLeft = true;
       if (pendingLeft) {
         // Deps live below our cursor (skipped or compacted) — one full
         // resync from zero: the snapshot fast-path bounds the size, and

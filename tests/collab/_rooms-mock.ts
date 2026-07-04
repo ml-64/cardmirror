@@ -31,6 +31,9 @@ export interface RoomsMock {
   updateCount(roomId: string): number;
   /** Total stream CONNECT attempts (incl. ones that never helloed). */
   streamAttempts(): number;
+  /** Zombie-instance simulation: store + ack posts but skip stream
+   *  fan-out (streams stay open with heartbeats, receiving nothing). */
+  mutePush(on: boolean): void;
 }
 
 const MAX_STREAMS_PER_ROOM = 10;
@@ -43,6 +46,7 @@ export function startRoomsMock(): Promise<RoomsMock> {
   let paused = false;
   let helloDelayMs = 0;
   let streamAttempts = 0;
+  let pushMuted = false;
 
   const json = (res: http.ServerResponse, status: number, body?: unknown) => {
     res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -113,8 +117,10 @@ export function startRoomsMock(): Promise<RoomsMock> {
       const seq = ++seqCounter;
       const blob = raw.toString('base64');
       room.updates.push({ seq, blob });
-      const frame = `data: ${JSON.stringify({ t: 'u', seq, blob })}\n\n`;
-      for (const s of room.streams) s.write(frame);
+      if (!pushMuted) {
+        const frame = `data: ${JSON.stringify({ t: 'u', seq, blob })}\n\n`;
+        for (const s of room.streams) s.write(frame);
+      }
       return json(res, 202, { seq });
     }
 
@@ -198,6 +204,9 @@ export function startRoomsMock(): Promise<RoomsMock> {
         },
         setHelloDelay: (ms) => {
           helloDelayMs = ms;
+        },
+        mutePush: (on) => {
+          pushMuted = on;
         },
         close: () =>
           new Promise<void>((r) => {

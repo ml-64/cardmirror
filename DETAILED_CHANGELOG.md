@@ -7,6 +7,45 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Collab M2 (coediting branch): field-test fixes — differ mark-kill
+  patch, stale-instance watchdog, healer escalation, zombie-proof
+  shutdown** (`patches/loro-prosemirror+0.4.3.patch` NEW + postinstall,
+  `collab-session.ts`, `room-client.ts`, `_rooms-mock.ts`, relay
+  Dockerfile/README, tests). Live two-window testing with relay
+  kill/restart cycles surfaced four defects:
+  1. *Concurrent highlight loss (upstream binding bug, patched).*
+     loro-prosemirror's text differ "normalized" mark state by emitting
+     blanket `key: null` retains over every unmarked run on every
+     transaction — local no-ops that are REAL unmark ops, LWW-killing
+     the partner's concurrent highlights (field: per-paragraph
+     winner-take-all). Sibling defect unconditionally delete()d null
+     node attrs, clobbering concurrent attr sets. Patched (per-run
+     diffing; delete only existing keys) via patch-package; regression
+     tests P11/P12 pin both. Upstream report TODO.
+  2. *Send-success restarts starved the stream.* restart() aborts the
+     in-flight handshake, so steady typing killed every reconnect
+     before its hello; live push never resumed while the user typed.
+     Now a nudge() (skips backoff wait, never touches an in-flight
+     attempt), pinned by a deterministic connect-attempt-count test.
+     "Synced" now strictly means the stream's hello state — catch-up
+     success no longer paints the chip.
+  3. *Zombie relay instances after deploy/restart.* Uvicorn's default
+     graceful shutdown waits forever for SSE streams: a stopped
+     instance lingers unbound, heartbeating its old streams while the
+     new instance owns the port — pushes fan out where nobody listens
+     ("synced but updates arrive in 5-minute batches"). Server:
+     --timeout-graceful-shutdown 5 in both Dockerfiles. Client:
+     self-echo watchdog — the server pushes your own update back to
+     your stream, so "posted seq N, stream silent past the deadline"
+     proves staleness and hard-restarts the stream.
+  4. *Pending-deps healer couldn't reach below the cursor.* A frame
+     whose causal deps were shed advanced the cursor past the gap, and
+     the healing catch-up (fetching after the cursor) found nothing.
+     Catch-ups invoked for missing deps now escalate to a full resync
+     from seq 0 when the tail is empty. 409 on stream RECONNECT retries
+     (our own ghost may briefly inflate the count) instead of
+     terminally reporting the room full.
+
 - **Collab M2 (coediting branch): session UI wiring** (`collab-gate.ts`
   NEW, `collab-hooks.ts` NEW, `collab-ui.ts` NEW; `index.ts`,
   `index.html`, `ribbon-commands.ts`, `ribbon-groups.ts`,

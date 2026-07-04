@@ -1,7 +1,7 @@
 {
   "name": "cardmirror",
   "version": "0.1.0-beta.7",
-  "description": "CardMirror — ProseMirror-based editor that interoperates with Advanced Verbatim",
+  "description": "CardMirror \u2014 ProseMirror-based editor that interoperates with Advanced Verbatim",
   "license": "SEE LICENSE IN LICENSE",
   "author": "Anthony Trufanov",
   "homepage": "https://github.com/ant981228/cardmirror#readme",
@@ -28,7 +28,8 @@
     "desktop:build": "npm --prefix apps/desktop run build",
     "desktop:pack": "npm --prefix apps/desktop run pack",
     "desktop:dist": "npm --prefix apps/desktop run dist",
-    "desktop:release": "npm --prefix apps/desktop run release"
+    "desktop:release": "npm --prefix apps/desktop run release",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "fast-xml-parser": "^4.5.0",
@@ -49,6 +50,7 @@
   "devDependencies": {
     "@types/node": "^22.10.0",
     "jsdom": "^29.1.1",
+    "patch-package": "8.0.1",
     "tsx": "^4.21.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.0",

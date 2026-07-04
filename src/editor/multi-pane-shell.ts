@@ -87,6 +87,7 @@ import {
   sendViewToDropzone,
 } from './index.js';
 import { sendViewToStarred } from './pairing/send-to-starred.js';
+import { editorNodeViews } from './image-resize-nodeview.js';
 import { coordinatorBlocks, flashLockedLeases } from './ai/edit-coordinator.js';
 import { tagCollabTransaction } from './collab/collab-hooks.js';
 import { icon, setIcon } from './icons';
@@ -2596,6 +2597,7 @@ function buildDocRecord(
   // changes.
   const view: EditorView = new EditorView(editorEl, {
     state,
+    nodeViews: editorNodeViews,
     // Browser's built-in spellcheck stays OFF — `editorSpellcheck` is
     // served by the custom viewport checker (viewport-spellcheck.ts).
     attributes: { spellcheck: 'false' },

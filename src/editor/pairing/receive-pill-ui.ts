@@ -23,6 +23,7 @@ import { insertReceivedItem } from './inbox-insert.js';
 import { parseRoomInvite } from './room-invite.js';
 import { collabEnabled } from '../collab/collab-gate.js';
 import { collabInviteJoiner } from '../collab/collab-hooks.js';
+import { deletePrefetch } from '../collab/collab-store.js';
 
 interface ReceivePillMountOptions {
   parent: HTMLElement;
@@ -298,6 +299,14 @@ export class ReceivePillController {
     item: InboxItem,
     invite: { shareCode: string; title: string },
   ): HTMLLIElement {
+    // Eagerly prefetch the room's encrypted seed (§4.1) so accepting
+    // this invite later — offline — still joins. Fire-and-forget; the
+    // module is light (no wasm) and dedupes/staleness-checks itself.
+    if (collabEnabled()) {
+      void import('../collab/collab-prefetch.js').then((m) =>
+        m.prefetchInviteSeed(invite.shareCode),
+      );
+    }
     const row = document.createElement('li');
     row.className = 'pmd-receive-row pmd-receive-row-invite';
     if (!item.read) row.classList.add('pmd-receive-row-unread');
@@ -349,6 +358,9 @@ export class ReceivePillController {
     del.addEventListener('click', (e) => {
       e.stopPropagation();
       void inboxStore.remove(item.id);
+      // Declined invite — drop its prefetched seed too.
+      const roomId = invite.shareCode.split('.')[1];
+      if (roomId) void deletePrefetch(roomId);
     });
     row.appendChild(del);
 

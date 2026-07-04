@@ -1,7 +1,7 @@
 {
   "name": "cardmirror",
   "version": "0.1.0-beta.8",
-  "description": "CardMirror \u2014 ProseMirror-based editor that interoperates with Advanced Verbatim",
+  "description": "CardMirror — ProseMirror-based editor that interoperates with Advanced Verbatim",
   "license": "SEE LICENSE IN LICENSE",
   "author": "Anthony Trufanov",
   "homepage": "https://github.com/ant981228/cardmirror#readme",
@@ -49,6 +49,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "fake-indexeddb": "^6.2.5",
     "jsdom": "^29.1.1",
     "patch-package": "8.0.1",
     "tsx": "^4.21.0",

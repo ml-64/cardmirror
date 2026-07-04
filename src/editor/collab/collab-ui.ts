@@ -23,15 +23,18 @@ import { promptForText, promptForChoice } from '../text-prompt.js';
 import { markSyncOrigin } from '../sync-origin.js';
 import { setCollabPluginSource, setCollabTransactionTagger } from './collab-hooks.js';
 import { getElectronHost } from '../host/index.js';
+import { ensureBakedRelay, relayClient } from './collab-relay.js';
 import { relayClient as pairingRelayClient } from '../pairing/relay-client.js';
 import { resolveStarredTarget } from '../pairing/send-to-starred.js';
 import { buildRoomInviteItem, ROOM_INVITE_MIN_VERSION } from '../pairing/room-invite.js';
 import { collabInvariantHealPlugin } from './collab-invariants.js';
 import { installCommentsSync, type CommentsSyncHandle } from './collab-comments.js';
+import { attachSessionPersistence, type PersistHandle } from './collab-persist.js';
+import { loadSessionRecord, loadPrefetch, deletePrefetch } from './collab-store.js';
+import { importRoomKey, decryptBlob } from './collab-crypto.js';
 import { setCommentIdSessionMode } from '../comments-plugin.js';
-import { collabEnabled, collabDevRelay } from './collab-gate.js';
+import { collabEnabled } from './collab-gate.js';
 import { decodeShareCode } from './collab-crypto.js';
-import { RoomsClient } from './room-client.js';
 import { CollabSession } from './collab-session.js';
 
 export interface CollabUiDeps {
@@ -74,34 +77,6 @@ function updateChip(status: { connected: boolean; queuedUpdates: number } | null
       : 'Session: offline';
 }
 
-/** Baked relay endpoint from the desktop main process — resolved once,
- *  used as the LAST fallback so packaged builds work with zero setup.
- *  '' fields mean web edition / old preload / nothing baked. */
-let bakedRelay: { url: string; token: string } | null = null;
-async function ensureBakedRelay(): Promise<void> {
-  if (bakedRelay) return;
-  try {
-    bakedRelay = (await getElectronHost()?.collabRelayDefaults()) ?? { url: '', token: '' };
-  } catch {
-    bakedRelay = { url: '', token: '' };
-  }
-}
-
-function relayClient(): RoomsClient | null {
-  // Settings win; the dev env fallback lets the web dev build reach a
-  // relay without the Electron-only Card Sharing fields; the baked
-  // desktop default (same base + token as card sharing) comes last.
-  const dev = collabDevRelay();
-  const url = (
-    settings.get('pairingRelayUrl').trim() ||
-    dev?.url ||
-    bakedRelay?.url ||
-    ''
-  ).replace(/\/+$/, '');
-  const token = settings.get('pairingRelayToken').trim() || dev?.token || bakedRelay?.token || '';
-  if (!url || !token) return null;
-  return new RoomsClient({ baseUrl: () => url, token: () => token });
-}
 
 /** Stamp the Loro binding's own transactions as sync-origin: both the
  *  remote-update imports and the init-time content replace carry the
@@ -114,10 +89,31 @@ function collabTagger(tr: Parameters<typeof markSyncOrigin>[0]): void {
 }
 
 let commentsSync: CommentsSyncHandle | null = null;
+let persist: PersistHandle | null = null;
+let wakeCleanup: (() => void) | null = null;
+
+/** Wake-from-sleep / network-return hooks (M3): a resumed laptop's
+ *  stream socket is silently dead until timeouts notice — restart it
+ *  the moment the OS tells us. Desktop: powerMonitor via the host
+ *  seam; both editions: the browser 'online' event. */
+function installWakeHooks(session: CollabSession): void {
+  const onOnline = (): void => session.restart();
+  window.addEventListener('online', onOnline);
+  const offResume = getElectronHost()?.onPowerResumed?.(() => session.restart()) ?? null;
+  wakeCleanup = () => {
+    window.removeEventListener('online', onOnline);
+    offResume?.();
+  };
+}
 
 function installSeams(session: CollabSession, deps: CollabUiDeps): void {
   setCollabTransactionTagger(collabTagger);
+  installWakeHooks(session);
   commentsSync = installCommentsSync(session.loroDoc, () => deps.getView());
+  // M3: crash-surviving session record (the home screen's Sessions
+  // list resumes from it). Cleared only on explicit end/leave or a
+  // remote tombstone — a crash leaving it behind is the feature.
+  persist = attachSessionPersistence(session, active!.shareCode, sessionDocTitle);
   // Concurrent new comments must not collide on the shared map key —
   // both peers advance the same small-int counter otherwise.
   setCommentIdSessionMode(true);
@@ -134,17 +130,30 @@ function installSeams(session: CollabSession, deps: CollabUiDeps): void {
   });
 }
 
-function clearSeams(): void {
+function clearSeams(keepRecord = false): void {
   setCollabTransactionTagger(null);
   setCollabPluginSource(null);
+  wakeCleanup?.();
+  wakeCleanup = null;
   commentsSync?.dispose();
   commentsSync = null;
   setCommentIdSessionMode(false);
+  // Terminal paths (explicit end/leave, remote tombstone, failed join)
+  // drop the persisted record; a cancelled RESUME keeps it — the user
+  // only declined the doc swap, the session is still theirs to resume.
+  if (keepRecord) persist?.dispose();
+  else void persist?.clear();
+  persist = null;
 }
 
 function sessionCallbacks(deps: CollabUiDeps) {
   return {
     onStatus: (s: { connected: boolean; queuedUpdates: number }) => updateChip(s),
+    onBacklogMerged: (count: number) => {
+      // Merge-visibility (M3): a travel-day backlog just landed — say
+      // so, instead of the doc silently reshaping under the user.
+      showToast(`Synced ${count} offline updates from the session — recent sections may have moved`);
+    },
     onEnded: () => {
       // The explicit end/leave flows clean up themselves before the
       // session's onEnded fires; only a REMOTELY ended session (host
@@ -249,11 +258,36 @@ export async function joinSessionWithCode(deps: CollabUiDeps, code: string): Pro
     return;
   }
   try {
-    const session = await CollabSession.join({
-      ...decoded,
-      client,
-      callbacks: sessionCallbacks(deps),
-    });
+    let session: CollabSession;
+    let joinedOffline = false;
+    try {
+      session = await CollabSession.join({
+        ...decoded,
+        client,
+        callbacks: sessionCallbacks(deps),
+      });
+    } catch (err) {
+      // Offline (or relay unreachable): fall back to the invite's
+      // prefetched seed (§4.1). Everything in it came FROM the room,
+      // so resume() with no sentVersion is exact; start() syncs at the
+      // next connectivity window.
+      const pre = await loadPrefetch(decoded.roomId);
+      if (!pre) throw err;
+      const key = await importRoomKey(decoded.keyBytes);
+      const blobs = await Promise.all(pre.blobs.map((b) => decryptBlob(key, b)));
+      session = await CollabSession.resume({
+        roomId: decoded.roomId,
+        keyBytes: decoded.keyBytes,
+        role: 'participant',
+        snapshot: blobs[0]!,
+        increments: blobs.slice(1),
+        lastSeq: pre.lastSeq,
+        client,
+        callbacks: sessionCallbacks(deps),
+      });
+      joinedOffline = true;
+    }
+    void deletePrefetch(decoded.roomId);
     active = { session, shareCode: code.trim() };
     installSeams(session, deps);
     // Fresh unsaved doc IN THIS WINDOW; buildEditorPlugins now includes
@@ -272,13 +306,83 @@ export async function joinSessionWithCode(deps: CollabUiDeps, code: string): Pro
     // in the fresh pane's plugin state.
     commentsSync!.pull();
     session.start();
-    updateChip({ connected: true, queuedUpdates: 0 });
-    showToast('Joined the session');
+    updateChip({ connected: !joinedOffline, queuedUpdates: 0 });
+    showToast(
+      joinedOffline
+        ? 'Joined from the prefetched copy — will sync when you reconnect'
+        : 'Joined the session',
+    );
     deps.getView()?.focus();
   } catch (err) {
     active = null;
     clearSeams();
     showToast(`Could not join: ${(err as Error).message}`);
+  }
+}
+
+/** Resume a persisted session (home-screen Sessions list, M3). The
+ *  persisted CRDT carries this peer's full history — including edits
+ *  that never reached the relay before the app died — so start()'s
+ *  first flush sends exactly the unsent diff and catch-up resumes from
+ *  the stored cursor. A tombstoned room degrades through the normal
+ *  onEnded path ("this copy is now yours alone") and clears the record. */
+export async function resumeSessionFlow(deps: CollabUiDeps, roomId: string): Promise<void> {
+  if (!guardReady(deps)) return;
+  if (active) {
+    showToast(
+      active.session.roomId === roomId
+        ? 'That session is already active in this window'
+        : 'Already in a session — end or leave it first',
+    );
+    return;
+  }
+  const record = await loadSessionRecord(roomId);
+  if (!record) {
+    showToast('No saved session to resume');
+    return;
+  }
+  await ensureBakedRelay();
+  const client = relayClient();
+  if (!client) {
+    showToast('Set the relay URL and token in Settings → Card Sharing first');
+    return;
+  }
+  const decoded = decodeShareCode(record.shareCode);
+  if (!decoded) {
+    showToast('Saved session record is unreadable');
+    return;
+  }
+  try {
+    const session = await CollabSession.resume({
+      roomId: record.roomId,
+      keyBytes: decoded.keyBytes,
+      role: record.role,
+      snapshot: record.snapshot,
+      increments: record.increments,
+      lastSeq: record.lastSeq,
+      sentVersion: record.sentVersion,
+      client,
+      callbacks: sessionCallbacks(deps),
+    });
+    active = { session, shareCode: record.shareCode };
+    installSeams(session, deps);
+    if (!(await deps.newSessionDoc())) {
+      active = null;
+      clearSeams(true); // keep the record — still resumable later
+      await session.stop();
+      updateChip(null);
+      showToast('Resume cancelled');
+      return;
+    }
+    commentsSync!.pull();
+    session.start();
+    updateChip({ connected: false, queuedUpdates: session.queuedUpdates });
+    showToast('Session resumed — syncing');
+    deps.getView()?.focus();
+  } catch (err) {
+    active = null;
+    clearSeams();
+    showToast(`Could not resume: ${(err as Error).message}`);
   }
 }
 

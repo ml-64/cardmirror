@@ -756,6 +756,11 @@ export function registerPairingIpc(): void {
   // prompt reconnect (whose hello triggers the catch-up poll). In
   // fallback-poll mode just poll immediately instead of waiting a cycle.
   powerMonitor.on('resume', () => {
+    // Renderers first (collab session streams restart themselves) —
+    // NOT gated on pairing being enabled.
+    for (const w of BrowserWindow.getAllWindows()) {
+      if (!w.isDestroyed()) w.webContents.send('host:power-resumed');
+    }
     if (!config.enabled) return;
     console.log('[pairing] system resumed — refreshing delivery channel');
     if (stream) stream.restart();

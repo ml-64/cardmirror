@@ -5,6 +5,34 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## Unreleased
+
+- **Collab M3 (coediting branch): session persistence + offline
+  resilience** (`collab/collab-store.ts` NEW, `collab-persist.ts` NEW,
+  `collab-relay.ts` NEW, `collab-prefetch.ts` NEW, `collab-session.ts`,
+  `collab-ui.ts`, `home-screen.ts`, desktop wake plumbing, tests).
+  Sessions now survive an app nuke: a per-room record (share code,
+  role, delivery cursor, CRDT snapshot + increments) persists to a
+  dedicated IndexedDB store on a 2.5s cadence + pagehide, cleared only
+  on explicit end/leave or tombstone. The load-bearing subtlety the
+  tests caught: the persisted version must be what the relay has
+  ACKNOWLEDGED, not what was exported to the send queue — export-time
+  tracking would silently drop every queued-but-unposted update on
+  crash (new `ackedVersion`, advanced per posted entry, snapped to the
+  export version when the queue drains). `CollabSession.resume()`
+  rebuilds from the record; the first flush sends exactly the unsent
+  diff. Home screen gains a DEDICATED "Sessions" section below Recent
+  (never merged with recents — sessions must not be displaced by doc
+  churn; scrollable; per-row Forget). Also: join is now STRICT about
+  its initial sync (a network failure used to "succeed" with an empty
+  doc — catchUp swallows errors by design, joins must not); invite
+  receipt prefetches the encrypted room seed so an invite accepted
+  offline still joins locally (ciphertext at rest, key stays in the
+  share code) and syncs on reconnect; wake-from-sleep hard-restarts
+  the stream (powerMonitor broadcast on desktop, 'online' event both
+  editions); catch-ups that merge a big offline backlog announce it
+  ("synced N offline updates") instead of silently reshaping the doc.
+
 ## 0.1.0-beta.8 — 2026-07-03
 
 - **Collab field fixes (draft-installer round 1).** (a) *Joining now

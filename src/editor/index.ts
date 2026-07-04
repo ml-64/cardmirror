@@ -5046,6 +5046,10 @@ const homeCallbacks: HomeScreenCallbacks = {
   openRecent: (recent: RecentFile) => {
     void openRecentInPlace(recent);
   },
+  resumeSession: (roomId: string) => {
+    homeScreen.hide();
+    void loadCollabUi().then((m) => m.resumeSessionFlow(collabDeps, roomId));
+  },
   manageQuickCards: () => {
     void quickCardsManageUI.open();
   },

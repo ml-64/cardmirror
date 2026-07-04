@@ -273,6 +273,8 @@ interface ElectronAPI {
   /** Toggle Chromium DevTools on this window (packaged builds have no
    *  menu accelerators for it on Windows/Linux). */
   toggleDevTools?(): Promise<void>;
+  /** System woke from sleep — long-lived streams should hard-restart. */
+  onPowerResumed?(handler: () => void): () => void;
   onPairingInboxChanged?(handler: (items: PairingInboxItemIpc[]) => void): () => void;
   onPairingVersionMismatch?(
     handler: (info: {
@@ -775,6 +777,10 @@ export class ElectronHost implements Host {
 
   async toggleDevTools(): Promise<void> {
     await api().toggleDevTools?.();
+  }
+
+  onPowerResumed(handler: () => void): () => void {
+    return api().onPowerResumed?.(handler) ?? (() => {});
   }
 
   onPairingInboxChanged(handler: (items: PairingInboxItemIpc[]) => void): () => void {

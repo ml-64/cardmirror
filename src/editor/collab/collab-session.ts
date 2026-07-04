@@ -30,7 +30,7 @@
  * truncate the log and joins stay fast on long sessions.
  */
 
-import { LoroDoc } from 'loro-crdt';
+import { LoroDoc, VersionVector } from 'loro-crdt';
 import type { Node as PMNode } from 'prosemirror-model';
 import type { Plugin } from 'prosemirror-state';
 import { EditorState } from 'prosemirror-state';
@@ -72,6 +72,9 @@ export interface CollabSessionCallbacks {
   onFull?: () => void;
   /** Encrypted presence blob from a peer (cursor layer decodes). */
   onPresence?: (blob: Uint8Array) => void;
+  /** A catch-up just imported a LARGE offline backlog (`count` update
+   *  blobs) — the merge-visibility hook for "you were gone a while". */
+  onBacklogMerged?: (count: number) => void;
 }
 
 export interface CollabSessionOptions {
@@ -112,7 +115,13 @@ export class CollabSession {
   private stream: RoomStream | null = null;
   private lastSeq = 0;
   private lastSentVersion: ReturnType<LoroDoc['version']>;
-  private outQueue: Uint8Array[] = [];
+  /** What the relay has CONFIRMED receiving (post succeeded), unlike
+   *  lastSentVersion which advances at export-into-queue time. The
+   *  persisted record stores THIS — a crash loses the in-memory queue,
+   *  and resuming from export-time state would silently drop every
+   *  queued-but-unposted update. */
+  private ackedVersion: ReturnType<LoroDoc['version']>;
+  private outQueue: { blob: Uint8Array; version: ReturnType<LoroDoc['version']> }[] = [];
   private sending = false;
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private catchUpTimer: ReturnType<typeof setInterval> | null = null;
@@ -142,6 +151,7 @@ export class CollabSession {
     this.snapshotEvery = opts.snapshotEvery ?? 50;
     this.echoTimeoutMs = opts.echoTimeoutMs ?? 8000;
     this.lastSentVersion = this.loroDoc.version();
+    this.ackedVersion = this.lastSentVersion;
     this.streamOpts = {
       minBackoffMs: opts.minBackoffMs,
       maxBackoffMs: opts.maxBackoffMs,
@@ -176,6 +186,7 @@ export class CollabSession {
     const seq = await opts.client.postUpdate(roomId, await encryptBlob(key, seed));
     session.lastSeq = seq;
     session.lastSentVersion = loroDoc.version();
+    session.ackedVersion = session.lastSentVersion; // seed post succeeded
     return { session, shareCode: encodeShareCode(roomId, keyBytes) };
   }
 
@@ -200,8 +211,80 @@ export class CollabSession {
       role: 'participant',
       loroDoc,
     });
-    await session.catchUp();
+    // Strict initial sync: steady-state catchUp() swallows network
+    // errors by design (resilience), but a join that can't reach the
+    // relay must FAIL — otherwise the caller mounts an empty doc and
+    // the invite-prefetch offline fallback never gets a chance.
+    await session.catchUp(false, true);
     return session;
+  }
+
+  /** Rebuild a session from persisted state (M3): the CRDT snapshot +
+   *  increments carry this peer's full history — including edits that
+   *  never reached the relay before the app died — so the first flush
+   *  after start() sends exactly the unsent diff (sentVersion marks
+   *  what the room already has), and catch-up resumes from lastSeq.
+   *  No network happens here; start() drives reconnection. */
+  static async resume(opts: {
+    roomId: string;
+    keyBytes: Uint8Array;
+    role: 'host' | 'participant';
+    snapshot: Uint8Array;
+    increments: Uint8Array[];
+    lastSeq: number;
+    /** What the relay has seen from this peer. Omit when EVERYTHING
+     *  imported came from the room (invite-prefetch offline join) —
+     *  the post-import version is then exactly the room's view. */
+    sentVersion?: Uint8Array;
+    client: RoomsClient;
+    callbacks?: CollabSessionCallbacks;
+    flushMs?: number;
+    catchUpMs?: number;
+    minBackoffMs?: number;
+    maxBackoffMs?: number;
+    snapshotEvery?: number;
+  }): Promise<CollabSession> {
+    const key = await importRoomKey(opts.keyBytes);
+    const loroDoc = new LoroDoc();
+    configTextStyle(loroDoc);
+    loroDoc.importBatch([opts.snapshot, ...opts.increments]);
+    const session = new CollabSession({ ...opts, key, loroDoc });
+    session.lastSeq = opts.lastSeq;
+    session.lastSentVersion = opts.sentVersion
+      ? VersionVector.decode(opts.sentVersion)
+      : loroDoc.version();
+    session.ackedVersion = session.lastSentVersion;
+    return session;
+  }
+
+  /** Cursor + sent-version metadata for the persistence layer — cheap,
+   *  called every persist tick. The snapshot export is separate
+   *  (exportSnapshot) so steady-state ticks never pay for it. */
+  persistMeta(): { lastSeq: number; sentVersion: Uint8Array } {
+    return { lastSeq: this.lastSeq, sentVersion: this.ackedVersion.encode() };
+  }
+
+  /** Full CRDT export — the persistence layer's compaction base. */
+  exportSnapshot(): Uint8Array {
+    this.loroDoc.commit();
+    return this.loroDoc.export({ mode: 'snapshot' });
+  }
+
+  /** Incremental export since `from` (VersionVector.encode() bytes) —
+   *  the persistence layer's cheap steady-state write. */
+  exportSince(from: Uint8Array): { bytes: Uint8Array; version: Uint8Array } {
+    this.loroDoc.commit();
+    return {
+      bytes: this.loroDoc.export({ mode: 'update', from: VersionVector.decode(from) }),
+      version: this.loroDoc.version().encode(),
+    };
+  }
+
+  /** Current doc version, encoded — persistence uses it to detect
+   *  "anything new since the last write?" cheaply. */
+  encodedVersion(): Uint8Array {
+    this.loroDoc.commit();
+    return this.loroDoc.version().encode();
   }
 
   /** The ProseMirror plugins that bind an EditorView to this session.
@@ -338,7 +421,7 @@ export class CollabSession {
     if (version.compare(this.lastSentVersion) === 0) return;
     const diff = this.loroDoc.export({ mode: 'update', from: this.lastSentVersion });
     this.lastSentVersion = version;
-    this.outQueue.push(diff);
+    this.outQueue.push({ blob: diff, version });
     this.emitStatus();
     void this.drainQueue();
   }
@@ -348,10 +431,15 @@ export class CollabSession {
     this.sending = true;
     try {
       while (this.outQueue.length > 0) {
-        const blob = this.outQueue[0]!;
+        const entry = this.outQueue[0]!;
         try {
-          const seq = await this.client.postUpdate(this.roomId, await encryptBlob(this.key, blob));
+          const seq = await this.client.postUpdate(
+            this.roomId,
+            await encryptBlob(this.key, entry.blob),
+          );
           this.outQueue.shift();
+          this.ackedVersion =
+            this.outQueue.length === 0 ? this.lastSentVersion : entry.version;
           this.postedCount++;
           this.sendRetryMs = 1000;
           if (this.stream?.connected) this.awaitingEcho = { seq, at: Date.now() };
@@ -442,12 +530,13 @@ export class CollabSession {
    *  call made because an import parked ops on missing causal deps —
    *  those deps live BELOW the cursor, so if the tail fetch yields
    *  nothing the full resync must still run. */
-  async catchUp(expectMissingDeps = false): Promise<void> {
+  async catchUp(expectMissingDeps = false, rethrow = false): Promise<void> {
     if (this.ended || this.catchUpRunning) return;
     this.catchUpRunning = true;
     try {
       let pendingLeft = false;
       let importedAny = false;
+      let importedCount = 0;
       for (;;) {
         const page = await this.client.fetchUpdates(this.roomId, this.lastSeq);
         const blobs: Uint8Array[] = [];
@@ -464,6 +553,7 @@ export class CollabSession {
         }
         if (blobs.length > 0) {
           importedAny = true;
+          importedCount += blobs.length;
           this.flush();
           const status = this.loroDoc.importBatch(blobs);
           this.lastSentVersion = this.loroDoc.version();
@@ -494,6 +584,7 @@ export class CollabSession {
         }
         if (page.lastSeq > this.lastSeq) this.lastSeq = page.lastSeq;
       }
+      if (importedCount >= 25) this.callbacks.onBacklogMerged?.(importedCount);
       // "Connected" is the STREAM's state (live push flowing) — a
       // successful catch-up over plain HTTP must not paint the chip
       // synced while push delivery is still down.
@@ -506,6 +597,7 @@ export class CollabSession {
       }
       this.connected = false;
       this.emitStatus();
+      if (rethrow) throw err;
     } finally {
       this.catchUpRunning = false;
     }

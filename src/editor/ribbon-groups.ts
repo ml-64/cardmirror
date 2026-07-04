@@ -192,6 +192,10 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
     ],
   },
   {
+    title: 'Diagnostics',
+    commands: ['openDevConsole'],
+  },
+  {
     title: 'Comments',
     commands: ['toggleCommentsVisible', 'addCommentToSelection', 'addNoteToSelection'],
   },

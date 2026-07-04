@@ -5,7 +5,15 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
-## Unreleased
+## 0.1.0-beta.8 — 2026-07-03
+
+### Added
+
+- **Open Developer Console command.** The command bar can now open the
+  built-in developer console on desktop (search "Open Developer
+  Console"; bindable to a key of your choice in Settings). Useful when
+  support asks you to check for errors — packaged builds previously
+  had no way to open it on Windows or Linux.
 
 ### Fixed
 

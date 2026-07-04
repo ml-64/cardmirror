@@ -5,7 +5,18 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
-## Unreleased
+## 0.1.0-beta.8 — 2026-07-03
+
+- **Open Developer Console ribbon command** (`openDevConsole`;
+  desktop-only, hidden on web; no default binding — command-bar
+  triggered, rebindable like any command; new "Diagnostics" group).
+  Backed by a `host:toggle-devtools` IPC that toggles Chromium DevTools
+  on the invoking window. Load-bearing on Windows/Linux: the packaged
+  app sets a null application menu there, and Electron's stock DevTools
+  accelerators (F12/Ctrl+Shift+I) only exist as menu accelerators — so
+  packaged builds had NO console access (discovered while flipping the
+  dormant-collab localStorage gate for field testing). Deliberately not
+  bound to F12, which is `clearToNormal`.
 
 - **Collab M2 (coediting branch): pairing-mailbox session invites +
   baked relay defaults** (`pairing/room-invite.ts` NEW,

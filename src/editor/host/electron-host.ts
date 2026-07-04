@@ -270,6 +270,9 @@ interface ElectronAPI {
    *  back to this when no settings/dev override is present. Optional so
    *  an older preload degrades to settings-only resolution. */
   collabRelayDefaults?(): Promise<{ url: string; token: string }>;
+  /** Toggle Chromium DevTools on this window (packaged builds have no
+   *  menu accelerators for it on Windows/Linux). */
+  toggleDevTools?(): Promise<void>;
   onPairingInboxChanged?(handler: (items: PairingInboxItemIpc[]) => void): () => void;
   onPairingVersionMismatch?(
     handler: (info: {
@@ -768,6 +771,10 @@ export class ElectronHost implements Host {
 
   async collabRelayDefaults(): Promise<{ url: string; token: string }> {
     return (await api().collabRelayDefaults?.()) ?? { url: '', token: '' };
+  }
+
+  async toggleDevTools(): Promise<void> {
+    await api().toggleDevTools?.();
   }
 
   onPairingInboxChanged(handler: (items: PairingInboxItemIpc[]) => void): () => void {

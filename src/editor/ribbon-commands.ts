@@ -4525,6 +4525,7 @@ export type RibbonCommandId =
   | 'collabInviteStarred'
   | 'collabEndSession'
   | 'insertImage'
+  | 'openDevConsole'
   | 'zoomIn'
   | 'zoomOut'
   | 'zoomReset'
@@ -4720,6 +4721,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'collabInviteStarred',
   'collabEndSession',
   'insertImage',
+  'openDevConsole',
   'zoomIn',
   'zoomOut',
   'zoomReset',
@@ -4882,6 +4884,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   collabInviteStarred: 'Invite Starred Partner to Session',
   collabEndSession: 'End or Leave Collaboration Session',
   insertImage: 'Insert Image at Cursor',
+  openDevConsole: 'Open Developer Console',
   zoomIn: 'Zoom In',
   zoomOut: 'Zoom Out',
   zoomReset: 'Reset Zoom to 100%',
@@ -4949,6 +4952,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   collabJoinSession: ['join session', 'share code', 'coedit'],
   collabCopyShareCode: ['share code', 'invite code', 'session code'],
   collabInviteStarred: ['invite partner', 'session invite', 'invite to session'],
+  openDevConsole: ['devtools', 'dev console', 'debug console', 'inspect', 'developer tools'],
   collabEndSession: ['leave session', 'stop session', 'stop collaborating'],
   repairParagraphIntegrity: [
     'paragraph integrity',
@@ -5165,6 +5169,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   // either command can be rebound. zoomReset stays unbound by
   // default — Mod-0 is a browser-level "reset zoom" chord that
   // Chromium won't always let the page intercept.
+  openDevConsole: '',
   zoomIn: 'Mod-=',
   zoomOut: 'Mod--',
   zoomReset: '',
@@ -5383,6 +5388,8 @@ export interface RibbonContext {
   /** Zoom controls — bumps the persisted `zoomPct` setting one
    *  step up/down or resets it to 100%. The status-bar buttons
    *  use the same handlers. */
+  /** Toggle Chromium DevTools (desktop only; hidden on web). */
+  openDevConsole: () => void;
   zoomIn: () => void;
   zoomOut: () => void;
   zoomReset: () => void;
@@ -5505,6 +5512,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   collabInviteStarred: () => {},
   collabEndSession: () => {},
   insertImage: () => {},
+  openDevConsole: () => {},
   zoomIn: () => {},
   zoomOut: () => {},
   zoomReset: () => {},
@@ -6041,6 +6049,12 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
         // Open the popover straight into edit mode so the flow is
         // invoke → type the note → Save.
         if (view) openFootnoteEditor(view, insertPos);
+        return true;
+      };
+    case 'openDevConsole':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.openDevConsole();
         return true;
       };
     case 'zoomIn':

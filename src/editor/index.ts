@@ -985,6 +985,9 @@ const ribbonContext: RibbonContext = {
   collabInviteStarred: () => {
     void loadCollabUi().then((m) => m.inviteStarredFlow());
   },
+  openDevConsole: () => {
+    void getElectronHost()?.toggleDevTools();
+  },
   collabEndSession: () => {
     void loadCollabUi().then((m) => m.endSessionFlow(collabDeps));
   },
@@ -3204,6 +3207,7 @@ const VIEWLESS_RIBBON_COMMANDS = new Set<RibbonCommandId>([
   'collabCopyShareCode',
   'collabInviteStarred',
   'collabEndSession',
+  'openDevConsole',
 ]);
 
 function runViewlessRibbon(id: RibbonCommandId): void {
@@ -3228,6 +3232,7 @@ function runViewlessRibbon(id: RibbonCommandId): void {
     case 'collabJoinSession': ribbonContext.collabJoinSession(); return;
     case 'collabCopyShareCode': ribbonContext.collabCopyShareCode(); return;
     case 'collabInviteStarred': ribbonContext.collabInviteStarred(); return;
+    case 'openDevConsole': ribbonContext.openDevConsole(); return;
     case 'collabEndSession': ribbonContext.collabEndSession(); return;
     // Multi-pane workspace navigation. Each dispatches into the
     // shell via dynamic import — keeps single-doc bundles free

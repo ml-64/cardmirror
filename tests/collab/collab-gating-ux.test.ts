@@ -16,9 +16,10 @@ describe('relay failure messaging (gating 401 UX)', () => {
       initiating: true,
       verb: 'start the session',
     });
-    expect(msg).toMatch(/subscription/i);
-    expect(msg).toMatch(/Settings/);
-    expect(msg).toMatch(/set up your own relay/i); // self-host as a first-class option
+    // Must NOT imply a membership is required — self-hosting is valid.
+    expect(msg).toMatch(/requires a relay/i);
+    expect(msg).not.toMatch(/subscription|membership/i);
+    expect(msg).toMatch(/connect your Debate Decoded account or set up your own relay/i);
     expect(msg).not.toMatch(/401/); // not the raw error
   });
 

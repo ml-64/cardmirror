@@ -7,12 +7,12 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
-- **Relay auth messaging offers self-hosting as a first-class option.**
-  Both the co-editing session-start 401 and the card-sharing relay-401
+- **Relay auth messaging is accurate about what's required.** Both the
+  co-editing session-start 401 and the card-sharing relay-401
   (previously a dev-only console warning, now a throttled user toast)
-  say "connect your Debate Decoded account **or set up your own relay**"
-  — not just "connect your account" — since a self-hosted relay is a
-  supported path to using either feature.
+  say a **relay** is required and offer both paths — "connect your
+  Debate Decoded account **or set up your own relay**" — rather than
+  implying a subscription is required (a self-hosted relay needs none).
 
 - **Collab: gating-aware session-start error (co-editing auth parity)**
   (`collab-ui.ts`, test). With subscription gating live (§5.4: paid

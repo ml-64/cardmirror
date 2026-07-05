@@ -216,8 +216,8 @@ function sessionCallbacks(deps: CollabUiDeps) {
 export function relayFailureMessage(err: unknown, opts: { initiating: boolean; verb: string }): string {
   if (err instanceof RoomsError && err.status === 401) {
     return opts.initiating
-      ? 'Starting a collaboration session needs a Debate Decoded subscription. In ' +
-          'Settings → Card Sharing, connect your account or set up your own relay.'
+      ? 'Starting a collaboration session requires a relay. In Settings → Card ' +
+          'Sharing, connect your Debate Decoded account or set up your own relay.'
       : 'The session relay rejected your credentials. In Settings → Card Sharing, ' +
           'connect your Debate Decoded account or set up your own relay.';
   }

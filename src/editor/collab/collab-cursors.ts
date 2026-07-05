@@ -68,6 +68,11 @@ export interface CursorsHandle {
   plugins(): Plugin[];
   /** Feed an incoming (decrypted) presence frame. */
   applyRemote(bytes: Uint8Array): void;
+  /** Peer ids currently visible in the presence store (self excluded).
+   *  Best-effort: with cursors disabled nothing broadcasts, so this
+   *  goes empty — callers must degrade safely (the repair leader gate
+   *  falls back to everyone-repairs, which idempotence makes safe). */
+  visiblePeers(): string[];
   dispose(): void;
 }
 
@@ -176,6 +181,13 @@ export function installCursorPresence(
         }),
         leaseAdsPlugin,
       ];
+    },
+    visiblePeers(): string[] {
+      try {
+        return Object.keys(store.getAllStates()).filter((p) => p !== peerId);
+      } catch {
+        return [];
+      }
     },
     applyRemote(bytes: Uint8Array): void {
       if (disposed || bytes.length < 2) return;

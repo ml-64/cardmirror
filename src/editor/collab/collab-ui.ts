@@ -32,6 +32,7 @@ import { collabInvariantHealPlugin } from './collab-invariants.js';
 import { installCommentsSync, type CommentsSyncHandle } from './collab-comments.js';
 import { attachSessionPersistence, type PersistHandle } from './collab-persist.js';
 import { installCursorPresence, type CursorsHandle } from './collab-cursors.js';
+import { collabRepairPlugin, lowestPeerIsLeader } from './collab-repair.js';
 import { loadSessionRecord, loadPrefetch, deletePrefetch } from './collab-store.js';
 import { importRoomKey, decryptBlob } from './collab-crypto.js';
 import { setCommentIdSessionMode } from '../comments-plugin.js';
@@ -134,6 +135,9 @@ function installSeams(session: CollabSession, deps: CollabUiDeps): void {
       ...session.plugins(),
       LoroUndoPlugin({ doc: session.loroDoc }),
       collabInvariantHealPlugin(),
+      collabRepairPlugin(() =>
+        lowestPeerIsLeader(session.loroDoc.peerIdStr, cursors?.visiblePeers() ?? []),
+      ),
       commentsSync!.plugin,
       ...(cursors?.plugins() ?? []),
     ],

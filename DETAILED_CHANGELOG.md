@@ -7,6 +7,22 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Collab: tables/cards repair pass wired into sessions (§4.4
+  complete)** (`collab/collab-repair.ts` NEW, `collab-cursors.ts`,
+  `collab-ui.ts`, tests). The M0 repair (`buildDocRepairTr`:
+  prosemirror-tables fixTables + exclusive-marks sweep + container
+  first-child invariant) now runs AUTOMATICALLY after every remote
+  batch and undo/redo, leader-gated per §4.3: lowest peer id among
+  self + presence-visible peers dispatches; followers receive the
+  synced fix. The gate is best-effort dedup, not a correctness
+  dependency — with presence empty (cursors off) everyone repairs,
+  which idempotence + the normalizer round cap make safe. Repairs
+  carry the normalizer origin (read mode admits; round cap applies).
+  T4 pins the session-level behavior: the ragged row-vs-column merge
+  squares itself with no manual step, zero cell-content loss,
+  idempotent on both peers. Peer ids compare NUMERICALLY (BigInt) —
+  decimal u64 strings sort wrong lexically.
+
 - **Collab: delivery-cursor discipline — the recurring one-way desync
   and the permanent gap, both closed** (`collab-session.ts`,
   `patches/`, `style.css`, tests). Field round 3, triggered by network

@@ -73,8 +73,8 @@ most of the desktop experience; what follows is only what still differs.
 
 A few capabilities still need the **desktop app**: the background
 **[file-library search](#the-search-everything-palette-mod-shift-space)**,
-**folder-wide** bulk operations (the web app runs Clean / Convert /
-Compress one file at a time instead),
+**folder-wide** bulk operations (the web app runs Clean / Convert one
+file at a time instead),
 **[Send to Verbatim Flow](#12-send-to-verbatim-flow)**,
 **[voice control](#13-voice-control)**, and
 **[card sharing](#card-sharing-send-and-receive-pills)**. And saving in
@@ -1354,11 +1354,8 @@ and dragging cards around inside the editor is unaffected.
 - **`.cmir`** — CardMirror's native format. Lossless, and required for
   autosave and crash recovery. Use it for your working files. Files are
   saved compressed (roughly 10× smaller than before) and open just as fast;
-  older uncompressed files still open and shrink the next time you save them.
-  To shrink existing files, use **Bulk compress** on the Home screen — on
-  desktop it compresses every `.cmir` in a folder in place, skipping ones
-  already done; the web edition does one file at a time. *(A temporary
-  migration helper.)*
+  any older uncompressed file shrinks automatically the next time you save
+  it — no action needed.
 - **`.docx`** — Word/Verbatim format. Use it to share. CardMirror writes
   docx that's indistinguishable from Verbatim's own output; some
   CardMirror-only extras (private notes, AI notes, flashcards) are left
@@ -1806,8 +1803,8 @@ remove one, **↺** to restore its default. A few window-level shortcuts
 - **Steady text cursor (no blinking)** — stop the text cursor blinking and
   show a steady caret instead. Off by default.
 - **Default document zoom** — the body-text zoom level documents open at, and
-  reset to on reload (zoom is per-editor and no longer persists). 50–200%,
-  100% by default.
+  reset to on reload (zoom is per-editor and does not persist across reloads).
+  50–200%, 100% by default.
 - **Screen reader support** *(desktop)* — let screen readers and other
   assistive technology read CardMirror. **Off by default**: a current Chromium
   bug crashes the window (white screen, lost work) while building the

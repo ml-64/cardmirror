@@ -112,29 +112,31 @@ class HomeScreen {
     header.appendChild(tagline);
     inner.appendChild(header);
 
-    // Number-key actions: index 0..8 map to the 1..9 shortcuts (see
-    // onKeyDown), in reading order down the page — 1-3 primary action
-    // cards, 4 Clean, 5 Bulk convert, 6 Bulk compress, 7 Manage quick
-    // cards, 8 Review all, 9 Manage flashcards. Runners guard on the
-    // same conditions that show their card, so a key only fires when
-    // its button is on screen.
-    this.actionRunners = [
+    // Number-key actions: the 1..N shortcuts (see onKeyDown), in reading
+    // order down the page — 1-3 primary action cards, then the utilities
+    // that are actually present. The array is built to MATCH the rendered
+    // tiles below (same conditions), so the shortcuts REFLOW with them:
+    // e.g. with Bulk Compress gated off, Manage quick cards is 6 (not 7)
+    // and the tiles close the gap. The top three keep stable indices 0-2
+    // (referenced just below when building their cards).
+    const runners: Array<() => void> = [
       () => this.callbacks?.newDoc(),
       () => this.callbacks?.newSpeechDoc(),
       () => this.callbacks?.open(),
-      () => this.callbacks?.clean?.(),
-      () => this.callbacks?.bulkConvert?.(),
-      () => this.callbacks?.bulkCompress?.(),
-      () => this.callbacks?.manageQuickCards(),
-      () => {
-        if (learnStore.totalCount({ kind: 'all' }) > 0) {
-          openLearnSession({ kind: 'all' }, { title: 'Review — all' });
-        }
-      },
-      // Manage is always reachable — even with zero cards, the user
-      // may want to import flashcards from a file.
-      () => openLearnManage(),
     ];
+    if (callbacks.clean) runners.push(() => this.callbacks?.clean?.());
+    if (callbacks.bulkConvert) runners.push(() => this.callbacks?.bulkConvert?.());
+    if (callbacks.bulkCompress) runners.push(() => this.callbacks?.bulkCompress?.());
+    runners.push(() => this.callbacks?.manageQuickCards());
+    runners.push(() => {
+      if (learnStore.totalCount({ kind: 'all' }) > 0) {
+        openLearnSession({ kind: 'all' }, { title: 'Review — all' });
+      }
+    });
+    // Manage is always reachable — even with zero cards, the user may
+    // want to import flashcards from a file.
+    runners.push(() => openLearnManage());
+    this.actionRunners = runners;
     const actions = document.createElement('div');
     actions.className = 'pmd-home-actions';
     actions.appendChild(
@@ -195,8 +197,10 @@ class HomeScreen {
 
     // Utilities — below Recent. Each is its own labeled group (heading
     // + button) sitting side by side in a card-width grid. Order:
-    // Clean, Convert, Compress, Quick Cards (matching the number-key
-    // order: Clean 4, Convert 5, Compress 6, Quick Cards 7).
+    // Clean, Convert, Compress (gated), Quick Cards, Learn — the same
+    // order as the number-key runners above, so the two stay in sync and
+    // reflow together: with Compress gated off, Quick Cards takes its
+    // slot and the shortcuts renumber.
     const qcSection = document.createElement('section');
     qcSection.className = 'pmd-home-qc-section';
     const qcGrid = document.createElement('div');
@@ -234,7 +238,8 @@ class HomeScreen {
         ),
       );
     }
-    // Bulk compress — temporary migration tool.
+    // Bulk compress — retired early-alpha migration tool, present only
+    // when the console gate is open (callbacks.bulkCompress supplied).
     if (callbacks.bulkCompress) {
       qcGrid.appendChild(
         labeledGroup(
@@ -327,11 +332,11 @@ class HomeScreen {
       this.hide();
       return;
     }
-    // 1-9 trigger New / New speech / Open / Clean / Bulk convert / Bulk
-    // compress / Manage quick cards / Review all / Manage flashcards,
-    // mirroring the number-key button panels elsewhere. Bare keys only — the
-    // home screen has no text inputs to conflict with, but still ignore the
-    // chord variants so a stray modifier doesn't fire an action unexpectedly.
+    // Number keys trigger the actions in `actionRunners`, in the order the
+    // tiles appear — so the mapping reflows when a gated tile (e.g. Bulk
+    // Compress) is absent. Bare keys only — the home screen has no text
+    // inputs to conflict with, but still ignore the chord variants so a
+    // stray modifier doesn't fire an action unexpectedly.
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const idx = { '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, '6': 5, '7': 6, '8': 7, '9': 8 }[e.key];
     if (idx === undefined) return;

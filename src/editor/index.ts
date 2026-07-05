@@ -91,12 +91,18 @@ import {
 import { buildDescriptor, resolveDescriptor, type AnchorDescriptor } from './learn-anchor.js';
 import { countSelectionImages } from './ai/explain-context.js';
 import { preciseScrollIntoView } from './precise-scroll.js';
+import {
+  captureViewportAnchor,
+  restoreViewportAnchor,
+  type ViewportAnchor,
+} from './scroll-anchor.js';
 import { voicePlugin } from './voice/plugin.js';
 import { VoiceController } from './voice/controller.js';
 import { openCardEditor } from './learn-create-ui.js';
 import { openLearnManage } from './learn-manage-ui.js';
 import { openBulkConvert, runConvertSingleFileWeb } from './bulk-convert-ui.js';
 import { openBulkCompress, runCompressSingleFileWeb } from './bulk-compress-ui.js';
+import { bulkCompressEnabled } from './bulk-compress-gate.js';
 import { openClean, runCleanSingleFileWeb } from './clean-ui.js';
 import { homeScreen, type HomeScreenCallbacks } from './home-screen.js';
 import { recordRecent, removeRecent, type RecentFile } from './recents-store.js';
@@ -2376,22 +2382,101 @@ export function refreshZoomStatus(): void {
   updateZoomStatus(zoomStateForActive());
 }
 
-/** Zoom the ACTIVE editor by a delta: single-pane the window, multi-pane the
- *  focused pane. */
-function zoomActiveBy(deltaPct: number): void {
-  if (multiDocActive && multiDocZoomBy) {
-    multiDocZoomBy(deltaPct);
-    return;
+// ─── Word-style zoom gesture ───────────────────────────────────────
+// Zoom used to write the CSS `zoom` value on every 10% step, so a
+// continuous ctrl+wheel / key-repeat reflowed the whole editor once per
+// step (choppy). Instead the TARGET % shows immediately (badge + status)
+// while the actual reflow is deferred: steps within a short window
+// coalesce, and the real zoom applies ONCE when the input settles — then
+// the viewport is re-anchored (a scaled document otherwise slides under a
+// fixed scrollTop). "Show the % you'll land at, then land."
+
+// The anchor view is always `view`: single-doc the editor, multi-pane the
+// focused pane's view (the shell keeps `view` pointed there via
+// setActiveView), so its nearest scroller is the right one in both modes.
+
+const ZOOM_COMMIT_DELAY_MS = 70; // coalesces a burst; imperceptible on one step
+let zoomTarget: number | null = null; // pending target during a gesture
+let zoomAnchor: ViewportAnchor | null = null; // captured at gesture start
+let zoomCommitTimer: number | null = null;
+let zoomBadgeEl: HTMLElement | null = null;
+let zoomBadgeHideTimer: number | null = null;
+
+function showZoomBadge(pct: number): void {
+  if (!zoomBadgeEl) {
+    zoomBadgeEl = document.createElement('div');
+    zoomBadgeEl.className = 'pmd-zoom-badge';
+    zoomBadgeEl.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(zoomBadgeEl);
   }
-  setZoom(liveZoomPct + deltaPct);
+  zoomBadgeEl.textContent = `${pct}%`;
+  zoomBadgeEl.classList.add('visible');
+  if (zoomBadgeHideTimer !== null) window.clearTimeout(zoomBadgeHideTimer);
+}
+
+function hideZoomBadgeSoon(): void {
+  if (zoomBadgeHideTimer !== null) window.clearTimeout(zoomBadgeHideTimer);
+  zoomBadgeHideTimer = window.setTimeout(() => {
+    zoomBadgeEl?.classList.remove('visible');
+    zoomBadgeHideTimer = null;
+  }, 550);
+}
+
+/** Apply the pending zoom target once, then pin the viewport back. */
+function commitZoomGesture(): void {
+  zoomCommitTimer = null;
+  const target = zoomTarget;
+  const anchor = zoomAnchor;
+  zoomTarget = null;
+  zoomAnchor = null;
+  if (target === null) return;
+  if (multiDocActive && multiDocZoomBy) {
+    multiDocZoomBy(target - zoomStateForActive());
+  } else {
+    setZoom(target);
+  }
+  if (anchor) restoreViewportAnchor(anchor);
+  hideZoomBadgeSoon();
+}
+
+/** Preview a zoom target: update the % readout now, defer the reflow. */
+function zoomPreviewTo(pct: number): void {
+  const target = clampZoom(pct);
+  if (zoomTarget === null) {
+    // Gesture start — anchor to the current (committed) layout.
+    zoomAnchor = view ? captureViewportAnchor(view) : null;
+  }
+  zoomTarget = target;
+  updateZoomStatus(target);
+  showZoomBadge(target);
+  if (zoomCommitTimer !== null) window.clearTimeout(zoomCommitTimer);
+  zoomCommitTimer = window.setTimeout(commitZoomGesture, ZOOM_COMMIT_DELAY_MS);
+}
+
+/** Zoom the ACTIVE editor by a delta (single-pane the window, multi-pane
+ *  the focused pane) — accumulates onto any pending gesture target. */
+function zoomActiveBy(deltaPct: number): void {
+  zoomPreviewTo((zoomTarget ?? zoomStateForActive()) + deltaPct);
 }
 
 function zoomActiveReset(): void {
+  // Reset is a single deliberate action — apply immediately (still badged
+  // and anchored), cancelling any pending gesture.
+  if (zoomCommitTimer !== null) {
+    window.clearTimeout(zoomCommitTimer);
+    zoomCommitTimer = null;
+  }
+  zoomTarget = null;
+  zoomAnchor = null;
+  const anchor = view ? captureViewportAnchor(view) : null;
   if (multiDocActive && multiDocZoomResetHook) {
     multiDocZoomResetHook();
-    return;
+  } else {
+    setZoom(100);
   }
-  setZoom(100);
+  showZoomBadge(100);
+  hideZoomBadgeSoon();
+  if (anchor) restoreViewportAnchor(anchor);
 }
 
 /** Chrome scale — the whole-page zoom analog of `setZoom`. Wired
@@ -3779,6 +3864,14 @@ function refreshWordCount(opts?: { selectionOnly?: boolean }): void {
  * drives this one editor's read-mode flag.
  */
 function applyReadMode(on: boolean): void {
+  // Read mode collapses most of the document; capture what's at the top of
+  // the viewport so we can pin it back afterward (§ scroll-anchor) — UNLESS
+  // the user prefers the toggle to jump to the doc top, which the
+  // `toggleReadMode` command handles and our restore would otherwise fight.
+  const anchor =
+    view && !settings.get('jumpToDocTopOnReadModeToggle')
+      ? captureViewportAnchor(view, { readMode: true })
+      : null;
   editorEl.classList.toggle('pmd-read-mode', on);
   editorEl.classList.toggle(
     'pmd-rm-no-emphasis-borders',
@@ -3797,6 +3890,7 @@ function applyReadMode(on: boolean): void {
     // which is what lets multi-doc keep read mode per-pane.
     view.dispatch(view.state.tr.setMeta(PMD_READ_MODE_TOGGLE, on));
   }
+  if (anchor) restoreViewportAnchor(anchor);
 }
 
 /**
@@ -3812,12 +3906,16 @@ export function applyReadModeToTarget(
   on: boolean,
   hideEmphasisBorders: boolean,
 ): void {
+  const anchor = settings.get('jumpToDocTopOnReadModeToggle')
+    ? null
+    : captureViewportAnchor(targetView, { readMode: true });
   hostEl.classList.toggle('pmd-read-mode', on);
   hostEl.classList.toggle('pmd-rm-no-emphasis-borders', on && hideEmphasisBorders);
   // Stay editable so the caret is placeable; edits are blocked by the
   // read-mode plugin's filterTransaction.
   targetView.setProps({ editable: () => true });
   targetView.dispatch(targetView.state.tr.setMeta(PMD_READ_MODE_TOGGLE, on));
+  if (anchor) restoreViewportAnchor(anchor);
 }
 
 /**
@@ -5075,9 +5173,13 @@ const homeCallbacks: HomeScreenCallbacks = {
     getHost().kind === 'electron'
       ? () => openBulkConvert()
       : () => void runConvertSingleFileWeb(),
-  // Bulk compress: folder modal on Electron; single-file Compress on web.
-  bulkCompress:
-    getHost().kind === 'electron'
+  // Bulk compress: a retired early-alpha migration tool, dormant behind a
+  // console gate (localStorage['pmd-compress']='1'). When closed the
+  // callback is undefined, so the Home screen hides the Compress tile and
+  // reflows Quick Cards + the number shortcuts into its place.
+  bulkCompress: !bulkCompressEnabled()
+    ? undefined
+    : getHost().kind === 'electron'
       ? () => openBulkCompress()
       : () => void runCompressSingleFileWeb(),
 };

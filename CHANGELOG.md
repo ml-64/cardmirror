@@ -26,10 +26,11 @@ This build carries an **early preview** of real-time collaboration. It
 is experimental and **may break** — expect rough edges, and know that a
 session can occasionally desync or need restarting while we field-test
 it. It runs only in the **desktop app** (the web version has no
-server-backed features), and it stays off until you deliberately turn
-it on from the developer console — there is no setting for it yet. We'll
-announce it properly, with a real on-switch, once it's ready. What's in
-the preview:
+server-backed features), and it stays off unless you switch it on
+yourself — there's no setting for it yet. To try the preview: open the
+developer console (search the command bar for "Open Developer Console"),
+run `localStorage['pmd-collab'] = '1'`, and reload. We'll announce it
+properly, with a real on-switch, once it's ready. What's in the preview:
 
 - **Collaboration sessions.** Start a session on the document you have
   open; a partner joins and you edit together live. Built for
@@ -67,6 +68,23 @@ the preview:
   [Shreeram Modi](https://github.com/shreerammodi).)
 
 ### Changed
+
+- **Zoom is smoother and shows where you'll land.** Zooming (⌘/Ctrl
+  +/−, the zoom buttons, or Ctrl/pinch) now shows the target percentage
+  as you go and re-renders once when you settle, instead of resizing on
+  every step — and it holds the top of your screen where it was instead
+  of drifting.
+
+- **Read mode keeps your place.** Turning read mode on or off now keeps
+  you where you were reading, instead of jumping to a different part of
+  the document — the first visible content stays at the top of your
+  screen. (If you prefer the old jump-to-top behavior, the "Jump to doc
+  top when read mode toggles" setting still does exactly that.)
+
+- **Bulk Compress retired from the Home screen.** The one-time tool for
+  shrinking older uncompressed files has been removed from the Home
+  screen — files already compress automatically when you save, so it's
+  no longer needed. Quick Cards now sits where it was.
 
 - **Editor stability: internal fix-up passes are now loop-guarded.**
   The automatic tidy-ups that run after every edit (card absorption,

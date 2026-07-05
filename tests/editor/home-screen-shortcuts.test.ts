@@ -69,3 +69,41 @@ describe('home-screen number shortcuts', () => {
     expect(cb.newDoc).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('home-screen shortcuts reflow around the gated Compress tile', () => {
+  afterEach(() => homeScreen.hide());
+
+  function mountWith(extra: Partial<HomeScreenCallbacks>) {
+    document.body.innerHTML = '';
+    const cb = {
+      newDoc: vi.fn(),
+      newSpeechDoc: vi.fn(),
+      open: vi.fn(),
+      openRecent: vi.fn(),
+      manageQuickCards: vi.fn(),
+      clean: vi.fn(),
+      bulkConvert: vi.fn(),
+      ...extra,
+    } as HomeScreenCallbacks & { manageQuickCards: ReturnType<typeof vi.fn> };
+    homeScreen.mount(document.body, cb);
+    homeScreen.show();
+    return cb;
+  }
+
+  it('Compress gated OFF: key 6 runs Manage quick cards (numbers close the gap)', () => {
+    // Runners: 1 New, 2 New speech, 3 Open, 4 Clean, 5 Convert, 6 Quick Cards.
+    const cb = mountWith({}); // no bulkCompress supplied
+    press('6');
+    expect(cb.manageQuickCards).toHaveBeenCalledTimes(1);
+  });
+
+  it('Compress gated ON: key 6 runs Compress, key 7 runs Manage quick cards', () => {
+    const bulkCompress = vi.fn();
+    const cb = mountWith({ bulkCompress });
+    press('6');
+    expect(bulkCompress).toHaveBeenCalledTimes(1);
+    expect(cb.manageQuickCards).not.toHaveBeenCalled();
+    press('7');
+    expect(cb.manageQuickCards).toHaveBeenCalledTimes(1);
+  });
+});

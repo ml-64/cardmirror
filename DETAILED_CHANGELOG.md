@@ -7,6 +7,59 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Bulk compress retired from the Home screen (console-gated)**
+  (`bulk-compress-gate.ts` NEW, `index.ts`, `home-screen.ts`, `MANUAL.md`,
+  test). Bulk compress was a one-time remediation for the handful of
+  uncompressed early-alpha `.cmir` files; those are long since migrated
+  (and any stragglers shrink automatically on the next save), so the tile
+  is retired from the Home screen. It stays in the build behind a console
+  gate (`localStorage['pmd-compress']='1'`, or `VITE_COMPRESS=1`) for the
+  rare support case. With the gate closed the `bulkCompress` callback is
+  `undefined`, so the tile is hidden and **Quick Cards takes its slot**;
+  the Home-screen number-key shortcuts are now built from the tiles
+  actually present, so they **reflow** around the gap (Manage quick cards
+  becomes 6 instead of 7, etc.) instead of leaving a dead key. Regression
+  test pins the reflow both ways.
+
+- **Zoom is Word-style: show the % you'll land at, then land once**
+  (`index.ts`, `scroll-anchor.ts` NEW, `style.css`). Zoom previously wrote
+  the CSS `zoom` value on every 10% step, so a continuous ctrl+wheel /
+  key-repeat reflowed the whole editor once per step (choppy). Now every
+  zoom input shows the TARGET % immediately (a centered badge + the status
+  readout) but defers the reflow: steps within ~70ms coalesce and the real
+  zoom applies ONCE when the input settles, then the viewport re-anchors.
+  All input paths (keyboard, buttons, ctrl+wheel/pinch) funnel through the
+  single `zoomActiveBy`/`zoomActiveReset` chokepoint, so single-doc and
+  per-pane multi-doc both get it.
+
+- **Read-mode and zoom stay anchored to the top of the viewport**
+  (`scroll-anchor.ts` NEW, `read-mode-plugin.ts`, `index.ts`,
+  `precise-scroll.ts`, tests). Toggling read mode (content collapses) and
+  zooming (content scales) did no scroll-position preservation, so
+  whatever was at the top of the viewport drifted away by an amount
+  proportional to how far down the doc you were. Both now restore
+  `scrollTop` after layout settles (refining across a few
+  `requestAnimationFrame`s for cv:auto materialization, the same engine as
+  heading-landing), but with different anchors because the two operations
+  differ: **zoom** SCALES and hides nothing, so it anchors to the *exact*
+  position at the viewport top and preserves its precise screen Y (a
+  distant block would drift proportionally under scaling). **Read mode**
+  HIDES content, so the top line often vanishes; it scans DOWN from the
+  viewport top for the first text read mode keeps visible — a highlighted
+  run, cite, or heading (`firstReadKeptPos`, reusing the plugin's own keep
+  predicate so "what we anchor to" == "what stays visible") — and pins
+  that to the viewport TOP, since the hidden content above it collapses to
+  nothing and it rises to the top; if the whole viewport collapses, the
+  nearest kept content either way. Read-mode anchoring is skipped entirely
+  when the "Jump to doc top when read mode toggles" setting is on, so the
+  toggle's jump-to-top wins instead of being overridden by a rAF restore.
+  Unit tests cover the correction math (scripted-geometry drift measured
+  and cancelled) and the anchor targeting (first survivor lands on the
+  heading below a hidden body; a reading position on a highlight is
+  returned unchanged).
+
+  Zoom, separately, is Word-style (see the entry above).
+
 - **Collab: co-editing is categorically desktop-only (web has no
   server-dependent capabilities)** (`collab-gate.ts`, `collab-ui.ts`,
   test). The web edition now cannot run co-editing under any

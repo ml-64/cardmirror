@@ -201,6 +201,106 @@ function computeFullSet(doc: PMNode): DecorationSet {
   return DecorationSet.create(doc, computeDecorationsInRange(doc, 0, doc.content.size));
 }
 
+/** Textblocks whose text read mode always shows (headings / structural
+ *  labels — no rm-keep/hide decoration; block-level CSS shows them). */
+const READ_MODE_HEADING_BLOCKS = new Set(['tag', 'analytic', 'pocket', 'hat', 'block']);
+
+/** The read-aloud mark a textblock is filtered by, `'heading'` if its
+ *  text is always shown, or null if it isn't read-mode content. Mirrors
+ *  computeDecorationsInRange's per-node decision. */
+function readKeptKind(nodeName: string): string | 'heading' | null {
+  if (READ_MODE_HEADING_BLOCKS.has(nodeName)) return 'heading';
+  if (nodeName === 'cite_paragraph') return 'cite_mark';
+  if (nodeName === 'card_body' || nodeName === 'paragraph' || nodeName === 'undertag') {
+    return 'highlight';
+  }
+  return null;
+}
+
+/**
+ * The position of the text read mode keeps VISIBLE that is nearest to
+ * `pos` — a highlighted run, a cite, or heading/label text. Read-mode
+ * scroll anchoring pins to this (content that exists in BOTH modes)
+ * rather than a structural block boundary above the reader: the body
+ * between such a boundary and the reader collapses in read mode, so
+ * pinning the boundary drifts the reader's actual spot. Searches within
+ * the enclosing top-level container; returns null if it holds no
+ * read-aloud content (caller falls back to the raw position).
+ */
+export function nearestReadKeptPos(doc: PMNode, pos: number): number | null {
+  const size = doc.content.size;
+  const clamped = Math.max(0, Math.min(pos, size));
+  const { from, to } = expandToTopLevel(doc, clamped, clamped);
+  let best: number | null = null;
+  let bestDist = Infinity;
+  const consider = (cand: number): void => {
+    const dist = Math.abs(cand - clamped);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = cand;
+    }
+  };
+  doc.nodesBetween(from, to, (node, nodePos) => {
+    const kind = readKeptKind(node.type.name);
+    if (kind === null) return true; // a container — descend
+    if (kind === 'heading') {
+      if (node.content.size > 0) {
+        const start = nodePos + 1;
+        const end = nodePos + node.nodeSize - 1;
+        consider(Math.max(start, Math.min(clamped, end)));
+      }
+      return false;
+    }
+    // Body / cite text: only runs actually carrying the read-aloud mark.
+    node.forEach((child, offset) => {
+      if (!child.isText || !child.text) return;
+      if (!isReadKept(child, kind)) return;
+      const start = nodePos + 1 + offset;
+      const end = start + child.nodeSize;
+      consider(Math.max(start, Math.min(clamped, end)));
+    });
+    return false;
+  });
+  return best;
+}
+
+/**
+ * The FIRST text position in `[from, to]`, scanning forward, that read
+ * mode keeps visible — a highlighted run, a cite, or heading/label text.
+ * Returns null if the range holds no read-aloud content.
+ *
+ * This is the read-mode scroll anchor: the first content below the
+ * viewport top that survives the toggle. Everything hidden above it
+ * collapses to nothing, so pinning it to the top of the viewport lands
+ * the reader on exactly the first thing they'll still see — instead of
+ * drifting to wherever a structural boundary happened to be.
+ */
+export function firstReadKeptPos(doc: PMNode, from: number, to: number): number | null {
+  const size = doc.content.size;
+  const lo = Math.max(0, Math.min(from, size));
+  const hi = Math.max(lo, Math.min(to, size));
+  let found: number | null = null;
+  doc.nodesBetween(lo, hi, (node, nodePos) => {
+    if (found !== null) return false;
+    const kind = readKeptKind(node.type.name);
+    if (kind === null) return true; // container — descend
+    if (kind === 'heading') {
+      if (node.content.size > 0) found = Math.max(lo, nodePos + 1);
+      return false;
+    }
+    node.forEach((child, offset) => {
+      if (found !== null) return;
+      if (!child.isText || !child.text) return;
+      if (!isReadKept(child, kind)) return;
+      const end = nodePos + 1 + offset + child.nodeSize;
+      if (end <= lo) return; // entirely above the scan start
+      found = Math.max(lo, nodePos + 1 + offset);
+    });
+    return false;
+  });
+  return found;
+}
+
 /**
  * Build the decoration list for text nodes whose start position lies
  * within [from, to]. Callers pass a `from`/`to` already expanded to

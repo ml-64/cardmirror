@@ -49,7 +49,7 @@ import type { EditorView } from 'prosemirror-view';
  *  scrolls in a bounded `#app` (`style.css`,
  *  `body:not(.pmd-multi-doc) #app`) and multi-pane in
  *  `.pmd-pane-body`. */
-function nearestScroller(el: HTMLElement): HTMLElement | null {
+export function nearestScroller(el: HTMLElement): HTMLElement | null {
   let cur: HTMLElement | null = el.parentElement;
   while (cur) {
     const cs = getComputedStyle(cur);

@@ -7,6 +7,53 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **macOS: native swizzle stops the accessibility path that
+  `--disable-renderer-accessibility` misses** (`apps/desktop/native/ax-suppress.m`
+  NEW, `apps/desktop/scripts/build-ax-suppress.cjs` NEW,
+  `apps/desktop/src/ax-suppress-mac.ts` NEW, `apps/desktop/src/main.ts`,
+  `apps/desktop/package.json`, `.gitignore`). The renderer-accessibility CHECK
+  crash (see the recovery entry below) is switched on, on macOS, when an
+  assistive-tech client sets `AXEnhancedUserInterface` / `AXManualAccessibility`
+  on the shared `NSApplication` — a path Chromium's
+  `--disable-renderer-accessibility` switch does NOT intercept (field crash
+  dumps showed `ax_mode` fully enabled despite the switch, which is Windows-only
+  in practice). A small Obj-C dylib swizzles
+  `-[NSApplication accessibilitySetValue:forAttribute:]` on the concrete app
+  class to drop those two attributes and forward everything else, so Chromium
+  accessibility never turns on. The swizzled implementation is plain compiled C
+  invoked directly by AppKit — a `koffi.register` JS callback could NOT stand in,
+  because AppKit invoking a JS trampoline mid-runloop aborts under V8's
+  control-flow-integrity check (`brk 0` in `CrBrowserMain`, reproduced from a
+  crash report); koffi is used only for the one outbound `cm_suppress_ax()` call
+  at startup, and the dylib loads via the same koffi / `extraResources` path as
+  libvosk. Built as a universal (arm64 + x86_64) binary by a `clang` prebuild
+  step (`build:native`), so there is no node-gyp / N-API and nothing coupled to
+  Electron's ABI. Gated on the same `accessibilityTreeEnabled` pref as the switch
+  and installed in `whenReady` before the first window: opting the tree back on
+  (screen-reader users) skips suppression, accepting the crash risk to match the
+  opt-in. Verified in a packaged `electron-builder --dir` build — the universal
+  dylib lands at `Contents/Resources/native/ax-suppress.dylib`, and the packaged
+  app logs `ax-suppress installed=true` at startup with an exported drop-counter
+  confirming a simulated `AXEnhancedUserInterface` activation was dropped and
+  `isAccessibilitySupportEnabled()` stayed false, no crash.
+
+- **Renderer-crash recovery: reload + restore instead of a terminal white
+  screen** (`apps/desktop/src/main.ts`). A native renderer death — the Chromium
+  accessibility CHECK (`blink::AXBlockFlowData::ComputeNeighborOnLine`, confirmed
+  from field crash dumps), a GPU-process crash, or an OOM — left a permanently
+  blank window with no way back: the journal / autosave timers die with the
+  renderer, so unsaved work was stranded. `createWindow` now handles
+  `render-process-gone`: it records the reason + exit code to
+  `renderer-crashes.log` (userData) and the main-process console — in-app crash
+  telemetry we completely lacked (only Crashpad minidumps existed, which a user
+  has to dig out), with the `reason` field finally distinguishing `crashed` (the
+  a11y CHECK) from `oom` and `killed` — then reloads to recover from the crash
+  journal, turning a terminal white screen into a blink-and-recover, with a
+  3-reloads-in-30s guard so a document that deterministically re-crashes on load
+  can't spin. Cross-platform; complements the macOS prevention above (prevention
+  stops the known trigger at the source, recovery catches anything that still
+  slips through, on any platform).
+
 - **Bulk compress retired from the Home screen (console-gated)**
   (`bulk-compress-gate.ts` NEW, `index.ts`, `home-screen.ts`, `MANUAL.md`,
   test). Bulk compress was a one-time remediation for the handful of

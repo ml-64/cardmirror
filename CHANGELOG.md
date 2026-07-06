@@ -57,6 +57,21 @@ properly, with a real on-switch, once it's ready. What's in the preview:
 
 ### Fixed
 
+- **The white-screen crash no longer strands your work — and is
+  prevented at the source on macOS.** On some machines the editor could
+  turn solid white with no way back, usually right after an
+  assistive-technology tool (a screen reader, Voice Access, or — on
+  macOS — certain system accessibility features) touched a
+  heavily-highlighted document. Turning the accessibility tree off by
+  default in an earlier release reduced this but didn't fully close it on
+  macOS. Two changes finish the job: macOS now blocks the exact system
+  signal that set the crash off, so it doesn't start; and on every
+  platform, if the editor ever does go down, CardMirror automatically
+  reloads and restores your document from its recovery journal instead of
+  leaving a blank window. If you turned Screen reader support back on
+  under Settings → Accessibility, the macOS block is skipped to respect
+  that choice — and the automatic recovery still covers you.
+
 - **Word tables with uneven rows import cleanly.** A .docx table whose
   rows have different numbers of cells (Word allows this) is now padded
   to a clean rectangle on import, so row and column editing behaves

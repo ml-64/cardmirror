@@ -47,6 +47,11 @@ release/
 # committed.
 apps/desktop/resources/voice/
 
+# macOS AX-suppression dylib — compiled from native/ax-suppress.m by
+# apps/desktop/scripts/build-ax-suppress.cjs at build time (the .m source
+# is committed; the built binary is not).
+apps/desktop/resources/native/
+
 # `build/` is gitignored above as a generic build-output directory,
 # but electron-builder's `buildResources` lives at
 # apps/desktop/build/ and holds tracked source assets (icon.png).

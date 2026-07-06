@@ -34,6 +34,7 @@ import {
   readAccessibilityTreeEnabled,
   writeAccessibilityTreeEnabled,
 } from './accessibility-pref.js';
+import { installMacAccessibilitySuppression } from './ax-suppress-mac.js';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { gzip as zlibGzip, gunzip as zlibGunzip } from 'node:zlib';
@@ -86,7 +87,10 @@ crashReporter.start({
 // / UI-Automation client (screen reader, Windows Voice Access, Live Captions, …)
 // turns the accessibility tree on. Symbolicated from real crash dumps; not fixed
 // on current Chromium trunk. `--disable-renderer-accessibility` stops Chromium
-// building/serializing the tree, which removes the crash path entirely.
+// building/serializing the tree on Windows/Linux. On macOS the switch is not
+// enough — an assistive-tech client setting AXEnhancedUserInterface on NSApp
+// re-enables the tree behind it — so a second prong (installMacAccessibility-
+// Suppression, called in whenReady) swizzles that AppKit path shut as well.
 //
 // Users who genuinely need a screen reader can opt back in via Settings (machine-
 // local pref read here; the toggle prompts a restart since Chromium reads switches
@@ -2266,6 +2270,15 @@ void app.whenReady().then(() => {
   console.log(
     `[cardmirror] ax-tree-disabled=${!rendererAccessibilityEnabled} ax-support-active=${app.isAccessibilitySupportEnabled()}`,
   );
+  // macOS second prong: unless the user opted the tree back on, swizzle the
+  // AppKit AXEnhancedUserInterface path shut so an assistive-tech client can't
+  // re-enable the Chromium tree behind the disable-renderer-accessibility
+  // switch. Runs here (not at module load) because it needs the shared
+  // NSApplication to exist; before createWindow so no webContents is exposed
+  // to the crash path first. No-op off macOS.
+  if (!rendererAccessibilityEnabled) {
+    installMacAccessibilitySuppression();
+  }
   // An assistive-tech client connecting mid-session — another
   // confirmation signal for the AX crash trigger.
   app.on('accessibility-support-changed', (_event, enabled) => {

@@ -5,13 +5,17 @@
  */
 import { NodeSelection } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
-import type { Node as PMNode } from 'prosemirror-model';
+import type { Node as PMNode, Schema } from 'prosemirror-model';
 import { newHeadingId } from '../schema/index.js';
 import {
   isTransclusionNode,
   zoneIdentity,
   detachSlice,
   createTransclusionNode,
+  extractSection,
+  chooseSourceRef,
+  directZoneIdentities,
+  fragmentFromCache,
   type TransclusionAttrs,
 } from './transclusion.js';
 import { getViewDocPath } from './transclusion-doc-path.js';
@@ -24,6 +28,76 @@ const CRUMB_SEP = ' › ';
 export function crumbLabel(sourceName: string, headingLabel: string): string {
   const base = sourceName.replace(/\.cmir$/i, '');
   return base ? `${base}${CRUMB_SEP}${headingLabel}` : headingLabel;
+}
+
+export type BuildZoneReason =
+  | 'no-heading-id'
+  | 'no-section'
+  | 'no-doc-path'
+  | 'no-portable-ref'
+  | 'self-cycle';
+
+export interface BuildZoneOutcome {
+  ok: boolean;
+  reason?: BuildZoneReason;
+  attrs?: TransclusionAttrs;
+  headingLabel?: string;
+}
+
+/**
+ * Build the attrs for a new live zone from an already-parsed source doc + a
+ * target heading id. Shared by every creation entry point (the picker's
+ * transclude mode and per-header Mod+Enter). Snapshots the section now,
+ * computes a portable source ref, and rejects direct self-embedding. Pure aside
+ * from the `last_refreshed` timestamp, so it's unit-testable.
+ */
+export function buildLiveZoneAttrs(
+  schema: Schema,
+  sourceDoc: PMNode,
+  headingId: string,
+  sourceName: string,
+  docPath: string | null,
+  sourceAbsPath: string,
+  roots: readonly string[],
+): BuildZoneOutcome {
+  if (!headingId) return { ok: false, reason: 'no-heading-id' };
+  const section = extractSection(sourceDoc, headingId);
+  if (!section) return { ok: false, reason: 'no-section' };
+  if (!docPath) return { ok: false, reason: 'no-doc-path' };
+  const chosen = chooseSourceRef(docPath, sourceAbsPath, roots);
+  if (!chosen) return { ok: false, reason: 'no-portable-ref' };
+  const attrs: TransclusionAttrs = {
+    source_ref: chosen.ref,
+    source_ref_base: chosen.base,
+    source_heading_id: headingId,
+    content_hash: section.contentHash,
+    cached_content: section.cachedContent,
+    last_refreshed: Date.now(),
+    source_label: crumbLabel(sourceName, section.headingLabel),
+  };
+  const node = createTransclusionNode(schema, attrs);
+  if (directZoneIdentities(fragmentFromCache(schema, section.cachedContent)).has(zoneIdentity(node))) {
+    return { ok: false, reason: 'self-cycle' };
+  }
+  return { ok: true, attrs, headingLabel: section.headingLabel };
+}
+
+/** Toast message for a failed live-zone build. */
+export function buildZoneErrorMessage(reason: BuildZoneReason | undefined): string {
+  switch (reason) {
+    case 'no-heading-id':
+      return 'That heading has no stable id — open and save the source in CardMirror, then retry.';
+    case 'no-section':
+      return 'Could not read that section from the source.';
+    case 'no-doc-path':
+      return 'Save this document first, then insert a live zone.';
+    case 'no-portable-ref':
+      return 'Couldn’t make a portable link to that file.';
+    case 'self-cycle':
+      return 'That section transcludes itself — can’t create a cycle.';
+    default:
+      return 'Could not insert the live zone.';
+  }
 }
 
 /** Re-locate a zone after an async gap: prefer the original pos, else the first

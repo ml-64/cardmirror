@@ -1407,6 +1407,8 @@ const ribbonContext: RibbonContext = {
       paneEl,
       runCommand: runRibbonCommandById,
       openFilePath: openFileByPath,
+      // Enables per-header Mod+Enter "transclude" while browsing a file normally.
+      docPath: view ? getViewDocPath(view) : null,
     });
   },
   insertLiveZone: () => {

@@ -164,6 +164,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
       name: string;
     } | null>,
 
+  /** Resolve a transclusion source ref to its safe absolute path (for opening
+   *  the linked file). Same main-process boundary as readCmirFile; null when it
+   *  can't be safely resolved. */
+  resolveCmirPath: (
+    docPath: string,
+    sourceRef: string,
+    base: 'doc' | 'root',
+    roots: string[],
+  ) =>
+    ipcRenderer.invoke('host:resolve-cmir-path', docPath, sourceRef, base, roots) as Promise<
+      string | null
+    >,
+
   saveAs: (
     suggestedName: string,
     bytes: Uint8Array,

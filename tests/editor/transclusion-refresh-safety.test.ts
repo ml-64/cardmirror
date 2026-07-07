@@ -57,7 +57,7 @@ function zoneTextAt(view: EditorView, pos: number): string {
   return view.state.doc.nodeAt(pos)?.textContent ?? '';
 }
 
-const REF = { source_ref: 'S.cmir', source_ref_base: 'doc', source_heading_id: 'H' };
+const REF = { source_ref: 'S.cmir', source_ref_base: 'doc' as const, source_heading_id: 'H' };
 
 beforeEach(() => {
   resolveMock.mockReset();

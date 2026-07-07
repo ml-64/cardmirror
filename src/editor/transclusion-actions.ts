@@ -249,3 +249,51 @@ export function insertZoneAtSelection(
   view.dispatch(tr.scrollIntoView());
   return true;
 }
+
+/**
+ * Replace the zone at `pos` with a freshly built one — used by "Re-pick source"
+ * to re-target a zone (or relink an unlinked/frozen one) in place, preserving
+ * its position. Returns false if there's no zone there.
+ */
+export function replaceZoneAtPos(
+  view: EditorView,
+  pos: number,
+  attrs: Partial<TransclusionAttrs>,
+  content?: Fragment,
+): boolean {
+  const node = view.state.doc.nodeAt(pos);
+  if (!node || !isTransclusionNode(node)) return false;
+  const newNode = createTransclusionNode(view.state.schema, attrs, content);
+  const tr = view.state.tr.replaceWith(pos, pos + node.nodeSize, newNode);
+  tr.setMeta('addToHistory', true);
+  view.dispatch(tr.scrollIntoView());
+  return true;
+}
+
+/** How to open the picker in "re-pick" mode. Registered by the app wiring
+ *  (index.ts) because the picker needs deps the NodeView doesn't carry. */
+let rePickOpener: ((view: EditorView, pos: number) => void) | null = null;
+export function setRePickOpener(fn: (view: EditorView, pos: number) => void): void {
+  rePickOpener = fn;
+}
+/** Open the re-pick picker for the zone at `pos`. No-op (false) when nothing is
+ *  registered — e.g. the web build, where creation/refresh aren't available. */
+export function rePickZoneAtPos(view: EditorView, pos: number): boolean {
+  if (!rePickOpener) return false;
+  rePickOpener(view, pos);
+  return true;
+}
+
+/** How to open a zone's linked source file. Registered by the app wiring
+ *  (index.ts) — it needs host + file-open plumbing the NodeView doesn't carry. */
+let openSourceOpener: ((view: EditorView, pos: number) => void) | null = null;
+export function setOpenSourceOpener(fn: (view: EditorView, pos: number) => void): void {
+  openSourceOpener = fn;
+}
+/** Open the linked source file for the zone at `pos`. No-op (false) when nothing
+ *  is registered (e.g. the web build). */
+export function openZoneSourceAtPos(view: EditorView, pos: number): boolean {
+  if (!openSourceOpener) return false;
+  openSourceOpener(view, pos);
+  return true;
+}

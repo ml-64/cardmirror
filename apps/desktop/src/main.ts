@@ -626,56 +626,90 @@ ipcMain.handle('host:read-file-at-path', async (_event, filePath: string) => {
  *  refresh. Generous vs. real debate masters (tens of MB); it exists to stop a
  *  hostile/oversized file (or a symlink to a device) from exhausting memory. */
 const MAX_CMIR_READ_BYTES = 256 * 1024 * 1024;
+
+/**
+ * Resolve a transclusion source ref to a safe, canonical absolute path (or null).
+ * Lexical containment (resolveCmirCandidates) can't see through symlinks, and the
+ * filesystem FOLLOWS them — so a `.cmir` symlink inside a root could otherwise be
+ * followed to an arbitrary file outside it (the ref travels in a doc someone else
+ * authored). Re-verify on the CANONICAL path: realpath the target AND the allowed
+ * roots (a root may itself live under a symlink), then require the real target to
+ * sit inside a real root, be a regular file, and be within a sane size. This is
+ * the actual boundary; the lexical check is just a fast pre-filter. Never throws.
+ */
+async function safeResolveCmirPath(
+  docPath: string,
+  sourceRef: string,
+  refBase: 'doc' | 'root',
+  rootList: string[],
+): Promise<string | null> {
+  const candidates = resolveCmirCandidates(docPath, sourceRef, refBase, rootList);
+  const allowedBases = refBase === 'root' ? rootList : [...rootList, path.dirname(docPath)];
+  const realBases: string[] = [];
+  for (const b of allowedBases) {
+    try {
+      realBases.push(await fs.realpath(b));
+    } catch {
+      realBases.push(b);
+    }
+  }
+  for (const abs of candidates) {
+    try {
+      const real = await fs.realpath(abs);
+      // Symlink (or symlinked parent dir) that escapes every allowed root → drop.
+      if (!realBases.some((rb) => isWithin(rb, real))) continue;
+      const st = await fs.stat(real);
+      // Reject devices/FIFOs (a `.cmir` symlink to /dev/zero would read forever)
+      // and absurdly large files. Debate masters run to tens of MB → generous cap.
+      if (!st.isFile() || st.size > MAX_CMIR_READ_BYTES) continue;
+      return real;
+    } catch {
+      // try the next candidate root
+    }
+  }
+  return null;
+}
+
+/** Coerce the untrusted IPC ref args, or null when malformed. */
+function normalizeRefArgs(
+  docPath: unknown,
+  sourceRef: unknown,
+  base: unknown,
+  roots: unknown,
+): { docPath: string; sourceRef: string; refBase: 'doc' | 'root'; rootList: string[] } | null {
+  if (typeof docPath !== 'string' || typeof sourceRef !== 'string') return null;
+  const refBase: 'doc' | 'root' = base === 'root' ? 'root' : 'doc';
+  const rootList = Array.isArray(roots)
+    ? roots.filter((r): r is string => typeof r === 'string')
+    : [];
+  return { docPath, sourceRef, refBase, rootList };
+}
+
 ipcMain.handle(
   'host:read-cmir-file',
-  async (
-    _event,
-    docPath: unknown,
-    sourceRef: unknown,
-    base: unknown,
-    roots: unknown,
-  ) => {
-    if (typeof docPath !== 'string') return null;
-    if (typeof sourceRef !== 'string') return null;
-    const refBase: 'doc' | 'root' = base === 'root' ? 'root' : 'doc';
-    const rootList = Array.isArray(roots)
-      ? roots.filter((r): r is string => typeof r === 'string')
-      : [];
-    const candidates = resolveCmirCandidates(docPath, sourceRef, refBase, rootList);
-    // Lexical containment (resolveCmirCandidates) can't see through symlinks, and
-    // fs.readFile FOLLOWS them — so a `.cmir` symlink sitting inside a root could
-    // otherwise be followed to an arbitrary file outside it (the ref travels in a
-    // doc someone else authored). Re-verify on the CANONICAL path: realpath the
-    // target AND the allowed roots (a root may itself live under a symlink), then
-    // require the real target to still sit inside a real root, be a regular file,
-    // and be within a sane size. This is the actual boundary; the lexical check is
-    // just a fast pre-filter.
-    const allowedBases = refBase === 'root' ? rootList : [...rootList, path.dirname(docPath)];
-    const realBases: string[] = [];
-    for (const b of allowedBases) {
-      try {
-        realBases.push(await fs.realpath(b));
-      } catch {
-        realBases.push(b);
-      }
+  async (_event, docPath: unknown, sourceRef: unknown, base: unknown, roots: unknown) => {
+    const a = normalizeRefArgs(docPath, sourceRef, base, roots);
+    if (!a) return null;
+    const real = await safeResolveCmirPath(a.docPath, a.sourceRef, a.refBase, a.rootList);
+    if (!real) return null;
+    try {
+      const bytes = await fs.readFile(real);
+      return { bytes: new Uint8Array(bytes), name: path.basename(real) };
+    } catch {
+      return null;
     }
-    for (const abs of candidates) {
-      try {
-        const real = await fs.realpath(abs);
-        // Symlink (or symlinked parent dir) that escapes every allowed root → drop.
-        if (!realBases.some((rb) => isWithin(rb, real))) continue;
-        const st = await fs.stat(real);
-        // Reject devices/FIFOs (e.g. a `.cmir` symlink to /dev/zero would read
-        // forever and stall the main process) and absurdly large files. Debate
-        // masters run to tens of MB, so the cap is deliberately generous.
-        if (!st.isFile() || st.size > MAX_CMIR_READ_BYTES) continue;
-        const bytes = await fs.readFile(real);
-        return { bytes: new Uint8Array(bytes), name: path.basename(abs) };
-      } catch {
-        // try the next candidate root
-      }
-    }
-    return null;
+  },
+);
+
+/** Resolve a transclusion source ref to its safe absolute path (for "Open source
+ *  file" from a live zone). Same boundary as reading — never resolves a path
+ *  outside the allowed roots. */
+ipcMain.handle(
+  'host:resolve-cmir-path',
+  async (_event, docPath: unknown, sourceRef: unknown, base: unknown, roots: unknown) => {
+    const a = normalizeRefArgs(docPath, sourceRef, base, roots);
+    if (!a) return null;
+    return safeResolveCmirPath(a.docPath, a.sourceRef, a.refBase, a.rootList);
   },
 );
 

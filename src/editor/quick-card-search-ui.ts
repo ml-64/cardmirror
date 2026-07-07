@@ -55,6 +55,7 @@ import { getHost, getElectronHost, isWindowsHost } from './host/index.js';
 import { showToast } from './toast.js';
 import {
   insertZoneAtSelection,
+  replaceZoneAtPos,
   buildLiveZoneAttrs,
   buildZoneErrorMessage,
 } from './transclusion-actions.js';
@@ -270,6 +271,9 @@ export interface QuickCardSearchOptions {
   /** The transcluding document's own on-disk path, needed to compute a
    *  portable `source_ref`. Only used in transclude mode. */
   docPath?: string | null;
+  /** "Re-pick source" for an existing zone: choosing a header re-targets the
+   *  zone at this doc position in place, rather than inserting a new one. */
+  rePickTarget?: number;
 }
 
 /** A unified palette row — a quick card, dropzone item, command,
@@ -757,6 +761,9 @@ class QuickCardSearchUI {
   private openFilePath: (path: string, name: string) => void = () => {};
   private transcludeMode = false;
   private docPath: string | null = null;
+  /** When set, choosing a header RE-TARGETS the existing zone at this doc pos
+   *  (Re-pick source) instead of inserting a new one. */
+  private rePickTarget: number | null = null;
 
   private results: PaletteResult[] = [];
   /** Full ranked list for the current query; `results` holds the rendered
@@ -810,7 +817,8 @@ class QuickCardSearchUI {
     this.paneEl = opts.paneEl;
     this.runCommand = opts.runCommand;
     this.openFilePath = opts.openFilePath;
-    this.transcludeMode = opts.transcludeMode ?? false;
+    this.rePickTarget = opts.rePickTarget ?? null;
+    this.transcludeMode = (opts.transcludeMode ?? false) || this.rePickTarget != null;
     this.docPath = opts.docPath ?? null;
     this.fileList = null;
     this.rootLists = new Map();
@@ -1713,6 +1721,13 @@ class QuickCardSearchUI {
     );
     if (!outcome.ok || !outcome.attrs) {
       showToast(buildZoneErrorMessage(outcome.reason));
+      return;
+    }
+    if (this.rePickTarget != null) {
+      // Re-pick source: re-target the existing zone in place (one-shot → close).
+      const ok = replaceZoneAtPos(view, this.rePickTarget, outcome.attrs, outcome.content);
+      showToast(ok ? `Re-linked live zone "${outcome.headingLabel}".` : 'That live zone is no longer here.');
+      this.close();
       return;
     }
     insertZoneAtSelection(view, outcome.attrs, outcome.content);

@@ -175,6 +175,12 @@ interface ElectronAPI {
     base: 'doc' | 'root',
     roots: string[],
   ): Promise<{ bytes: Uint8Array; name: string } | null>;
+  resolveCmirPath(
+    docPath: string,
+    sourceRef: string,
+    base: 'doc' | 'root',
+    roots: string[],
+  ): Promise<string | null>;
   saveAs(
     suggestedName: string,
     bytes: Uint8Array,
@@ -522,6 +528,17 @@ export class ElectronHost implements Host {
       bytes: result.bytes instanceof Uint8Array ? result.bytes : new Uint8Array(result.bytes),
       name: result.name,
     };
+  }
+
+  /** Resolve a `.cmir` ref to its safe absolute path (for opening the linked
+   *  file); null when it can't be safely resolved. ElectronHost-only. */
+  async resolveCmirPath(
+    docPath: string,
+    sourceRef: string,
+    base: 'doc' | 'root',
+    roots: string[],
+  ): Promise<string | null> {
+    return api().resolveCmirPath(docPath, sourceRef, base, roots);
   }
 
   async saveAs(

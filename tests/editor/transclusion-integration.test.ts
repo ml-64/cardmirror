@@ -158,15 +158,17 @@ describe('live zone in a real EditorView (editable)', () => {
     view.destroy();
   });
 
-  it('clicking the rail glyph opens a Refresh/Unlink menu; Unlink detaches', () => {
+  it('clicking the rail glyph opens the actions menu; Unlink detaches', () => {
     const view = makeView([freshZone([card('T', 'ev')])]);
     const glyphBtn = view.dom.querySelector('.pmd-transclusion-glyph-btn') as HTMLElement;
     expect(glyphBtn).toBeTruthy();
     expect(view.dom.querySelector('.pmd-transclusion-menu')).toBeNull();
     glyphBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     const items = view.dom.querySelectorAll('.pmd-transclusion-menu .pmd-transclusion-menu-item');
-    expect(items.length).toBe(2);
-    (items[1] as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    // Open source file · Refresh from source · Re-pick source · Unlink (detach)
+    expect(items.length).toBe(4);
+    const unlink = Array.from(items).find((el) => el.textContent?.includes('Unlink')) as HTMLElement;
+    unlink.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(countTypes(view).zones).toBe(0);
     expect(countTypes(view).cards).toBe(1);
     view.destroy();

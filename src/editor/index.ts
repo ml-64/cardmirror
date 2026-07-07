@@ -166,6 +166,7 @@ import { buildImageNodeFromBlob, insertImageNode } from './image-insert.js';
 import { imageContextMenuPlugin } from './image-context-menu-plugin.js';
 import { editorNodeViews } from './image-resize-nodeview.js';
 import { setViewDocPath, getViewDocPath } from './transclusion-doc-path.js';
+import { setRePickOpener, setOpenSourceOpener } from './transclusion-actions.js';
 import { linkContextMenuPlugin } from './link-context-menu-plugin.js';
 import { wordSelectionPlugin } from './word-selection-plugin.js';
 import { typeOverBoundaryPlugin } from './type-over-boundary.js';
@@ -7659,3 +7660,47 @@ async function applyRecovery(
   // Recovering a draft into the editor dismisses the home overlay.
   homeScreen.hide();
 }
+
+// Wire a live zone's "Re-pick source" (from its glyph menu) to reopen the picker
+// in re-pick mode for that zone — same deps as the insertLiveZone command, which
+// live in this module.
+setRePickOpener((targetView, pos) => {
+  const paneEl =
+    (targetView.dom.closest('.pmd-pane') as HTMLElement | null) ?? editorEl ?? null;
+  quickCardSearchUI.open({
+    view: targetView,
+    paneEl,
+    runCommand: runRibbonCommandById,
+    openFilePath: openFileByPath,
+    transcludeMode: true,
+    docPath: getViewDocPath(targetView),
+    rePickTarget: pos,
+  });
+});
+
+// Wire a live zone's "Open source file" to resolve its linked .cmir (safely, in
+// the main process) and open it in the app.
+setOpenSourceOpener((targetView, pos) => {
+  const node = targetView.state.doc.nodeAt(pos);
+  if (!node || node.type.name !== 'transclusion_ref') return;
+  const sourceRef = String(node.attrs['source_ref'] ?? '');
+  if (!sourceRef) {
+    showToast('This live zone has no linked source.');
+    return;
+  }
+  const electron = getElectronHost();
+  const docPath = getViewDocPath(targetView);
+  if (!electron || !docPath) {
+    showToast('Save this document first, then open the source.');
+    return;
+  }
+  const base = node.attrs['source_ref_base'] === 'root' ? 'root' : 'doc';
+  const roots = (settings.get('fileSearchRoots') as string[] | undefined) ?? [];
+  void electron.resolveCmirPath(docPath, sourceRef, base, roots).then((abs) => {
+    if (!abs) {
+      showToast('Source file not found.');
+      return;
+    }
+    void openFileByPath(abs, abs.split(/[\\/]/).pop() ?? 'source.cmir');
+  });
+});

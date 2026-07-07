@@ -373,6 +373,16 @@ export const nodes: { [name: string]: NodeSpec } = {
         default: '',
         validate: (v: unknown) => typeof v === 'string',
       },
+      /** TRANSIENT, clipboard-only: the on-disk path of the document a zone was
+       *  copied FROM. Set only on the copied slice (transformCopied) and cleared
+       *  again on paste (transformPasted) — a live/saved doc always has ''. It
+       *  lets paste tell a same-doc paste (keep the live link) from a cross-doc
+       *  one (freeze to an unlinked snapshot, since the doc-relative source_ref
+       *  can't be trusted in the new location). */
+      source_origin: {
+        default: '',
+        validate: (v: unknown) => typeof v === 'string',
+      },
     },
     parseDOM: [
       {
@@ -389,6 +399,7 @@ export const nodes: { [name: string]: NodeSpec } = {
             source_content_hash: dom.getAttribute('data-source-content-hash') ?? '',
             last_refreshed: Number.isFinite(lr) ? lr : 0,
             source_label: dom.getAttribute('data-source-label') ?? '',
+            source_origin: dom.getAttribute('data-source-origin') ?? '',
           };
         },
       },
@@ -403,6 +414,7 @@ export const nodes: { [name: string]: NodeSpec } = {
         'data-source-content-hash': String(node.attrs['source_content_hash'] ?? ''),
         'data-last-refreshed': String(node.attrs['last_refreshed'] ?? 0),
         'data-source-label': String(node.attrs['source_label'] ?? ''),
+        'data-source-origin': String(node.attrs['source_origin'] ?? ''),
       },
       0,
     ],

@@ -53,6 +53,8 @@ import { schema } from '../schema/index.js';
 import { freshHeadingIds } from './drag-controller.js';
 import { condenseBranchC, condenseMerge } from './condense.js';
 import { buildImageNodeFromBlob, insertImageNode } from './image-insert.js';
+import { getViewDocPath } from './transclusion-doc-path.js';
+import { fragmentHasZone, stampZoneOrigins, resolvePastedZones } from './transclusion.js';
 
 /**
  * Build a Slice representing `text` as plain inline content, splitting
@@ -353,8 +355,27 @@ export function buildPastePlugin(ctx: PastePluginCtx): Plugin<PluginState> {
       // Layout-table unwrap runs in the same hook so head-detect /
       // card-body fitting downstream see content that's already been
       // lifted out of any single-cell wrapping table.
-      transformPasted(slice) {
-        return freshHeadingIds(unwrapSingleCellTables(slice));
+      // Clipboard COPY: stamp any live zones with the doc they came from, so
+      // paste can tell a same-doc paste (keep the live link) from a cross-doc
+      // one (freeze to a snapshot). Skipped entirely when no zone is involved.
+      transformCopied(slice, view) {
+        if (!fragmentHasZone(slice.content)) return slice;
+        return new Slice(
+          stampZoneOrigins(slice.content, getViewDocPath(view) ?? ''),
+          slice.openStart,
+          slice.openEnd,
+        );
+      },
+      transformPasted(slice, view) {
+        const out = freshHeadingIds(unwrapSingleCellTables(slice));
+        // A zone pasted from another document can't trust its doc-relative
+        // source_ref here → freeze it to an unlinked snapshot (Re-pick relinks).
+        if (!fragmentHasZone(out.content)) return out;
+        return new Slice(
+          resolvePastedZones(out.content, getViewDocPath(view)),
+          out.openStart,
+          out.openEnd,
+        );
       },
       handlePaste(view, event, slice) {
         // Clipboard image paste — screenshots, copy-image from a

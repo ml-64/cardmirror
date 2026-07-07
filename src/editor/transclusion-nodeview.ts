@@ -15,7 +15,12 @@ import type { EditorView, NodeView } from 'prosemirror-view';
 import { icon, type IconName } from './icons.js';
 import { showToast } from './toast.js';
 import { isZoneEdited } from './transclusion.js';
-import { refreshZoneAtPos, detachZoneAtPos } from './transclusion-actions.js';
+import {
+  refreshZoneAtPos,
+  detachZoneAtPos,
+  rePickZoneAtPos,
+  openZoneSourceAtPos,
+} from './transclusion-actions.js';
 import { transclusionSupported, refreshFailMessage } from './transclusion-resolve.js';
 
 function railGlyph(): HTMLElement {
@@ -110,6 +115,7 @@ class TransclusionView implements NodeView {
     const actions = document.createElement('div');
     actions.className = 'pmd-transclusion-actions';
     actions.appendChild(this.actionButton('reset', 'Refresh from source', () => this.onRefresh()));
+    actions.appendChild(this.actionButton('search', 'Re-pick source', () => this.onRePick()));
     actions.appendChild(this.actionButton('edit', 'Unlink (detach)', () => this.onDetach()));
     this.headerEl.appendChild(actions);
 
@@ -173,9 +179,21 @@ class TransclusionView implements NodeView {
     menu.className = 'pmd-transclusion-menu';
     menu.setAttribute('contenteditable', 'false');
     menu.appendChild(
+      this.menuItem('open', 'Open source file', () => {
+        this.closeMenu();
+        this.onOpenSource();
+      }),
+    );
+    menu.appendChild(
       this.menuItem('reset', 'Refresh from source', () => {
         this.closeMenu();
         this.onRefresh();
+      }),
+    );
+    menu.appendChild(
+      this.menuItem('search', 'Re-pick source…', () => {
+        this.closeMenu();
+        this.onRePick();
       }),
     );
     menu.appendChild(
@@ -264,6 +282,28 @@ class TransclusionView implements NodeView {
     const pos = this.getPos();
     if (pos == null) return;
     detachZoneAtPos(this.view, pos);
+  }
+
+  private onRePick(): void {
+    const pos = this.getPos();
+    if (pos == null) return;
+    if (!transclusionSupported()) {
+      // Re-pick needs the picker + file reads, both desktop-only.
+      showToast(refreshFailMessage('not-desktop'));
+      return;
+    }
+    rePickZoneAtPos(this.view, pos);
+  }
+
+  private onOpenSource(): void {
+    const pos = this.getPos();
+    if (pos == null) return;
+    if (!transclusionSupported()) {
+      // Opening the linked .cmir needs the desktop file layer.
+      showToast(refreshFailMessage('not-desktop'));
+      return;
+    }
+    openZoneSourceAtPos(this.view, pos);
   }
 
   update(node: PMNode): boolean {

@@ -357,3 +357,42 @@ describe('markedCardsOnly transform', () => {
     expect(transformForExport(doc, MARKED).childCount).toBe(0);
   });
 });
+
+// ---- unread-after-marker red bake ---------------------------------
+
+describe('markUnreadAfterMarker bake', () => {
+  const marker = (s: string) =>
+    schema.text(s, [schema.marks['font_color']!.create({ color: 'FF0000' })]);
+
+  /** Which text runs carry a red font_color mark after the transform. */
+  function redRuns(doc: ReturnType<typeof makeDoc>): string[] {
+    const red: string[] = [];
+    doc.descendants((n) => {
+      if (
+        n.isText &&
+        n.marks.some((m) => m.type.name === 'font_color' && (m.attrs['color'] as string).toUpperCase() === 'FF0000')
+      ) {
+        red.push(n.text ?? '');
+      }
+      return true;
+    });
+    return red;
+  }
+
+  const doc = makeDoc(
+    card(tag('T'), cardBody(txt('before. '), marker('Marked 7:32'), txt(' after one.')), cardBody(txt('after two.'))),
+  );
+
+  it('bakes body after the marker into real red runs when on', () => {
+    const out = transformForExport(doc, { ...ALL_ON, markUnreadAfterMarker: true });
+    // Everything from the marker onward is red. The marker run and the body
+    // that follows it in the same paragraph coalesce (identical mark); the
+    // next paragraph's body is its own red run.
+    expect(redRuns(out)).toEqual(['Marked 7:32 after one.', 'after two.']);
+  });
+
+  it('leaves the doc untouched when off (only the marker stays red)', () => {
+    const out = transformForExport(doc, { ...ALL_ON, markUnreadAfterMarker: false });
+    expect(redRuns(out)).toEqual(['Marked 7:32']);
+  });
+});

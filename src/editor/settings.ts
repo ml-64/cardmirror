@@ -1670,9 +1670,9 @@ export const SETTING_METADATA: SettingMeta[] = [
   },
   {
     key: 'markUnreadAfterMarker',
-    label: 'Redden card text after a reading marker',
+    label: 'Turn text after a mark red',
     description:
-      "When on, every bit of a card's body text after a reading-position marker turns red, a visual record of the part you didn't reach in the round. Bounded per card: a marker only reddens the rest of its own card. Off by default. Display-only, so it never changes the document or its exports.",
+      "When on, all card body text after a mark turns red, which visually denotes portions you didn't read. This is bounded per card, and is preserved in exported versions of the document.",
     kind: 'toggle',
     category: 'general',
     section: 'Editor behavior',

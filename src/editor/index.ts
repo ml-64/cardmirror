@@ -5851,6 +5851,7 @@ async function serializeForSave(
     includeUndertags: opts.includeUndertags,
     readMode: opts.readMode,
     markedCardsOnly: opts.markedCardsOnly ?? false,
+    markUnreadAfterMarker: settings.get('markUnreadAfterMarker'),
   });
   if (view) gcOrphanThreads(view);
   const baseThreads =
@@ -7513,6 +7514,7 @@ async function reserializeJournalAs(
     includeUndertags: true,
     readMode: false,
     markedCardsOnly: false,
+    markUnreadAfterMarker: settings.get('markUnreadAfterMarker'),
   });
   return toDocx(
     exportDoc,

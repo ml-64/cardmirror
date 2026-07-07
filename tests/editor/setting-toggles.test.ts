@@ -13,6 +13,7 @@ import {
   toggleableSettingMetas,
   cleanToggleLabel,
   toggleCommandName,
+  settingSearchName,
   CYCLABLE_SETTINGS,
   cyclableSettings,
   nextCycleValue,
@@ -104,6 +105,26 @@ describe('toggle command labels', () => {
     );
     expect(toggleCommandName(bySrcKey('smartQuotes'))).toBe('Toggle Smart quotes');
     expect(toggleCommandName(bySrcKey('aiFeaturesEnabled'))).toBe('Toggle AI features');
+  });
+
+  it('settingSearchName prefixes context-free sections but keeps the real label', () => {
+    const bySrcKey = (k: string) => SETTING_METADATA.find((m) => m.key === k)!;
+    // Create Reference sub-settings — the direct-search rows get the same
+    // context as the Toggle commands, but the label is NOT verb-stripped
+    // (it matches the dialog).
+    expect(settingSearchName(bySrcKey('createReferenceHeadingBold'))).toBe(
+      'Create Reference: Bold heading',
+    );
+    expect(settingSearchName(bySrcKey('createReferenceIncludeHeading'))).toBe(
+      'Create Reference: Include the FOR REFERENCE heading',
+    );
+    // Standardize exceptions — same contextless problem, same fix.
+    expect(settingSearchName(bySrcKey('standardizeHighlightException'))).toBe(
+      'Standardize exceptions: Highlighting exception',
+    );
+    // A self-contained section is left alone.
+    expect(settingSearchName(bySrcKey('smartQuotes'))).toBe('Smart quotes');
+    expect(settingSearchName(bySrcKey('editorSpellcheck'))).toBe('Editor spellcheck');
   });
 });
 

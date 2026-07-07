@@ -3008,10 +3008,29 @@ export function currentCycleLabel(setting: CyclableSetting, current: unknown): s
   return setting.values.find((v) => v.value === current)?.label ?? String(current);
 }
 
-/** Sections whose setting labels are context-free outside the settings
- *  dialog (e.g. "Bold heading"), so their toggle commands take a section
- *  prefix for clarity in the command bar. Add a section here to prefix it. */
-export const TOGGLE_CONTEXT_SECTIONS = new Set<string>(['Create Reference']);
+/** Sections whose setting labels are context-free outside the settings dialog
+ *  — the dialog shows the section header above them, but a search result or a
+ *  generated command shows the label alone ("Bold heading", "Highlighting
+ *  exception"). Rows in these sections are prefixed with the section header
+ *  everywhere they surface in search: the settings-search rows AND the
+ *  Toggle/Cycle commands. Add a section here to prefix all of its settings. */
+export const CONTEXTLESS_SECTIONS = new Set<string>([
+  'Create Reference',
+  'Standardize exceptions',
+]);
+
+/** "<Section>: " when the setting lives in a context-free section, else "". */
+export function settingContextPrefix(m: SettingMeta): string {
+  return m.section && CONTEXTLESS_SECTIONS.has(m.section) ? `${m.section}: ` : '';
+}
+
+/** The name a setting shows under in the command bar's settings search: its
+ *  real label (matching the dialog), prefixed with the section for
+ *  context-free sections so a fragment like "Bold heading" reads as
+ *  "Create Reference: Bold heading". */
+export function settingSearchName(m: SettingMeta): string {
+  return `${settingContextPrefix(m)}${m.label}`;
+}
 
 /** A setting label with a redundant leading verb stripped, so a "Toggle
  *  <this>" command name doesn't read as "Toggle Enable …"; the first letter
@@ -3024,18 +3043,15 @@ export function cleanToggleLabel(label: string): string {
 }
 
 /** Display name for a setting's toggle command: "Toggle <clean label>",
- *  prefixed with the section for context-free labels (see
- *  TOGGLE_CONTEXT_SECTIONS). */
+ *  prefixed with the section for context-free sections. */
 export function toggleCommandName(m: SettingMeta): string {
-  const base = cleanToggleLabel(m.label);
-  const prefixed =
-    m.section && TOGGLE_CONTEXT_SECTIONS.has(m.section) ? `${m.section}: ${base}` : base;
-  return `Toggle ${prefixed}`;
+  return `Toggle ${settingContextPrefix(m)}${cleanToggleLabel(m.label)}`;
 }
 
-/** Display name for a setting's cycle command — "Cycle <clean label>". */
+/** Display name for a setting's cycle command — "Cycle <clean label>",
+ *  prefixed with the section for context-free sections. */
 export function cycleCommandName(m: SettingMeta): string {
-  return `Cycle ${cleanToggleLabel(m.label)}`;
+  return `Cycle ${settingContextPrefix(m)}${cleanToggleLabel(m.label)}`;
 }
 
 /** Origin info handed to settings subscribers. `remote` is true when

@@ -40,6 +40,7 @@ import {
   toggleableSettingMetas,
   toggleCommandName,
   cleanToggleLabel,
+  settingSearchName,
   cyclableSettings,
   cycleCommandName,
   nextCycleValue,
@@ -597,8 +598,12 @@ function searchSettingsSource(query: string): PaletteResult[] {
   // the label so alias-only hits sort after label hits.
   const hostKind = getHost().kind;
   const settingHaystack = (m: (typeof SETTING_METADATA)[number]): string => {
-    const base = m.label.toLowerCase();
-    return m.aliases && m.aliases.length ? `${base} ${m.aliases.join(' ')}` : base;
+    // Section too, so a context-free row (e.g. "Bold heading") is findable by
+    // its section ("create reference bold") — matching how it's now displayed.
+    const parts = [m.label.toLowerCase()];
+    if (m.section) parts.push(m.section.toLowerCase());
+    if (m.aliases && m.aliases.length) parts.push(m.aliases.join(' '));
+    return parts.join(' ');
   };
   const matchSetting = (m: (typeof SETTING_METADATA)[number]): boolean => {
     const hay = settingHaystack(m);
@@ -626,7 +631,10 @@ function searchSettingsSource(query: string): PaletteResult[] {
   for (const m of items) {
     results.push({
       source: 'settings',
-      name: m.label,
+      // Prefix context-free sections (e.g. "Create Reference: Bold heading")
+      // so the row reads clearly out of the dialog — same context the
+      // Toggle/Cycle commands use.
+      name: settingSearchName(m),
       meta: categoryLabel(m.category),
       matchedName: true,
       snippet: null,

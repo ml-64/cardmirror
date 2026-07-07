@@ -1431,6 +1431,7 @@ function buildInstallInfoSection(): HTMLElement {
  *  Windows/Linux, which carry no native menu bar. */
 const MANUAL_URL = 'https://github.com/ant981228/cardmirror/blob/main/MANUAL.md';
 const PRIVACY_URL = 'https://github.com/ant981228/cardmirror/blob/main/PRIVACY.md';
+const TERMS_URL = 'https://github.com/ant981228/cardmirror/blob/main/TERMS.md';
 
 /** One external doc link. On desktop it routes through the host so it opens in
  *  the OS browser rather than a new Electron window; on web the anchor opens a
@@ -1452,18 +1453,26 @@ function buildDocLink(label: string, url: string): HTMLAnchorElement {
   return link;
 }
 
-/** "User Manual" and "Privacy Policy" links pinned at the bottom of
- *  Settings → General. */
+/** "User Manual", "Privacy Policy", and "Terms of Use" links pinned at the
+ *  bottom of Settings → General, separated by middots. */
 function buildDocLinksSection(): HTMLElement {
   const section = document.createElement('section');
   section.className = 'pmd-settings-manual';
-  section.appendChild(buildDocLink('User Manual ↗', MANUAL_URL));
-  const sep = document.createElement('span');
-  sep.className = 'pmd-settings-manual-sep';
-  sep.textContent = '·';
-  sep.setAttribute('aria-hidden', 'true');
-  section.appendChild(sep);
-  section.appendChild(buildDocLink('Privacy Policy ↗', PRIVACY_URL));
+  const docs: Array<[string, string]> = [
+    ['User Manual ↗', MANUAL_URL],
+    ['Privacy Policy ↗', PRIVACY_URL],
+    ['Terms of Use ↗', TERMS_URL],
+  ];
+  docs.forEach(([label, url], i) => {
+    if (i > 0) {
+      const sep = document.createElement('span');
+      sep.className = 'pmd-settings-manual-sep';
+      sep.textContent = '·';
+      sep.setAttribute('aria-hidden', 'true');
+      section.appendChild(sep);
+    }
+    section.appendChild(buildDocLink(label, url));
+  });
   return section;
 }
 

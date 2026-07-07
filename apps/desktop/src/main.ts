@@ -1953,6 +1953,12 @@ function buildMenu(): Menu {
           void shell.openExternal(PRIVACY_URL);
         },
       },
+      {
+        label: 'Terms of Use',
+        click: () => {
+          void shell.openExternal(TERMS_URL);
+        },
+      },
       { type: 'separator' },
       {
         label: 'Check for Updates…',
@@ -2053,6 +2059,10 @@ const MANUAL_URL = 'https://github.com/ant981228/cardmirror/blob/main/MANUAL.md'
 /** The privacy policy (PRIVACY.md), rendered on GitHub. Linked from the Help
  *  menu alongside the manual (and from Settings → General). */
 const PRIVACY_URL = 'https://github.com/ant981228/cardmirror/blob/main/PRIVACY.md';
+
+/** The terms of use (TERMS.md), rendered on GitHub. Linked from the Help menu
+ *  alongside the manual and privacy policy (and from Settings → General). */
+const TERMS_URL = 'https://github.com/ant981228/cardmirror/blob/main/TERMS.md';
 
 /** Best-effort dialog-parent lookup. Prefers the focused window,
  *  but if the user has alt-tabbed away between clicking

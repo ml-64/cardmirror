@@ -12672,6 +12672,7 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
   padding-top: 0.85rem;
   border-top: 1px solid var(--pmd-c-divider-faint);
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 0.6rem;
 }

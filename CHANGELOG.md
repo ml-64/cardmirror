@@ -16,6 +16,11 @@ see `DETAILED_CHANGELOG.md`.
   are deleted from the relay once delivered and after 3 hours regardless, and
   co-editing sessions are deleted when the host ends them or after 7 days idle.
 
+- **Terms of use.** CardMirror now has terms of use (`TERMS.md`), linked from
+  Settings → General and the Help menu — covering eligibility, acceptable use
+  of the sharing features, that you keep all rights to your content, and the
+  beta "keep your own backups" disclaimer.
+
 ## 0.1.0-beta.9 — 2026-07-07
 
 ### Added

@@ -1019,7 +1019,14 @@ class QuickCardSearchUI {
       ];
       this.emptyText = 'No matching commands.';
     } else if (prefix === 's') {
-      this.results = searchSettingsSource(query);
+      // The settings filter shows the deep-link rows (open the dialog) AND
+      // the in-place Toggle/Cycle actions, so a setting can be changed from
+      // here without leaving the bar.
+      this.results = [
+        ...searchSettingsSource(query),
+        ...searchSettingToggleSource(query),
+        ...searchSettingCycleSource(query),
+      ];
       this.emptyText = 'No matching settings.';
     } else if (query.trim() === '') {
       // No prefix, nothing typed — don't preview anything. The `d

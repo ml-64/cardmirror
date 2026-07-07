@@ -58,6 +58,22 @@ export function isTransclusionNode(node: PMNode | null | undefined): boolean {
 }
 
 /**
+ * Position of the innermost live zone (`transclusion_ref`) whose INNER range
+ * strictly contains `pos`, or null when `pos` is outside every zone (including
+ * exactly at a zone boundary). Two positions are "in the same zone" iff this
+ * returns the same value for both — the primitive for keeping a drag/move from
+ * crossing a zone boundary, and for the in-zone heading-level guard.
+ */
+export function enclosingZonePos(doc: PMNode, pos: number): number | null {
+  const clamped = Math.max(0, Math.min(pos, doc.content.size));
+  const $pos = doc.resolve(clamped);
+  for (let d = $pos.depth; d > 0; d--) {
+    if ($pos.node(d).type.name === TRANSCLUSION_NODE) return $pos.before(d);
+  }
+  return null;
+}
+
+/**
  * Extract the transcludable content under `headingId` from a source doc.
  *
  * - pocket / hat / block → the contents BELOW the header (the header line

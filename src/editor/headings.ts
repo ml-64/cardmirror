@@ -23,6 +23,11 @@ export interface HeadingEntry {
   id: string | null;
   /** Cite-formatted text from the same card (only for tag entries). */
   cite: string | null;
+  /** Position of the enclosing live zone (`transclusion_ref`), or null when this
+   *  heading isn't transcluded. Entries sharing a `zonePos` form one transcluded
+   *  run — used for the nav-pane rail and to keep a zone heading's drag inside
+   *  its zone. */
+  zonePos: number | null;
 }
 
 export const TYPE_TO_LEVEL: Record<string, number> = {
@@ -59,8 +64,18 @@ export function collectHeadings(
 ): HeadingEntry[] {
   const skipCite = opts.skipCite === true;
   const out: HeadingEntry[] = [];
+  // Track the current live zone in document order (zones never nest), so each
+  // heading knows its enclosing zone without a per-heading resolve.
+  let zonePos: number | null = null;
+  let zoneEnd = 0;
   doc.descendants((node, pos) => {
     const type = node.type.name;
+    if (pos >= zoneEnd) zonePos = null; // walked past the current zone
+    if (type === 'transclusion_ref') {
+      zonePos = pos;
+      zoneEnd = pos + node.nodeSize;
+      return true; // recurse in to collect the transcluded headings
+    }
     if (type in TYPE_TO_LEVEL) {
       const level = TYPE_TO_LEVEL[type]!;
       let cite: string | null = null;
@@ -78,6 +93,7 @@ export function collectHeadings(
         level,
         id: typeof node.attrs['id'] === 'string' && node.attrs['id'] ? node.attrs['id'] : null,
         cite: cite && cite.trim() !== '' ? cite.trim() : null,
+        zonePos,
       });
     }
     return true;
@@ -106,6 +122,15 @@ export function computeHeadingRange(
   const $pos = doc.resolve(entry.pos);
   const node = doc.nodeAt(entry.pos);
   if (!node) return null;
+
+  // A heading INSIDE a live zone drags the WHOLE zone as one opaque unit: you
+  // can't pull a single transcluded card out, and the zone moves intact.
+  if (entry.zonePos != null) {
+    const zone = doc.nodeAt(entry.zonePos);
+    if (zone && zone.type.name === 'transclusion_ref') {
+      return { from: entry.zonePos, to: entry.zonePos + zone.nodeSize, useNodeSelection: true };
+    }
+  }
 
   const parentName = $pos.parent.type.name;
   if (entry.type === 'tag') {

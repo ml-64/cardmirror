@@ -3,12 +3,14 @@
  *
  * The transcluded cards are REAL child nodes, so the zone is EDITABLE (a
  * `contentDOM` holds the children) — you can contextualise a tag or its
- * highlighting in place without breaking the link. A left gutter rail (the
- * reused card-unit rail grammar, in --pmd-c-transclusion) with a clickable link
- * glyph marks it; the glyph opens a Refresh / Unlink menu, and a reveal-on-hover
- * header shows the source breadcrumb, synced date, and an "edited" dot when the
- * zone diverges from the last-pulled source. Refresh re-reads the source and
- * replaces the children (confirming first when edited); Detach unwraps them.
+ * highlighting in place without breaking the link. The zone reads as ordinary
+ * content: cards flow inline and there is NO header row. A left gutter rail (the
+ * card-unit rail grammar, in --pmd-c-transclusion) reveals on hover — like a
+ * normal card's rail — and a link glyph caps the rail head. Clicking the glyph
+ * opens a menu that carries the source file, section, sync date, edited state,
+ * and the actions: Open source / Refresh / Re-pick / Unlink. Refresh re-reads the
+ * source and replaces the children (confirming first when edited); Unlink
+ * detaches them.
  */
 import type { Node as PMNode } from 'prosemirror-model';
 import type { EditorView, NodeView } from 'prosemirror-view';
@@ -22,6 +24,9 @@ import {
   openZoneSourceAtPos,
 } from './transclusion-actions.js';
 import { transclusionSupported, refreshFailMessage } from './transclusion-resolve.js';
+
+/** " › " with explicit code points (space, U+203A, space) — matches crumbLabel. */
+const CRUMB_SEP = ' › ';
 
 function railGlyph(): HTMLElement {
   const g = icon('link', { label: 'Live zone' });
@@ -40,9 +45,7 @@ function formatSyncedDate(ms: number): string {
 class TransclusionView implements NodeView {
   readonly dom: HTMLElement;
   readonly contentDOM: HTMLElement;
-  private readonly headerEl: HTMLElement;
-  private statusEl: HTMLElement | null = null;
-  private editedDot: HTMLElement | null = null;
+  private readonly glyphBtn: HTMLButtonElement;
   private node: PMNode;
   private readonly view: EditorView;
   private readonly getPos: () => number | undefined;
@@ -58,116 +61,78 @@ class TransclusionView implements NodeView {
     this.dom = document.createElement('div');
     this.dom.className = 'pmd-transclusion';
 
-    // Chrome — not editable content.
-    this.headerEl = document.createElement('div');
-    this.headerEl.className = 'pmd-transclusion-header';
-    this.headerEl.setAttribute('contenteditable', 'false');
-
-    // The editable body: PM renders the transcluded children here.
-    this.contentDOM = document.createElement('div');
-    this.contentDOM.className = 'pmd-transclusion-body';
-
-    this.dom.appendChild(this.headerEl);
-    this.dom.appendChild(this.contentDOM);
-    this.renderHeader();
-  }
-
-  private renderHeader(): void {
-    this.closeMenu();
-    this.headerEl.replaceChildren();
-
-    // The always-visible rail glyph is the primary click target — it opens a
-    // Refresh / Unlink menu (reachable without hovering, and on touch).
-    const glyphBtn = document.createElement('button');
-    glyphBtn.type = 'button';
-    glyphBtn.className = 'pmd-transclusion-glyph-btn';
-    glyphBtn.title = 'Live zone — refresh or unlink';
-    glyphBtn.setAttribute('aria-label', 'Live zone actions');
-    glyphBtn.appendChild(railGlyph());
-    glyphBtn.addEventListener('mousedown', (e) => {
+    // The glyph caps the rail head. Absolutely positioned so it takes NO
+    // vertical space in the flow; hover-revealed with the rail (see CSS).
+    this.glyphBtn = document.createElement('button');
+    this.glyphBtn.type = 'button';
+    this.glyphBtn.className = 'pmd-transclusion-glyph-btn';
+    this.glyphBtn.setAttribute('contenteditable', 'false');
+    this.glyphBtn.title = 'Live zone — source & actions';
+    this.glyphBtn.setAttribute('aria-label', 'Live zone actions');
+    this.glyphBtn.appendChild(railGlyph());
+    this.glyphBtn.addEventListener('mousedown', (e) => {
       e.preventDefault();
       e.stopPropagation();
     });
-    glyphBtn.addEventListener('click', (e) => {
+    this.glyphBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
       this.toggleMenu();
     });
-    this.headerEl.appendChild(glyphBtn);
 
-    // "Edited" dot — lit when the zone diverges from the last-pulled source.
-    const dot = document.createElement('span');
-    dot.className = 'pmd-transclusion-edited-dot';
-    dot.title = 'Edited — differs from source. Refresh to reset.';
-    this.editedDot = dot;
-    this.headerEl.appendChild(dot);
+    // The editable body: PM renders the transcluded children here, flush — no
+    // header pushes them down, so they sit inline like any other content.
+    this.contentDOM = document.createElement('div');
+    this.contentDOM.className = 'pmd-transclusion-body';
 
-    const crumb = document.createElement('span');
-    crumb.className = 'pmd-transclusion-crumb';
-    crumb.textContent = String(this.node.attrs['source_label'] || 'Live zone');
-    this.headerEl.appendChild(crumb);
-
-    const status = document.createElement('span');
-    status.className = 'pmd-transclusion-status';
-    this.statusEl = status;
-    this.headerEl.appendChild(status);
-
-    const actions = document.createElement('div');
-    actions.className = 'pmd-transclusion-actions';
-    actions.appendChild(this.actionButton('reset', 'Refresh from source', () => this.onRefresh()));
-    actions.appendChild(this.actionButton('search', 'Re-pick source', () => this.onRePick()));
-    actions.appendChild(this.actionButton('edit', 'Unlink (detach)', () => this.onDetach()));
-    this.headerEl.appendChild(actions);
-
-    this.refreshStatusText();
-    this.refreshEditedDot();
+    this.dom.appendChild(this.glyphBtn);
+    this.dom.appendChild(this.contentDOM);
+    this.refreshEditedState();
+    this.refreshStatusAttr();
   }
 
-  private refreshEditedDot(): void {
-    if (!this.editedDot) return;
+  /** The source file's name (with extension) from the ref, falling back to the
+   *  file part of the breadcrumb label. */
+  private sourceFileName(): string {
+    const ref = String(this.node.attrs['source_ref'] || '');
+    const base = ref.split('/').pop();
+    if (base) return base;
+    const label = String(this.node.attrs['source_label'] || '');
+    return label.split(CRUMB_SEP)[0] || 'source';
+  }
+
+  /** The section/heading part of the breadcrumb label (after the file). */
+  private sectionLabel(): string {
+    const label = String(this.node.attrs['source_label'] || '');
+    const parts = label.split(CRUMB_SEP);
+    return parts.length > 1 ? parts.slice(1).join(CRUMB_SEP) : '';
+  }
+
+  /** The one-line sync/status shown in the menu. */
+  private statusLine(): string {
+    if (this.busy) return 'Refreshing…';
+    if (this.transient === 'unreachable') return 'Source not found · showing cached';
+    if (this.transient === 'web') return 'Refresh on the desktop app';
+    const lr = Number(this.node.attrs['last_refreshed'] ?? 0);
+    return lr > 0 ? `Synced ${formatSyncedDate(lr)}` : 'Not yet refreshed';
+  }
+
+  private refreshEditedState(): void {
     const edited = isZoneEdited(this.node);
-    this.editedDot.classList.toggle('is-edited', edited);
     this.dom.classList.toggle('pmd-transclusion-edited', edited);
+    this.glyphBtn.classList.toggle('is-edited', edited);
   }
 
-  private refreshStatusText(): void {
-    if (!this.statusEl) return;
-    let text: string;
-    let state = 'ok';
-    if (this.busy) {
-      text = 'refreshing…';
-      state = 'busy';
-    } else if (this.transient === 'unreachable') {
-      text = 'source not found · cached';
-      state = 'unreachable';
-    } else if (this.transient === 'web') {
-      text = 'refresh on desktop';
-      state = 'web';
-    } else {
-      const lr = Number(this.node.attrs['last_refreshed'] ?? 0);
-      text = lr > 0 ? `synced ${formatSyncedDate(lr)}` : 'not yet refreshed';
-    }
-    this.statusEl.textContent = text;
+  /** Reflect the transient/busy state on the wrapper (drives the glyph tint). */
+  private refreshStatusAttr(): void {
+    const state = this.busy
+      ? 'busy'
+      : this.transient === 'unreachable'
+        ? 'unreachable'
+        : this.transient === 'web'
+          ? 'web'
+          : 'ok';
     this.dom.setAttribute('data-status', state);
-  }
-
-  private actionButton(iconName: IconName, label: string, onClick: () => void): HTMLButtonElement {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'pmd-transclusion-btn';
-    btn.title = label;
-    btn.setAttribute('aria-label', label);
-    btn.appendChild(icon(iconName));
-    btn.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-    });
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      onClick();
-    });
-    return btn;
   }
 
   private toggleMenu(): void {
@@ -178,6 +143,46 @@ class TransclusionView implements NodeView {
     const menu = document.createElement('div');
     menu.className = 'pmd-transclusion-menu';
     menu.setAttribute('contenteditable', 'false');
+
+    // Info header — the source detail that used to sit inline in the doc.
+    const info = document.createElement('div');
+    info.className = 'pmd-transclusion-menu-info';
+
+    const fileRow = document.createElement('div');
+    fileRow.className = 'pmd-transclusion-menu-file';
+    fileRow.appendChild(icon('link'));
+    const fileText = document.createElement('span');
+    fileText.textContent = this.sourceFileName();
+    fileRow.appendChild(fileText);
+    info.appendChild(fileRow);
+
+    const section = this.sectionLabel();
+    if (section) {
+      const secRow = document.createElement('div');
+      secRow.className = 'pmd-transclusion-menu-section';
+      secRow.textContent = section;
+      info.appendChild(secRow);
+    }
+
+    const meta = document.createElement('div');
+    meta.className = 'pmd-transclusion-menu-meta';
+    const synced = document.createElement('span');
+    synced.textContent = this.statusLine();
+    meta.appendChild(synced);
+    if (isZoneEdited(this.node)) {
+      const edited = document.createElement('span');
+      edited.className = 'pmd-transclusion-menu-edited';
+      edited.textContent = 'Edited';
+      edited.title = 'This zone differs from the source. Refresh to reset.';
+      meta.appendChild(edited);
+    }
+    info.appendChild(meta);
+    menu.appendChild(info);
+
+    const sep = document.createElement('div');
+    sep.className = 'pmd-transclusion-menu-sep';
+    menu.appendChild(sep);
+
     menu.appendChild(
       this.menuItem('open', 'Open source file', () => {
         this.closeMenu();
@@ -197,13 +202,15 @@ class TransclusionView implements NodeView {
       }),
     );
     menu.appendChild(
-      this.menuItem('edit', 'Unlink (detach)', () => {
+      this.menuItem('edit', 'Unlink', () => {
         this.closeMenu();
         this.onDetach();
       }),
     );
-    this.headerEl.appendChild(menu);
+
+    this.dom.appendChild(menu);
     this.menuEl = menu;
+    this.dom.classList.add('pmd-transclusion-menu-open');
     setTimeout(() => {
       document.addEventListener('mousedown', this.onOutsidePointer, true);
       document.addEventListener('keydown', this.onMenuKey, true);
@@ -211,7 +218,9 @@ class TransclusionView implements NodeView {
   }
 
   private onOutsidePointer = (e: Event): void => {
-    if (this.menuEl && !this.menuEl.contains(e.target as Node)) this.closeMenu();
+    if (this.menuEl && !this.menuEl.contains(e.target as Node) && e.target !== this.glyphBtn) {
+      this.closeMenu();
+    }
   };
 
   private onMenuKey = (e: KeyboardEvent): void => {
@@ -225,6 +234,7 @@ class TransclusionView implements NodeView {
     if (!this.menuEl) return;
     this.menuEl.remove();
     this.menuEl = null;
+    this.dom.classList.remove('pmd-transclusion-menu-open');
     document.removeEventListener('mousedown', this.onOutsidePointer, true);
     document.removeEventListener('keydown', this.onMenuKey, true);
   }
@@ -255,30 +265,28 @@ class TransclusionView implements NodeView {
     if (pos == null) return;
     if (!transclusionSupported()) {
       this.transient = 'web';
-      this.refreshStatusText();
+      this.refreshStatusAttr();
       showToast(refreshFailMessage('not-desktop'));
       return;
     }
     this.busy = true;
     this.transient = null;
-    this.refreshStatusText();
+    this.refreshStatusAttr();
     void refreshZoneAtPos(this.view, pos).then((outcome) => {
       this.busy = false;
       if (outcome.ok) {
         this.transient = null;
-        this.refreshStatusText();
         // The dispatch replaced the node → a fresh NodeView renders the update.
       } else if (outcome.reason === 'cancelled' || outcome.reason === 'ambiguous') {
         // 'ambiguous' = the zone moved or was re-picked/detached while this
         // refresh was in flight; the zone itself is fine, so don't flag it
-        // unreachable (that chip would stick). No error chrome.
+        // unreachable (that would stick). No error chrome.
         this.transient = null;
-        this.refreshStatusText();
       } else {
         this.transient = outcome.reason === 'not-desktop' ? 'web' : 'unreachable';
-        this.refreshStatusText();
         showToast(refreshFailMessage(outcome.reason));
       }
+      this.refreshStatusAttr();
     });
   }
 
@@ -314,7 +322,7 @@ class TransclusionView implements NodeView {
     const pos = this.getPos();
     if (pos == null) return;
     if (!transclusionSupported()) {
-      // Opening the linked .cmir needs the desktop file layer.
+      // Opening the linked source needs the desktop file layer.
       showToast(refreshFailMessage('not-desktop'));
       return;
     }
@@ -323,16 +331,14 @@ class TransclusionView implements NodeView {
 
   update(node: PMNode): boolean {
     if (node.type !== this.node.type) return false;
-    const labelChanged = node.attrs['source_label'] !== this.node.attrs['source_label'];
     const lastRefreshedChanged = node.attrs['last_refreshed'] !== this.node.attrs['last_refreshed'];
     this.node = node;
     // Clear a stale transient error once a refresh has landed.
     if (lastRefreshedChanged) this.transient = null;
-    if (labelChanged) this.renderHeader();
-    else {
-      this.refreshStatusText();
-      this.refreshEditedDot();
-    }
+    // Close the menu on an attr change so it can't show stale source detail.
+    this.closeMenu();
+    this.refreshEditedState();
+    this.refreshStatusAttr();
     // Return true so PM diffs the children into contentDOM itself.
     return true;
   }
@@ -345,11 +351,11 @@ class TransclusionView implements NodeView {
     this.dom.classList.remove('ProseMirror-selectednode');
   }
 
-  /** Keep events on our own chrome (header buttons / menu) away from PM;
-   *  events inside the editable body fall through so edits work normally. */
+  /** Keep events on our own chrome (glyph button / menu) away from PM; events
+   *  inside the editable body fall through so edits work normally. */
   stopEvent(e: Event): boolean {
     const t = e.target as HTMLElement | null;
-    return !!t?.closest?.('.pmd-transclusion-header');
+    return !!t?.closest?.('.pmd-transclusion-glyph-btn, .pmd-transclusion-menu');
   }
 
   /** Ignore mutations in our chrome; let PM handle the editable content. */

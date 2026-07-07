@@ -14,12 +14,13 @@ import {
   createTransclusionNode,
   contentHash,
   isTransclusionNode,
+  enclosingZonePos,
 } from '../../src/editor/transclusion.js';
 import {
   detachZoneAtPos,
   insertZoneAtSelection,
 } from '../../src/editor/transclusion-actions.js';
-import { collectHeadings } from '../../src/editor/headings.js';
+import { collectHeadings, computeHeadingRange } from '../../src/editor/headings.js';
 
 function card(tag: string, body: string): PMNode {
   return schema.nodes['card']!.createChecked(null, [
@@ -72,8 +73,10 @@ describe('live zone in a real EditorView (editable)', () => {
     expect(el.querySelector('.pmd-transclusion-body')).toBeTruthy();
     expect(el.textContent).toContain('evidence A');
     expect(el.querySelectorAll('.pmd-card').length).toBe(2);
-    // The header chrome is not editable; the body is (no contenteditable=false).
-    expect(el.querySelector('.pmd-transclusion-header')!.getAttribute('contenteditable')).toBe('false');
+    // The rail-head glyph is chrome (not editable); the body is editable.
+    expect(el.querySelector('.pmd-transclusion-glyph-btn')!.getAttribute('contenteditable')).toBe(
+      'false',
+    );
     view.destroy();
   });
 
@@ -90,18 +93,19 @@ describe('live zone in a real EditorView (editable)', () => {
     view.destroy();
   });
 
-  it('editing content lights the "edited" dot', () => {
+  it('editing content flags the zone as edited (glyph tint + class)', () => {
     const zone = freshZone([card('T', 'evidence')]);
     const view = makeView([zone]);
     // Not edited yet.
-    expect(view.dom.querySelector('.pmd-transclusion-edited-dot.is-edited')).toBeNull();
+    expect(view.dom.querySelector('.pmd-transclusion.pmd-transclusion-edited')).toBeNull();
+    expect(view.dom.querySelector('.pmd-transclusion-glyph-btn.is-edited')).toBeNull();
     // Type into the card body (a real content change inside the isolating zone).
     const pos = textPosOf(view, 'evidence');
     expect(pos).toBeGreaterThan(0);
     view.dispatch(view.state.tr.insertText('X', pos + 1));
-    // Now the zone diverges from source → the dot lights.
-    expect(view.dom.querySelector('.pmd-transclusion-edited-dot.is-edited')).toBeTruthy();
+    // Now the zone diverges from source → edited state shows on the wrapper + glyph.
     expect(view.dom.querySelector('.pmd-transclusion.pmd-transclusion-edited')).toBeTruthy();
+    expect(view.dom.querySelector('.pmd-transclusion-glyph-btn.is-edited')).toBeTruthy();
     view.destroy();
   });
 
@@ -171,6 +175,59 @@ describe('live zone in a real EditorView (editable)', () => {
     unlink.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(countTypes(view).zones).toBe(0);
     expect(countTypes(view).cards).toBe(1);
+    view.destroy();
+  });
+});
+
+describe('enclosingZonePos (drag/move boundary primitive)', () => {
+  it('reports the zone for inside positions and null outside / at the boundary', () => {
+    const view = makeView([
+      schema.nodes['paragraph']!.create(null, schema.text('before')),
+      freshZone([card('T', 'evidence')]),
+    ]);
+    const doc = view.state.doc;
+    let zonePos = -1;
+    let bodyPos = -1;
+    doc.descendants((n, p) => {
+      if (isTransclusionNode(n)) zonePos = p;
+      if (n.type.name === 'card_body') bodyPos = p;
+      return true;
+    });
+    // A position inside the zone's card resolves to the zone.
+    expect(enclosingZonePos(doc, bodyPos + 1)).toBe(zonePos);
+    // A position in the leading paragraph is outside every zone.
+    expect(enclosingZonePos(doc, 2)).toBeNull();
+    // Exactly at the zone's opening boundary counts as outside (a drop there
+    // lands before the zone, not in it).
+    expect(enclosingZonePos(doc, zonePos)).toBeNull();
+    view.destroy();
+  });
+
+  it('dragging a transcluded heading targets the whole zone as one unit', () => {
+    const view = makeView([
+      schema.nodes['block']!.create({ id: newHeadingId() }, schema.text('Outside Block')),
+      freshZone([card('Transcluded', 'ev')]),
+    ]);
+    const doc = view.state.doc;
+    let zonePos = -1;
+    let zoneEnd = -1;
+    doc.descendants((n, p) => {
+      if (isTransclusionNode(n)) {
+        zonePos = p;
+        zoneEnd = p + n.nodeSize;
+      }
+      return true;
+    });
+    const entries = collectHeadings(doc);
+    const transcluded = entries.find((e) => e.text === 'Transcluded')!;
+    expect(transcluded.zonePos).toBe(zonePos);
+    const range = computeHeadingRange(doc, transcluded)!;
+    expect(range.from).toBe(zonePos);
+    expect(range.to).toBe(zoneEnd);
+    expect(range.useNodeSelection).toBe(true);
+    // A heading outside the zone is unaffected — it drags itself, not the zone.
+    const outside = entries.find((e) => e.text === 'Outside Block')!;
+    expect(computeHeadingRange(doc, outside)!.from).not.toBe(zonePos);
     view.destroy();
   });
 });

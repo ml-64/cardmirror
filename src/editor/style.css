@@ -2323,111 +2323,66 @@ code {
 }
 
 /* ── Transclusion "live zone" (TRANSCLUSION_PLAN.md §4) ──
-   Reuses the card-unit rail grammar (2px border-left in the same 0.5rem
-   gutter) but PERSISTENT and in the reserved --pmd-c-transclusion hue, with a
-   link glyph at the rail head + a reveal-on-hover header. Reads as chrome, not
-   content. */
+   Reuses the card-unit rail grammar (2px border-left in the 0.5rem gutter) in
+   the reserved --pmd-c-transclusion hue. Like a normal card's rail it is QUIET
+   at rest and reveals on hover / selection; a link glyph caps the rail head
+   (absolutely positioned, so it costs no vertical space) and opens the source
+   menu. The transcluded cards flow inline — no header row. */
 .pmd-transclusion {
-  border-left: 2px solid var(--pmd-c-transclusion);
-  padding-left: 0.5rem;
-  margin: 0.25rem 0;
   position: relative;
+  margin: 0.25rem 0;
+}
+/* Blue rail as an OVERLAY in the same 2px gutter the inner cards already reserve
+   (`.pmd-card` border-left). It adds NO horizontal space, so a transcluded card
+   sits exactly where a normal card would — no extra indent. Quiet at rest,
+   revealed on hover/selection. Starts BELOW the glyph so the rail and glyph
+   never overlap (this is the "truncate the bar at the top" cap). */
+.pmd-transclusion::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 15px;
+  bottom: 0;
+  width: 2px;
+  background: transparent;
+  transition: background 90ms ease;
+  pointer-events: none;
+}
+.pmd-transclusion:hover::before,
+.pmd-transclusion.ProseMirror-selectednode::before,
+.pmd-transclusion.pmd-transclusion-menu-open::before {
+  background: var(--pmd-c-transclusion);
 }
 .pmd-transclusion.ProseMirror-selectednode {
   outline: 2px solid var(--pmd-c-transclusion);
   outline-offset: 2px;
 }
-/* Header: quiet at rest (just the glyph shows), revealed on hover/select. */
-.pmd-transclusion-header {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--pmd-c-transclusion);
-  min-height: 1.2em;
-}
-.pmd-transclusion-glyph {
-  color: var(--pmd-c-transclusion);
-  flex: 0 0 auto;
-}
-/* Everything after the glyph reveals on hover / selection. */
-.pmd-transclusion-crumb,
-.pmd-transclusion-status,
-.pmd-transclusion-actions {
-  opacity: 0;
-  transition: opacity 90ms ease;
-}
-.pmd-transclusion:hover > .pmd-transclusion-header .pmd-transclusion-crumb,
-.pmd-transclusion:hover > .pmd-transclusion-header .pmd-transclusion-status,
-.pmd-transclusion:hover > .pmd-transclusion-header .pmd-transclusion-actions,
-.pmd-transclusion.ProseMirror-selectednode > .pmd-transclusion-header .pmd-transclusion-crumb,
-.pmd-transclusion.ProseMirror-selectednode > .pmd-transclusion-header .pmd-transclusion-status,
-.pmd-transclusion.ProseMirror-selectednode > .pmd-transclusion-header .pmd-transclusion-actions {
-  opacity: 1;
-}
-.pmd-transclusion-crumb {
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 45%;
-}
-.pmd-transclusion-status {
-  color: var(--pmd-c-text-muted, #888);
-  white-space: nowrap;
-}
-.pmd-transclusion[data-status='unreachable'] .pmd-transclusion-status {
-  color: var(--pmd-c-warn, #b26a00);
-}
-.pmd-transclusion-actions {
-  display: flex;
-  gap: 0.15rem;
-  margin-left: auto;
-}
-.pmd-transclusion-btn {
+/* Rail-head glyph: hangs at the top of the gutter, revealed with the rail.
+   Absolutely positioned → no vertical space in the flow. */
+.pmd-transclusion-glyph-btn {
+  position: absolute;
+  top: 0;
+  left: -7px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 15px;
+  height: 15px;
   border: none;
-  background: transparent;
+  background: var(--pmd-c-bg);
   color: var(--pmd-c-transclusion);
   cursor: pointer;
-  padding: 2px;
+  padding: 0;
   border-radius: 3px;
-  font-size: 13px;
+  opacity: 0;
+  transition: opacity 90ms ease;
+  z-index: 3;
 }
-.pmd-transclusion-btn:hover {
-  background: var(--pmd-c-transclusion-soft);
-}
-.pmd-transclusion-btn:focus-visible {
-  outline: 2px solid var(--pmd-c-transclusion);
-  outline-offset: 1px;
-}
-/* The rendered cache. Cards inside a zone are read-only and selected as a
-   unit, so suppress their own per-card hover rail (else two rails stack). */
-.pmd-transclusion-body .pmd-card:hover,
-.pmd-transclusion-body .pmd-analytic-unit:hover {
-  border-left-color: transparent;
-}
-@media (prefers-reduced-motion: reduce) {
-  .pmd-transclusion-crumb,
-  .pmd-transclusion-status,
-  .pmd-transclusion-actions {
-    transition: none;
-  }
-}
-/* The rail glyph is a button (opens the Refresh/Unlink menu) — quiet at rest. */
-.pmd-transclusion-glyph-btn {
-  display: inline-flex;
-  align-items: center;
-  border: none;
-  background: transparent;
-  color: var(--pmd-c-transclusion);
-  cursor: pointer;
-  padding: 0 2px;
-  border-radius: 3px;
-  flex: 0 0 auto;
+.pmd-transclusion:hover > .pmd-transclusion-glyph-btn,
+.pmd-transclusion.ProseMirror-selectednode > .pmd-transclusion-glyph-btn,
+.pmd-transclusion.pmd-transclusion-menu-open > .pmd-transclusion-glyph-btn,
+.pmd-transclusion-glyph-btn:focus-visible {
+  opacity: 1;
 }
 .pmd-transclusion-glyph-btn:hover {
   background: var(--pmd-c-transclusion-soft);
@@ -2436,33 +2391,106 @@ code {
   outline: 2px solid var(--pmd-c-transclusion);
   outline-offset: 1px;
 }
-/* "Edited" dot — ambient (visible at rest) so a locally-contextualised zone
-   reads at a glance; lit only when the zone diverges from its last source pull. */
-.pmd-transclusion-edited-dot {
-  display: none;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
+.pmd-transclusion-glyph {
+  color: inherit;
+}
+/* Edited / unreachable → tint the glyph warn, so a hover surfaces the state
+   without any at-rest chrome (full detail lives in the menu). */
+.pmd-transclusion.pmd-transclusion-edited > .pmd-transclusion-glyph-btn,
+.pmd-transclusion[data-status='unreachable'] > .pmd-transclusion-glyph-btn {
+  color: var(--pmd-c-warn, #b26a00);
+}
+/* The transcluded cards render inline; suppress their own hover rail so it
+   doesn't stack with the zone rail. */
+.pmd-transclusion-body .pmd-card:hover,
+.pmd-transclusion-body .pmd-analytic-unit:hover {
+  border-left-color: transparent;
+}
+/* A blocked structural op inside a zone (e.g. a heading that would outrank the
+   transcluded section) flashes the rail warn-colored for a beat. */
+.pmd-transclusion-flash::before {
   background: var(--pmd-c-warn, #b26a00);
-  flex: 0 0 auto;
+  animation: pmd-transclusion-rail-flash 0.6s ease;
 }
-.pmd-transclusion-edited-dot.is-edited {
-  display: inline-block;
+@keyframes pmd-transclusion-rail-flash {
+  0% { background: var(--pmd-c-transclusion); }
+  30% { background: var(--pmd-c-warn, #b26a00); }
+  100% { background: var(--pmd-c-transclusion); }
 }
+@media (prefers-reduced-motion: reduce) {
+  .pmd-transclusion-glyph-btn,
+  .pmd-transclusion::before {
+    transition: none;
+  }
+  .pmd-transclusion-flash::before {
+    animation: none;
+  }
+}
+/* Menu — opens from the glyph; carries the source detail that used to sit inline
+   (file, section, sync date, edited) plus the actions. */
 .pmd-transclusion-menu {
   position: absolute;
-  top: 1.5em;
+  top: 1.1em;
   left: 0;
   z-index: 20;
   background: var(--pmd-c-bg);
   border: 1px solid var(--pmd-c-border-soft);
-  border-radius: 5px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
-  padding: 3px;
-  min-width: 168px;
+  border-radius: 6px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+  padding: 4px;
+  min-width: 208px;
+  max-width: 320px;
   display: flex;
   flex-direction: column;
   gap: 1px;
+}
+.pmd-transclusion-menu-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px 9px 6px;
+}
+.pmd-transclusion-menu-file {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--pmd-c-text);
+}
+.pmd-transclusion-menu-file svg {
+  color: var(--pmd-c-transclusion);
+  flex: 0 0 auto;
+}
+.pmd-transclusion-menu-file span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pmd-transclusion-menu-section {
+  font-size: 12px;
+  color: var(--pmd-c-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-left: calc(0.4rem + 1em);
+}
+.pmd-transclusion-menu-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 11px;
+  color: var(--pmd-c-text-muted, #888);
+  padding-left: calc(0.4rem + 1em);
+}
+.pmd-transclusion-menu-edited {
+  color: var(--pmd-c-warn, #b26a00);
+  font-weight: 600;
+}
+.pmd-transclusion-menu-sep {
+  height: 1px;
+  background: var(--pmd-c-border-soft);
+  margin: 3px 0;
 }
 .pmd-transclusion-menu-item {
   display: flex;
@@ -2472,8 +2500,8 @@ code {
   background: transparent;
   color: var(--pmd-c-text);
   cursor: pointer;
-  padding: 5px 9px;
-  border-radius: 3px;
+  padding: 6px 9px;
+  border-radius: 4px;
   font-size: 12px;
   text-align: left;
 }
@@ -4215,6 +4243,34 @@ body.pmd-nav-resize-active {
   background-color: var(--pmd-c-find-match-current-strong);
   box-shadow: 0 0 0 1px var(--pmd-c-find-match-current-outline-soft);
   pointer-events: none;
+}
+
+/* Transcluded run: a faint --pmd-c-transclusion rail down the left of the nav
+   entries that live inside a live zone, mirroring the editor's zone rail. Drawn
+   as a ::before (the border-left is claimed by hover/selection) at the li's
+   constant left edge, so it forms one continuous rail across the group
+   regardless of per-level indentation; hover/selection still read via their
+   background tints. Start/end insets give the run rounded caps. */
+.pmd-nav-item-zone::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--pmd-c-transclusion);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.pmd-nav-item-zone-start::before {
+  top: 3px;
+  border-top-left-radius: 2px;
+  border-top-right-radius: 2px;
+}
+.pmd-nav-item-zone-end::before {
+  bottom: 3px;
+  border-bottom-left-radius: 2px;
+  border-bottom-right-radius: 2px;
 }
 
 /* Drop indicator: a thin gap between nav entries when a drag is

@@ -25,7 +25,8 @@ import { preciseScrollIntoView } from './precise-scroll.js';
 import { READ_MODE_DRAG_META } from './reading-marker.js';
 import { autoScrollUnderPointer } from './drag-autoscroll.js';
 import { getViewDocPath } from './transclusion-doc-path.js';
-import { flattenZones, fragmentHasZone } from './transclusion.js';
+import { flattenZones, fragmentHasZone, enclosingZonePos, isTransclusionNode } from './transclusion.js';
+import { showToast } from './toast.js';
 
 export interface DragItem {
   /** Doc position range covering the dragged unit (heading + its
@@ -244,6 +245,34 @@ class DragControllerImpl {
       this.copyMode = false;
       this.notify('end');
       return true;
+    }
+
+    // A live zone keeps its content: a plain MOVE may not carry a node OUT of a
+    // zone. Reject only when an item's source sits inside a zone and the drop
+    // lands elsewhere — that's a card trying to escape. A whole zone (which sits
+    // at doc level, so its own source zone is null) moves freely, and dropping
+    // OTHER content next to a zone is fine (the zone just shifts as a unit).
+    // Copies (modifier held) are deliberate and always allowed.
+    if (!opts.copy) {
+      const doc = srcView.state.doc;
+      const tgtZone = enclosingZonePos(doc, insertPos);
+      const escapes = items.some((it) => {
+        const srcZone = enclosingZonePos(doc, it.from);
+        return srcZone !== null && srcZone !== tgtZone;
+      });
+      if (escapes) {
+        showToast('That would move content out of its live zone.');
+        this.cancel();
+        return false;
+      }
+      // Backstop (the drop indicators already avoid offering inner-zone slots):
+      // a live zone can't be dropped inside another live zone — no nesting.
+      const draggingZone = items.some((it) => isTransclusionNode(doc.nodeAt(it.from)));
+      if (draggingZone && tgtZone !== null) {
+        showToast('A live zone can’t go inside another live zone.');
+        this.cancel();
+        return false;
+      }
     }
 
     const tr = opts.copy

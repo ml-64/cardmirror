@@ -54,6 +54,7 @@ import {
 import { applyPlainPasteFromText, togglePlainPaste } from './paste-plugin.js';
 import { lockHighlighting } from './create-reference.js';
 import { showToast } from './toast.js';
+import { TYPE_TO_LEVEL, TYPE_LABEL } from './headings.js';
 import { selectedTransclusion } from './transclusion.js';
 import { refreshZoneAtPos, detachZoneAtPos } from './transclusion-actions.js';
 import { refreshFailMessage } from './transclusion-resolve.js';
@@ -331,6 +332,67 @@ function bulkReapplyStructuralOnShadow(
  * every other attr. Returns true unconditionally (the keystroke is consumed).
  * Used by every heading / undertag shortcut's already-this-type branch.
  */
+/**
+ * Depth of the enclosing live zone (`transclusion_ref`), or 0 at the real doc
+ * level. A zone is structurally a mini-doc (same BLOCK_CONTENT), so the
+ * structural commands measure their `depth === 1/2` gates and their
+ * `before/after/node/index(...)` math relative to this base — behaving
+ * identically inside a zone as at the doc root, with new headings/cards landing
+ * INSIDE the zone. base 0 → unchanged doc-level behavior.
+ */
+function structuralBaseDepth($from: ResolvedPos): number {
+  for (let d = 1; d <= $from.depth; d++) {
+    if ($from.node(d).type.name === 'transclusion_ref') return d;
+  }
+  return 0;
+}
+
+/** Highest rank (lowest `TYPE_TO_LEVEL`) among a zone's heading descendants, or
+ *  0 when the zone has no headings — no ceiling, so any heading is allowed
+ *  (nothing to "outrank"). */
+function minZoneHeadingLevel(zone: PMNode): number {
+  let min = Infinity;
+  zone.descendants((n) => {
+    const lvl = TYPE_TO_LEVEL[n.type.name];
+    if (lvl != null && lvl < min) min = lvl;
+    return true;
+  });
+  return min === Infinity ? 0 : min;
+}
+
+/** Brief flash of a live zone's rail to signal a blocked structural op. */
+function flashZoneRail(view: EditorView | undefined, zonePos: number): void {
+  if (!view) return;
+  const dom = view.nodeDOM(zonePos);
+  if (!(dom instanceof HTMLElement)) return;
+  dom.classList.remove('pmd-transclusion-flash');
+  void dom.offsetWidth; // reflow so re-adding restarts the animation
+  dom.classList.add('pmd-transclusion-flash');
+  window.setTimeout(() => dom.classList.remove('pmd-transclusion-flash'), 600);
+}
+
+/**
+ * Inside a live zone, refuse to create a heading higher-rank than the zone's
+ * highest existing heading — a transcluded block's contents can't gain a new
+ * block/hat/pocket (that would fracture the snapshot), though cards (tag /
+ * analytic) are always fine. Flashes the rail + toasts. Returns true when the
+ * op should be BLOCKED (the caller swallows the key); false to proceed.
+ */
+function blockedByZoneLevel(
+  $from: ResolvedPos,
+  base: number,
+  newType: string,
+  view: EditorView | undefined,
+): boolean {
+  if (base === 0) return false; // not in a zone
+  const level = TYPE_TO_LEVEL[newType];
+  if (level == null) return false;
+  if (level > minZoneHeadingLevel($from.node(base))) return false; // lower rank — allowed
+  flashZoneRail(view, $from.before(base));
+  showToast(`A ${TYPE_LABEL[newType] ?? 'heading'} would outrank this live zone’s section — use a lower-level heading here.`);
+  return true;
+}
+
 function stripIndentAtDepth(
   state: EditorState,
   dispatch: ((tr: Transaction) => void) | undefined,
@@ -359,7 +421,7 @@ function stripIndentAtDepth(
  * doc-level heading type.
  */
 export function setHeading(typeName: HeadingTypeName): Command {
-  return (state, dispatch) => {
+  return (state, dispatch, view) => {
     if (!state.selection.empty) {
       return applyStructuralToSelection(state, dispatch, {
         mode: 'heading',
@@ -369,12 +431,16 @@ export function setHeading(typeName: HeadingTypeName): Command {
     if (bulkReapplyStructuralOnShadow(state, dispatch, typeName)) return true;
     if (bulkReplaceStructuralOnShadow(state, dispatch, { mode: 'heading', headingType: typeName })) return true;
     const $from = state.selection.$from;
+    const base = structuralBaseDepth($from);
+    // A live zone can't gain a heading that outranks its highest — block F4–F6
+    // for pocket/hat/block above the zone's ceiling (cards are always fine).
+    if (blockedByZoneLevel($from, base, typeName, view)) return true;
 
-    if ($from.depth === 1) {
+    if ($from.depth === base + 1) {
       const parent = $from.parent;
       const pname = parent.type.name;
       if (pname === typeName) {
-        return stripIndentAtDepth(state, dispatch, 1);
+        return stripIndentAtDepth(state, dispatch, base + 1);
       }
       if (!DOC_LEVEL_CONVERTIBLE.has(pname)) return false;
       if (!dispatch) return true;
@@ -384,25 +450,25 @@ export function setHeading(typeName: HeadingTypeName): Command {
         ? ((parent.attrs['id'] as string | null) ?? newHeadingId())
         : newHeadingId();
       const tr = state.tr.setNodeMarkup(
-        $from.before(1),
+        $from.before(base + 1),
         schema.nodes[typeName]!,
         { id },
       );
       // The promoted heading takes its identity from the structural
       // type's CSS, so any prior named-style / direct formatting marks
       // on the source content are stripped.
-      const contentFrom = $from.before(1) + 1;
+      const contentFrom = $from.before(base + 1) + 1;
       const contentTo = contentFrom + parent.content.size;
       stripPromotionMarksOnTr(tr, contentFrom, contentTo);
       dispatch(tr.scrollIntoView());
       return true;
     }
 
-    if ($from.depth === 2 && CONTAINER_HEAD.has($from.parent.type.name)) {
+    if ($from.depth === base + 2 && CONTAINER_HEAD.has($from.parent.type.name)) {
       return dissolveContainerToHeading(state, dispatch, typeName);
     }
 
-    if ($from.depth === 2 && SPLITTABLE_BODY_SLOTS.has($from.parent.type.name)) {
+    if ($from.depth === base + 2 && SPLITTABLE_BODY_SLOTS.has($from.parent.type.name)) {
       return splitContainerAtBody(state, dispatch, { mode: 'heading', headingType: typeName });
     }
 
@@ -423,7 +489,8 @@ export function setTag(): Command {
     if (bulkReplaceStructuralOnShadow(state, dispatch, { mode: 'tag' })) return true;
     const $from = state.selection.$from;
 
-    if ($from.depth === 1) {
+    const base = structuralBaseDepth($from);
+    if ($from.depth === base + 1) {
       const parent = $from.parent;
       const pname = parent.type.name;
       if (!DOC_LEVEL_CONVERTIBLE.has(pname)) return false;
@@ -437,10 +504,10 @@ export function setTag(): Command {
       const cleanContent = stripPromotionMarksOnFragment(parent.content);
       const tagNode = schema.nodes['tag']!.create({ id }, cleanContent);
       const cardNode = schema.nodes['card']!.create(null, [tagNode]);
-      const from = $from.before(1);
-      const to = $from.after(1);
+      const from = $from.before(base + 1);
+      const to = $from.after(base + 1);
       let tr = state.tr.replaceWith(from, to, cardNode);
-      // After replace: doc → card@from → tag@(from+1) → content@(from+2)
+      // After replace: parent → card@from → tag@(from+1) → content@(from+2)
       const cursorPos = from + 2 + Math.min($from.parentOffset, parent.content.size);
       tr = tr.setSelection(TextSelection.create(tr.doc, cursorPos));
       // No scrollIntoView — wrapping in a card adds vertical chrome
@@ -452,20 +519,20 @@ export function setTag(): Command {
       return true;
     }
 
-    if ($from.depth === 2 && $from.parent.type.name === 'tag') {
-      return stripIndentAtDepth(state, dispatch, 2);
+    if ($from.depth === base + 2 && $from.parent.type.name === 'tag') {
+      return stripIndentAtDepth(state, dispatch, base + 2);
     }
 
     if (
-      $from.depth === 2 &&
+      $from.depth === base + 2 &&
       $from.parent.type.name === 'analytic' &&
-      $from.node(1).type.name === 'analytic_unit' &&
-      $from.node(1).firstChild === $from.parent
+      $from.node(base + 1).type.name === 'analytic_unit' &&
+      $from.node(base + 1).firstChild === $from.parent
     ) {
       return convertAnalyticUnitToCard(state, dispatch);
     }
 
-    if ($from.depth === 2 && SPLITTABLE_BODY_SLOTS.has($from.parent.type.name)) {
+    if ($from.depth === base + 2 && SPLITTABLE_BODY_SLOTS.has($from.parent.type.name)) {
       return splitContainerAtBody(state, dispatch, { mode: 'tag' });
     }
 
@@ -488,7 +555,8 @@ export function setAnalytic(): Command {
     if (bulkReplaceStructuralOnShadow(state, dispatch, { mode: 'analytic' })) return true;
     const $from = state.selection.$from;
 
-    if ($from.depth === 1) {
+    const base = structuralBaseDepth($from);
+    if ($from.depth === base + 1) {
       const parent = $from.parent;
       const pname = parent.type.name;
       if (!DOC_LEVEL_CONVERTIBLE.has(pname)) return false;
@@ -499,10 +567,10 @@ export function setAnalytic(): Command {
       const cleanContent = stripPromotionMarksOnFragment(parent.content);
       const analyticNode = schema.nodes['analytic']!.create({ id }, cleanContent);
       const unitNode = schema.nodes['analytic_unit']!.create(null, [analyticNode]);
-      const from = $from.before(1);
-      const to = $from.after(1);
+      const from = $from.before(base + 1);
+      const to = $from.after(base + 1);
       let tr = state.tr.replaceWith(from, to, unitNode);
-      // doc → analytic_unit@from → analytic@(from+1) → content@(from+2)
+      // parent → analytic_unit@from → analytic@(from+1) → content@(from+2)
       const cursorPos = from + 2 + Math.min($from.parentOffset, parent.content.size);
       tr = tr.setSelection(TextSelection.create(tr.doc, cursorPos));
       dispatch(tr);
@@ -510,24 +578,24 @@ export function setAnalytic(): Command {
     }
 
     if (
-      $from.depth === 2 &&
+      $from.depth === base + 2 &&
       $from.parent.type.name === 'analytic' &&
-      $from.node(1).type.name === 'analytic_unit' &&
-      $from.node(1).firstChild === $from.parent
+      $from.node(base + 1).type.name === 'analytic_unit' &&
+      $from.node(base + 1).firstChild === $from.parent
     ) {
-      return stripIndentAtDepth(state, dispatch, 2);
+      return stripIndentAtDepth(state, dispatch, base + 2);
     }
 
     if (
-      $from.depth === 2 &&
+      $from.depth === base + 2 &&
       $from.parent.type.name === 'tag' &&
-      $from.node(1).type.name === 'card' &&
-      $from.node(1).firstChild === $from.parent
+      $from.node(base + 1).type.name === 'card' &&
+      $from.node(base + 1).firstChild === $from.parent
     ) {
       return convertCardToAnalyticUnit(state, dispatch);
     }
 
-    if ($from.depth === 2 && SPLITTABLE_BODY_SLOTS.has($from.parent.type.name)) {
+    if ($from.depth === base + 2 && SPLITTABLE_BODY_SLOTS.has($from.parent.type.name)) {
       return splitContainerAtBody(state, dispatch, { mode: 'analytic' });
     }
 
@@ -555,36 +623,37 @@ export function setUndertag(): Command {
     if (bulkReplaceStructuralOnShadow(state, dispatch, { mode: 'undertag' })) return true;
     const $from = state.selection.$from;
 
-    if ($from.depth === 1) {
+    const base = structuralBaseDepth($from);
+    if ($from.depth === base + 1) {
       const parent = $from.parent;
       const pname = parent.type.name;
-      if (pname === 'undertag') return stripIndentAtDepth(state, dispatch, 1);
+      if (pname === 'undertag') return stripIndentAtDepth(state, dispatch, base + 1);
       if (!DOC_LEVEL_CONVERTIBLE.has(pname)) return false;
       if (!dispatch) return true;
       const tr = state.tr.setNodeMarkup(
-        $from.before(1),
+        $from.before(base + 1),
         schema.nodes['undertag']!,
         null,
       );
-      const contentFrom = $from.before(1) + 1;
+      const contentFrom = $from.before(base + 1) + 1;
       const contentTo = contentFrom + parent.content.size;
       stripPromotionMarksOnTr(tr, contentFrom, contentTo);
       dispatch(tr.scrollIntoView());
       return true;
     }
 
-    if ($from.depth === 2) {
+    if ($from.depth === base + 2) {
       const pname = $from.parent.type.name;
-      if (pname === 'undertag') return stripIndentAtDepth(state, dispatch, 2);
+      if (pname === 'undertag') return stripIndentAtDepth(state, dispatch, base + 2);
       if (pname === 'card_body' || pname === 'cite_paragraph') {
         if (!dispatch) return true;
         const parent = $from.parent;
         const tr = state.tr.setNodeMarkup(
-          $from.before(2),
+          $from.before(base + 2),
           schema.nodes['undertag']!,
           null,
         );
-        const contentFrom = $from.before(2) + 1;
+        const contentFrom = $from.before(base + 2) + 1;
         const contentTo = contentFrom + parent.content.size;
         stripPromotionMarksOnTr(tr, contentFrom, contentTo);
         dispatch(tr.scrollIntoView());
@@ -604,8 +673,9 @@ function dissolveContainerToUndertag(
   dispatch: ((tr: Transaction) => void) | undefined,
 ): boolean {
   const $from = state.selection.$from;
+  const base = structuralBaseDepth($from);
   const head = $from.parent;
-  const container = $from.node(1);
+  const container = $from.node(base + 1);
   if (container.firstChild !== head) return false;
   if (container.type.name === 'card' && head.type.name !== 'tag') return false;
   if (container.type.name === 'analytic_unit' && head.type.name !== 'analytic') return false;
@@ -621,16 +691,16 @@ function dissolveContainerToUndertag(
     nonHeadChildren.push(child);
   });
 
-  const containerStart = $from.before(1);
-  const containerEnd = $from.after(1);
+  const containerStart = $from.before(base + 1);
+  const containerEnd = $from.after(base + 1);
 
-  // If the previous doc-level sibling is the same container type, absorb
-  // [undertag, ...non-head children] into it. Card and analytic_unit both
-  // accept undertag in their content, and the non-head children are already
-  // valid card/analytic_unit content, so no per-child rewriting is needed.
-  const containerIndex = $from.index(0);
+  // If the previous sibling (in the doc or the enclosing zone) is the same
+  // container type, absorb [undertag, ...non-head children] into it. Card and
+  // analytic_unit both accept undertag in their content, and the non-head
+  // children are already valid content, so no per-child rewriting is needed.
+  const containerIndex = $from.index(base);
   if (containerIndex > 0) {
-    const prev = state.doc.child(containerIndex - 1);
+    const prev = $from.node(base).child(containerIndex - 1);
     if (prev.type.name === container.type.name) {
       const prevStart = containerStart - prev.nodeSize;
       const newPrev = prev.copy(
@@ -681,14 +751,15 @@ function convertCardToAnalyticUnit(
   dispatch: ((tr: Transaction) => void) | undefined,
 ): boolean {
   const $from = state.selection.$from;
+  const base = structuralBaseDepth($from);
   const tag = $from.parent;
-  const card = $from.node(1);
+  const card = $from.node(base + 1);
   if (!dispatch) return true;
 
   const unitNode = cardToAnalyticUnitNode(card);
 
-  const from = $from.before(1);
-  const to = $from.after(1);
+  const from = $from.before(base + 1);
+  const to = $from.after(base + 1);
   let tr = state.tr.replaceWith(from, to, unitNode);
   const cursorPos = from + 2 + Math.min($from.parentOffset, tag.content.size);
   tr = tr.setSelection(TextSelection.create(tr.doc, cursorPos));
@@ -716,9 +787,10 @@ function splitContainerAtBody(
   opts: SplitMode,
 ): boolean {
   const $from = state.selection.$from;
+  const base = structuralBaseDepth($from);
   const cursorBody = $from.parent;
   if (!SPLITTABLE_BODY_SLOTS.has(cursorBody.type.name)) return false;
-  const container = $from.node(1);
+  const container = $from.node(base + 1);
   const containerName = container.type.name;
   if (containerName !== 'card' && containerName !== 'analytic_unit') return false;
 
@@ -762,8 +834,8 @@ function splitContainerAtBody(
     insideOffset = 2;
   }
 
-  const containerFrom = $from.before(1);
-  const containerTo = $from.after(1);
+  const containerFrom = $from.before(base + 1);
+  const containerTo = $from.after(base + 1);
   const replacement = Fragment.fromArray([beforeContainer, ...liftedNodes]);
   let tr = state.tr.replaceWith(containerFrom, containerTo, replacement);
 
@@ -781,8 +853,9 @@ function dissolveContainerToHeading(
   typeName: HeadingTypeName,
 ): boolean {
   const $from = state.selection.$from;
+  const base = structuralBaseDepth($from);
   const head = $from.parent;
-  const container = $from.node(1);
+  const container = $from.node(base + 1);
   // Only dissolve when the head is the container's required anchor.
   if (container.firstChild !== head) return false;
   if (container.type.name === 'card' && head.type.name !== 'tag') return false;
@@ -802,8 +875,8 @@ function dissolveContainerToHeading(
     lifted.push(liftCardChild(child));
   });
 
-  const from = $from.before(1);
-  const to = $from.after(1);
+  const from = $from.before(base + 1);
+  const to = $from.after(base + 1);
   let tr = state.tr.replaceWith(from, to, Fragment.fromArray(lifted));
   const cursorPos = from + 1 + Math.min($from.parentOffset, head.content.size);
   tr = tr.setSelection(TextSelection.create(tr.doc, cursorPos));
@@ -4090,14 +4163,15 @@ function convertAnalyticUnitToCard(
   dispatch: ((tr: Transaction) => void) | undefined,
 ): boolean {
   const $from = state.selection.$from;
+  const base = structuralBaseDepth($from);
   const analytic = $from.parent;
-  const unit = $from.node(1);
+  const unit = $from.node(base + 1);
   if (!dispatch) return true;
 
   const cardNode = analyticUnitToCardNode(unit);
 
-  const from = $from.before(1);
-  const to = $from.after(1);
+  const from = $from.before(base + 1);
+  const to = $from.after(base + 1);
   let tr = state.tr.replaceWith(from, to, cardNode);
   // After replace: doc → card@from → tag@(from+1) → content@(from+2)
   const cursorPos = from + 2 + Math.min($from.parentOffset, analytic.content.size);

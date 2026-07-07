@@ -21,6 +21,7 @@
 import type { EditorView } from 'prosemirror-view';
 import { collectHeadings, headingInsertPos, TYPE_TO_LEVEL } from './headings.js';
 import { dragController, type DragItem, type DragSurface } from './drag-controller.js';
+import { isTransclusionNode } from './transclusion.js';
 import { settings } from './settings.js';
 import { scheduleIdle, cancelIdle, type IdleHandle } from './idle-scheduler.js';
 
@@ -314,29 +315,39 @@ export class EditorDragSurface implements DragSurface {
       if (id) visibleIdToEl.set(id, el);
     }
     const doc = view.state.doc;
+    // Is the drag source a whole live zone? Then it drops as a doc-level unit
+    // (not level-scoped) and offers no target inside any zone.
+    const session = dragController.getSession();
+    const srcItem = session?.items[0];
+    const srcIsZone =
+      !!srcItem && !!session && isTransclusionNode(session.view.state.doc.nodeAt(srcItem.from));
     // `skipCite: true` — drop-indicator placement doesn't read
     // `entry.cite`, and the cite walk is the heaviest part of
     // `collectHeadings` (it descends every card looking for
     // cite-marked text runs).
+    let prevZonePos: number | null = null;
     for (const entry of collectHeadings(doc, { skipCite: true })) {
-      if (entry.level > draggedLevel) continue;
+      // A live zone is opaque to drops: keep only the run's FIRST transcluded
+      // entry, remapped to BEFORE the zone (so a top-of-zone drop lands outside
+      // it); drop inner transcluded slots so nothing lands between transcluded
+      // cards and a zone can't nest.
+      const isRunFirst = entry.zonePos != null && entry.zonePos !== prevZonePos;
+      prevZonePos = entry.zonePos;
+      if (entry.zonePos != null) {
+        if (!isRunFirst) continue;
+      } else if (!srcIsZone && entry.level > draggedLevel) {
+        // §14: slots exist between siblings of level <= dragged level — except a
+        // whole-zone drag, which may drop at any doc-level boundary.
+        continue;
+      }
       const id = entry.id;
       if (!id) continue;
       const el = visibleIdToEl.get(id);
       if (!el) continue;
-      // Visibility gate first — the heading-range computation below
-      // does a forward doc walk for pocket / hat / block (nodesBetween
-      // to find the next equal-or-shallower heading), which is the
-      // expensive bit. Skipping that for off-screen headings keeps
-      // drag pickup snappy on long docs.
-      //
-      // We also DON'T call `computeHeadingRange` here — for
-      // indicator placement we only need the heading's start position,
-      // which is `entry.pos` for pocket / hat / block and the parent
-      // card's position for tag / analytic. `headingInsertPos` below
-      // computes just that, without the forward-walk for the heading's
-      // full range.
-      const insertPos = headingInsertPos(doc, entry);
+      // Visibility gate first — skipping off-screen headings keeps pickup snappy.
+      // We only need the start position: `headingInsertPos` for a normal heading,
+      // or the zone's own doc-level position for a transcluded run-first entry.
+      const insertPos = entry.zonePos != null ? entry.zonePos : headingInsertPos(doc, entry);
       if (insertPos == null) continue;
       // Heading is in-viewport, so its ancestors are already laid out
       // and the offsetTop read is cheap.
@@ -676,6 +687,24 @@ export class EditorDragSurface implements DragSurface {
 
     const doc = this.view.state.doc;
     const $pos = doc.resolve(Math.min(posInfo.pos, doc.content.size));
+
+    // A point inside a live zone grabs the WHOLE zone as one opaque unit
+    // (mirrors computeHeadingRange), so a transcluded card can't be pulled out
+    // and the zone moves intact. Checked before the card/heading walk below so
+    // the outer zone wins over the inner card.
+    for (let depth = $pos.depth; depth >= 1; depth--) {
+      const node = $pos.node(depth);
+      if (node.type.name === 'transclusion_ref') {
+        const from = $pos.before(depth);
+        return {
+          from,
+          to: from + node.nodeSize,
+          type: 'transclusion_ref',
+          level: 0,
+          label: String(node.attrs['source_label'] || this.firstHeadingText(node) || 'Live zone'),
+        };
+      }
+    }
 
     // Walk depths from inner to outer; return the smallest recognized
     // container — a card, an analytic_unit, or a heading paragraph.

@@ -17,6 +17,7 @@ import { type Mappable } from 'prosemirror-transform';
 import { settings } from './settings.js';
 import { registerOpenContextMenu, clearOpenContextMenu } from './context-menu-registry.js';
 import { dragController, type DragItem, type DragSurface } from './drag-controller.js';
+import { isTransclusionNode } from './transclusion.js';
 import { preciseScrollIntoView } from './precise-scroll.js';
 import {
   collectHeadings,
@@ -710,6 +711,14 @@ export class NavigationPanel {
       if (hitEntryIndices.has(i)) {
         li.classList.add('pmd-nav-item-find-hit');
       }
+      // Transcluded run: a faint green rail marks headings that live inside a
+      // live zone, mirroring the editor's zone rail. `next` is entries[i+1].
+      if (entry.zonePos != null) {
+        li.classList.add('pmd-nav-item-zone');
+        const prev = entries[i - 1];
+        if (!prev || prev.zonePos !== entry.zonePos) li.classList.add('pmd-nav-item-zone-start');
+        if (!next || next.zonePos !== entry.zonePos) li.classList.add('pmd-nav-item-zone-end');
+      }
 
       const chevron = document.createElement('span');
       chevron.className = 'pmd-nav-chevron';
@@ -1245,12 +1254,20 @@ export class NavigationPanel {
     this.createPickupPill(items);
     dragController.begin({ view: this.view, items });
 
-    // Mark all dragged source <li>s.
+    // Mark all dragged source <li>s. If the drag is a whole live zone, grey the
+    // ENTIRE transcluded run (every entry with the zone's pos), not just the
+    // grabbed heading — so it reads as a multi-select of all the zone's headings.
     const idsBeingDragged = new Set(
       items.map((it) => it.id).filter((id): id is string => id != null),
     );
+    const doc = this.view.state.doc;
+    const zoneItem = items.find((it) => isTransclusionNode(doc.nodeAt(it.from)));
+    const draggedZonePos = zoneItem ? zoneItem.from : null;
     for (const [li, entry] of this.liEntries) {
-      if (entry.id != null && idsBeingDragged.has(entry.id)) {
+      if (
+        (entry.id != null && idsBeingDragged.has(entry.id)) ||
+        (draggedZonePos != null && entry.zonePos === draggedZonePos)
+      ) {
         li.classList.add('pmd-nav-item-dragging');
       }
     }
@@ -1351,20 +1368,32 @@ export class NavigationPanel {
     let indicatorsAboveDraggedCount = 0;
     let pastDragged = false;
 
+    // Is the drag source a whole live zone? A zone drops as a doc-level unit
+    // (its item level is low, so it isn't level-scoped) and offers no targets
+    // inside any zone.
+    const srcItem = dragController.getSession()?.items[0];
+    const srcIsZone =
+      !!srcItem && isTransclusionNode(dragController.getSession()!.view.state.doc.nodeAt(srcItem.from));
+
     for (const li of items) {
       const entry = this.liEntries.get(li);
       if (!entry) continue;
-      // Per the §14 design rule: drop slots exist only between siblings
-      // of level <= dragged level. Skip deeper entries.
-      if (entry.level > draggedLevel) continue;
 
-      // Drop indicators only need `range.from`. The full
-      // `computeHeadingRange` does an O(doc) forward walk for
-      // pocket / hat / block to find the heading's end; running that
-      // once per entry adds up to several hundred ms on long docs at
-      // drag start. `headingInsertPos` computes just the start
-      // position.
-      const insertPos = headingInsertPos(doc, entry);
+      let insertPos: number | null;
+      if (entry.zonePos != null) {
+        // A live zone is opaque to drops: only the run's FIRST transcluded entry
+        // yields a slot, remapped to BEFORE the zone (doc level) so a top-of-zone
+        // drop lands outside it. Inner transcluded slots are dropped entirely — so
+        // nothing lands between transcluded cards, and a zone can't nest.
+        if (!li.classList.contains('pmd-nav-item-zone-start')) continue;
+        insertPos = entry.zonePos;
+      } else {
+        // §14: slots exist between siblings of level <= dragged level. A whole-
+        // zone drag isn't level-scoped, so it may drop at any doc-level boundary.
+        // `headingInsertPos` computes just the (cheap) start position.
+        if (!srcIsZone && entry.level > draggedLevel) continue;
+        insertPos = headingInsertPos(doc, entry);
+      }
       if (insertPos == null) continue;
 
       const indicator = document.createElement('div');

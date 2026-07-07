@@ -5,6 +5,65 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## 0.1.0-beta.9 — 2026-07-06
+
+### Added
+
+- **Change settings from the command bar.** Every on/off setting now has a
+  "Toggle …" command, and a set of mode settings (icon style, ribbon
+  tooltips, formatting panel, reduce motion, timer position, multi-doc
+  layout, condense heading handling) has a "Cycle …" command that steps to
+  the next value. Open the command bar (⌘/Ctrl-Shift-Space), search "toggle"
+  or "cycle" — or just the setting's name — and change it without opening
+  Settings.
+
+- **Style the FOR REFERENCE heading.** Create Reference can render the
+  heading line bold, italic, emphasized, and/or underlined — set it under
+  Settings → Editing → Create Reference. (Bold and italic show in Word too;
+  emphasize and underline are CardMirror styles that fall back to plain text
+  in Word.)
+
+- **Block senders in Card Sharing.** Settings → Card Sharing → Blocked
+  senders drops cards and room invites from specific people — paste a code to
+  block, or one-click block someone who recently shared with you. Blocked
+  items never appear in the Receive pill or its unread count; unblock to
+  bring their earlier cards back.
+
+### Fixed
+
+- **The white-screen crash no longer strands your work — and is
+  prevented at the source on macOS.** On some machines the editor could
+  turn solid white with no way back, usually right after an
+  assistive-technology tool (a screen reader, Voice Access, or — on
+  macOS — certain system accessibility features) touched a
+  heavily-highlighted document. Turning the accessibility tree off by
+  default in an earlier release reduced this but didn't fully close it on
+  macOS. Two changes finish the job: macOS now blocks the exact system
+  signal that set the crash off, so it doesn't start; and on every
+  platform, if the editor ever does go down, CardMirror automatically
+  reloads and restores your document from its recovery journal instead of
+  leaving a blank window. If you turned Screen reader support back on
+  under Settings → Accessibility, the macOS block is skipped to respect
+  that choice — and the automatic recovery still covers you.
+
+- **"New document" and opening files work from the home screen again.**
+  With a multi-slot highlight or shading color override turned on, clicking
+  "New document" on the home screen did nothing, and opening a file showed
+  "Failed to load: Applying a mismatched transaction." Both work now, on the
+  first and every subsequent open.
+
+- **Folder pickers in Settings render correctly.** The Send Doc, Marked
+  Cards, and new-speech-document folder settings (and the file-search folder
+  list) had a collapsed, clipped path box; the path now shows on one line
+  with Browse / Clear beside it.
+
+### Changed
+
+- **Settings search shows where a setting lives.** Context-free rows in the
+  command bar's settings search now carry their section — "Bold heading"
+  reads as "Create Reference: Bold heading" — so fragment labels are clear
+  outside the Settings dialog, and you can find them by section too.
+
 ## 0.1.0-beta.8 — 2026-07-04
 
 ### Added
@@ -56,21 +115,6 @@ properly, with a real on-switch, once it's ready. What's in the preview:
   ciphertext.
 
 ### Fixed
-
-- **The white-screen crash no longer strands your work — and is
-  prevented at the source on macOS.** On some machines the editor could
-  turn solid white with no way back, usually right after an
-  assistive-technology tool (a screen reader, Voice Access, or — on
-  macOS — certain system accessibility features) touched a
-  heavily-highlighted document. Turning the accessibility tree off by
-  default in an earlier release reduced this but didn't fully close it on
-  macOS. Two changes finish the job: macOS now blocks the exact system
-  signal that set the crash off, so it doesn't start; and on every
-  platform, if the editor ever does go down, CardMirror automatically
-  reloads and restores your document from its recovery journal instead of
-  leaving a blank window. If you turned Screen reader support back on
-  under Settings → Accessibility, the macOS block is skipped to respect
-  that choice — and the automatic recovery still covers you.
 
 - **Word tables with uneven rows import cleanly.** A .docx table whose
   rows have different numbers of cells (Word allows this) is now padded

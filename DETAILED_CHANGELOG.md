@@ -5,7 +5,68 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
-## Unreleased
+## 0.1.0-beta.9 — 2026-07-06
+
+- **Command bar can toggle and cycle settings** (`quick-card-search-ui.ts`,
+  `settings.ts`, `tests/editor/setting-toggles.test.ts`). Every `kind: 'toggle'`
+  setting gets a "Toggle <label>" palette command, and a curated set of enum
+  settings (`CYCLABLE_SETTINGS`) gets "Cycle <label>" — both derived at runtime
+  from `SETTING_METADATA` (`toggleableSettingMetas` / `cyclableSettings`) rather
+  than hand-registered, so the list tracks the registry with no upkeep.
+  Deliberately NOT modeled as ribbon commands: that path is static-TS across ~9
+  tables and would flood the keybindings editor + shortcuts reference, so the
+  trade-off is these aren't individually keybindable. Shown under the `c`
+  (commands), `s` (settings), and no-prefix searches; gating mirrors the dialog
+  (host flags, `dependsOn`/`revealWhen`, `searchHidden`, via the shared
+  `isSettingActionable`). Names are cleaned (`cleanToggleLabel`: "Enable AI
+  features" → "Toggle AI features") and context-free sections are prefixed
+  ("Create Reference: Bold heading") — the same prefix
+  (`CONTEXTLESS_SECTIONS` = Create Reference + Standardize exceptions,
+  `settingSearchName`) now also labels the DIRECT settings-search rows. Toggling/
+  cycling routes through `settings.set` and reads the value back for the toast,
+  so subscriber side effects (e.g. the workspace switch's confirm-and-revert)
+  behave exactly as from the dialog.
+
+- **Fixed "Applying a mismatched transaction" on in-place editor re-mount**
+  (`index.ts`, `multi-pane-shell.ts`, `highlight-frequency-plugin.ts`,
+  `tests/editor/remount-mismatched-transaction.test.ts`). A plugin that
+  dispatches from its own `view()` setup (the highlight-frequency mount scan,
+  armed only by a multi-slot highlight/shading color override) fired during
+  `new EditorView(...)`, before `mountView` bound the module-level `view`; on a
+  SECOND in-place mount `dispatchTransaction` read the stale, just-destroyed
+  `view` and applied a fresh-doc transaction to the old state → the error.
+  Guarded `dispatchTransaction` on the dispatching view's identity
+  (`this !== view`); multi-pane got a `mounted` flag for the same
+  temporal-dead-zone hazard; the highlight-freq mount scan now defers one
+  microtask so it lands on the real view (also fixing the latent "colors don't
+  populate until the first edit" gap). Explains the field report exactly: only
+  in-place re-mounts (home-screen New / Open) hit it — Explorer-open spawns a
+  fresh window and never re-mounts.
+
+- **Create Reference: heading style options** (`create-reference.ts`,
+  `settings.ts`, `index.ts`, `tests/editor/create-reference-options.test.ts`).
+  Four new toggles — bold / italic / emphasized / underlined — apply marks to the
+  FOR REFERENCE heading line. Emphasis and underline are mutually exclusive;
+  emphasis wins if both are set. Bold/italic render in Word; emphasize/underline
+  are CardMirror named styles. Gated on "Include the FOR REFERENCE heading".
+
+- **Card Sharing: block senders** (`settings.ts`, `settings-ui.ts`,
+  `pairing/inbox-store.ts`, `style.css`, `tests/editor/pairing.test.ts`). New
+  `pairingBlockedCodes` setting; `filterBlockedItems` drops blocked sender codes
+  from the inbox store's `list`/`unreadCount`/subscriber snapshots (one
+  type-agnostic filter covers both received cards and room invites) and the store
+  re-fires when the block list changes, so blocking/unblocking updates the
+  Receive pill immediately. Blocked items stay in the on-disk inbox (renderer-side
+  filter), so unblocking restores them. UI: paste-a-code + a one-click "recent
+  senders" list derived from the inbox. Sender codes are self-declared, so
+  blocking is a convenience filter, not a security boundary.
+
+- **Fixed collapsed path in the settings folder pickers** (`style.css`).
+  Regression from the beta.8 CSS dedup (`2d810cf`): `.pmd-settings-folder` was
+  grouped with the column `.pmd-pairing-account`, so the path span's `flex: 1 1 0`
+  applied its basis-0 to the vertical axis and collapsed the box to padding.
+  Restored `.pmd-settings-folder`'s own row rule (path grows, Browse/Clear and
+  the folder-list remove × sit inline, wrapping when narrow).
 
 - **macOS: native swizzle stops the accessibility path that
   `--disable-renderer-accessibility` misses** (`apps/desktop/native/ax-suppress.m`
@@ -53,6 +114,8 @@ in each release, see `CHANGELOG.md`.
   can't spin. Cross-platform; complements the macOS prevention above (prevention
   stops the known trigger at the source, recovery catches anything that still
   slips through, on any platform).
+
+## 0.1.0-beta.8 — 2026-07-04
 
 - **Bulk compress retired from the Home screen (console-gated)**
   (`bulk-compress-gate.ts` NEW, `index.ts`, `home-screen.ts`, `MANUAL.md`,
@@ -340,8 +403,6 @@ in each release, see `CHANGELOG.md`.
   the stream (powerMonitor broadcast on desktop, 'online' event both
   editions); catch-ups that merge a big offline backlog announce it
   ("synced N offline updates") instead of silently reshaping the doc.
-
-## 0.1.0-beta.8 — 2026-07-03
 
 - **Collab field fixes (draft-installer round 1).** (a) *Joining now
   swaps the doc IN the joining window.* The join flow reused

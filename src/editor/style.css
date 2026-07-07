@@ -12373,11 +12373,18 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
   margin-right: 2px;
 }
 
-/* Send pill click-to-invite mode: pointer affordance on the bar, a
-   small header above the rows, and hoverable rows (drag mode highlights
-   via the controller instead). */
+/* Send pill click-to-invite: the bar is `clickable` only when a collab
+   invite is actually possible (collab on + card sharing on). It then gets a
+   pointer AND a hover recolor so it's clear clicking does something —
+   distinct from the drag-hot / open states. When not clickable (e.g. collab
+   off) there's deliberately no hover, signalling the click is inert. */
 .pmd-send-bar-clickable {
   cursor: pointer;
+}
+.pmd-send-bar-clickable:hover {
+  background: var(--pmd-c-hover);
+  border-color: var(--pmd-c-accent);
+  color: var(--pmd-c-text);
 }
 /* Per-contact collaboration-invite button. Hidden until the pill is opened
    by a CLICK (invite mode) — a drag-to-send never reveals it. */

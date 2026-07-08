@@ -138,17 +138,28 @@ function findZonePos(doc: PMNode, identity: string, preferredPos: number): numbe
  * success the doc is updated in place; on failure nothing changes (the cache
  * keeps rendering). Best-effort — never throws.
  */
+export interface RefreshOptions {
+  /** Prompt before a refresh discards the zone's local edits (default true).
+   *  The whole-document refresh passes `false` — it confirms ONCE up front for
+   *  every zone, so per-zone prompts would be redundant. */
+  confirmEdits?: boolean;
+}
+
 export async function refreshZoneAtPos(
   view: EditorView,
   pos: number,
+  opts: RefreshOptions = {},
 ): Promise<ResolveOutcome> {
+  const confirmEdits = opts.confirmEdits !== false;
   const node = view.state.doc.nodeAt(pos);
   if (!node || !isTransclusionNode(node)) return { ok: false, reason: 'heading-missing' };
   const identity = zoneIdentity(node);
   // Fast path: if the clicked zone is already edited, confirm up front so a
   // large source read isn't done only to be discarded on cancel.
   const preEdited = isZoneEdited(node);
-  if (preEdited && !(await confirmDiscardEdits())) return { ok: false, reason: 'cancelled' };
+  if (confirmEdits && preEdited && !(await confirmDiscardEdits())) {
+    return { ok: false, reason: 'cancelled' };
+  }
 
   const docPath = getViewDocPath(view);
   const outcome = await resolveTransclusion(
@@ -174,7 +185,7 @@ export async function refreshZoneAtPos(
   // If we didn't already confirm and the zone became edited DURING the read (the
   // user typed into it in the async window), confirm now — otherwise those
   // just-made edits would be replaced with no prompt.
-  if (!preEdited && isZoneEdited(live) && !(await confirmDiscardEdits())) {
+  if (confirmEdits && !preEdited && isZoneEdited(live) && !(await confirmDiscardEdits())) {
     return { ok: false, reason: 'cancelled' };
   }
 
@@ -198,6 +209,64 @@ export async function refreshZoneAtPos(
   tr.setMeta('addToHistory', true);
   view.dispatch(tr);
   return outcome;
+}
+
+/** Outcome of a whole-document refresh. `confirmed: false` means the user
+ *  cancelled the single up-front confirmation and nothing was touched. */
+export interface RefreshAllSummary {
+  /** Live zones found in the document. */
+  total: number;
+  /** Zones successfully re-pulled from source. */
+  refreshed: number;
+  /** Zones whose source couldn't be read (cache kept rendering). */
+  failed: number;
+  confirmed: boolean;
+}
+
+/** One confirmation covering EVERY zone — a whole-doc refresh discards all local
+ *  edits and re-pulls every source, so it's confirmed once up front rather than
+ *  once per edited zone. */
+function confirmRefreshAll(count: number): Promise<boolean> {
+  const zones = count === 1 ? 'the 1 live zone' : `all ${count} live zones`;
+  return showConfirm({
+    title: 'Refresh every live zone?',
+    message: `This replaces ${zones} in this document with their current sources, discarding any local edits and contextualization.`,
+    confirmLabel: 'Refresh all',
+    cancelLabel: 'Cancel',
+  });
+}
+
+/**
+ * Refresh EVERY live zone in the document after a single confirmation. Zones are
+ * refreshed bottom-to-top so replacing one never shifts a not-yet-processed
+ * zone's position, and each call re-validates its own target. Per-zone edit
+ * prompts are suppressed — the one up-front confirm stands in for all of them.
+ * Best-effort: a source that can't be read leaves that zone's cache in place and
+ * counts as a failure. Returns a summary for the caller to surface.
+ */
+export async function refreshAllZones(view: EditorView): Promise<RefreshAllSummary> {
+  const positions: number[] = [];
+  view.state.doc.descendants((n, pos) => {
+    if (!isTransclusionNode(n)) return true;
+    positions.push(pos);
+    return false; // zones never nest — no need to descend into one
+  });
+  if (positions.length === 0) return { total: 0, refreshed: 0, failed: 0, confirmed: true };
+  if (!(await confirmRefreshAll(positions.length))) {
+    return { total: positions.length, refreshed: 0, failed: 0, confirmed: false };
+  }
+  let refreshed = 0;
+  let failed = 0;
+  // Bottom-to-top: a replace only shifts positions AFTER it, which are already
+  // done, so every remaining `pos` stays exact (refreshZoneAtPos then takes its
+  // fast path and never hits the ambiguous-identity guard).
+  positions.sort((a, b) => b - a);
+  for (const pos of positions) {
+    const outcome = await refreshZoneAtPos(view, pos, { confirmEdits: false });
+    if (outcome.ok) refreshed++;
+    else failed++;
+  }
+  return { total: positions.length, refreshed, failed, confirmed: true };
 }
 
 /**

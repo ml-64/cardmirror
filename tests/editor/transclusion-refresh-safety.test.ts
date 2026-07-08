@@ -34,7 +34,11 @@ import {
   zoneIdentity,
   isTransclusionNode,
 } from '../../src/editor/transclusion.js';
-import { refreshZoneAtPos, replaceZoneAtPos } from '../../src/editor/transclusion-actions.js';
+import {
+  refreshZoneAtPos,
+  replaceZoneAtPos,
+  refreshAllZones,
+} from '../../src/editor/transclusion-actions.js';
 
 function card(tag: string, body: string): PMNode {
   return schema.nodes['card']!.createChecked(null, [
@@ -207,6 +211,79 @@ describe('replaceZoneAtPos — re-pick identity safety', () => {
     expect(view.state.doc.textContent).toContain('aaa'); // both untouched
     expect(view.state.doc.textContent).toContain('bbb');
     expect(view.state.doc.textContent).not.toContain('new-ev');
+    view.destroy();
+  });
+});
+
+describe('refreshAllZones (whole-document refresh)', () => {
+  const freshOutcome = () => ({
+    ok: true as const,
+    result: {
+      content: Fragment.fromArray([card('New', 'fresh-ev')]),
+      headingLabel: 'H',
+      headingType: 'block' as const,
+    },
+    sourceName: 'S.cmir',
+  });
+
+  it('refreshes every zone after ONE confirmation (not one per edited zone)', async () => {
+    resolveMock.mockResolvedValue(freshOutcome());
+    const view = makeView([
+      zoneNode([card('A', 'a-ev')], { ...REF, source_heading_id: 'H1' }, true), // edited
+      zoneNode([card('B', 'b-ev')], { ...REF, source_heading_id: 'H2' }, false),
+      zoneNode([card('C', 'c-ev')], { ...REF, source_heading_id: 'H3' }, true), // edited
+    ]);
+    const summary = await refreshAllZones(view);
+    expect(summary).toEqual({ total: 3, refreshed: 3, failed: 0, confirmed: true });
+    // A single up-front batch confirm — NOT one prompt per edited zone.
+    expect(confirmMock).toHaveBeenCalledTimes(1);
+    // Every zone now shows the source content; none keep their old text.
+    const text = view.state.doc.textContent;
+    expect(text).not.toContain('a-ev');
+    expect(text).not.toContain('b-ev');
+    expect(text).not.toContain('c-ev');
+    expect((text.match(/fresh-ev/g) ?? []).length).toBe(3);
+    view.destroy();
+  });
+
+  it('cancelling the confirmation touches nothing and reads no source', async () => {
+    confirmMock.mockResolvedValue(false);
+    resolveMock.mockResolvedValue(freshOutcome());
+    const view = makeView([
+      zoneNode([card('A', 'a-ev')], { ...REF, source_heading_id: 'H1' }, true),
+      zoneNode([card('B', 'b-ev')], { ...REF, source_heading_id: 'H2' }, false),
+    ]);
+    const before = view.state.doc.toJSON();
+    const summary = await refreshAllZones(view);
+    expect(summary).toEqual({ total: 2, refreshed: 0, failed: 0, confirmed: false });
+    expect(resolveMock).not.toHaveBeenCalled();
+    expect(view.state.doc.toJSON()).toEqual(before);
+    view.destroy();
+  });
+
+  it('a doc with no zones needs no confirm and reports zeros', async () => {
+    const view = makeView([card('A', 'a-ev')]);
+    const summary = await refreshAllZones(view);
+    expect(summary).toEqual({ total: 0, refreshed: 0, failed: 0, confirmed: true });
+    expect(confirmMock).not.toHaveBeenCalled();
+    view.destroy();
+  });
+
+  it('counts an unreadable source as failed while still refreshing the rest', async () => {
+    resolveMock.mockImplementation((_docPath, _ref, _base, headingId) =>
+      Promise.resolve(
+        headingId === 'H2' ? { ok: false, reason: 'source-unreadable' } : freshOutcome(),
+      ),
+    );
+    const view = makeView([
+      zoneNode([card('A', 'a-ev')], { ...REF, source_heading_id: 'H1' }, false),
+      zoneNode([card('B', 'b-ev')], { ...REF, source_heading_id: 'H2' }, false),
+    ]);
+    const summary = await refreshAllZones(view);
+    expect(summary).toEqual({ total: 2, refreshed: 1, failed: 1, confirmed: true });
+    const text = view.state.doc.textContent;
+    expect(text).toContain('fresh-ev'); // H1 refreshed
+    expect(text).toContain('b-ev'); // H2 kept its cache
     view.destroy();
   });
 });

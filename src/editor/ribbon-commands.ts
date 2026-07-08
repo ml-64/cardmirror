@@ -55,8 +55,8 @@ import { applyPlainPasteFromText, togglePlainPaste } from './paste-plugin.js';
 import { lockHighlighting } from './create-reference.js';
 import { showToast } from './toast.js';
 import { TYPE_TO_LEVEL, TYPE_LABEL } from './headings.js';
-import { selectedTransclusion } from './transclusion.js';
-import { refreshZoneAtPos, detachZoneAtPos } from './transclusion-actions.js';
+import { selectedTransclusion, enclosingZonePos, isTransclusionNode } from './transclusion.js';
+import { refreshZoneAtPos, refreshAllZones, detachZoneAtPos } from './transclusion-actions.js';
 import { refreshFailMessage } from './transclusion-resolve.js';
 import { getElectronHost, getHost } from './host/index.js';
 import { classifyChar, isWordChar } from './word-break.js';
@@ -389,6 +389,29 @@ function flashZoneRail(view: EditorView | undefined, zonePos: number): void {
   void dom.offsetWidth; // reflow so re-adding restarts the animation
   dom.classList.add('pmd-transclusion-flash');
   window.setTimeout(() => dom.classList.remove('pmd-transclusion-flash'), 600);
+}
+
+/** The position of the live zone the refresh command should act on: the one
+ *  selected as a node, else the one the cursor sits inside. `null` when neither
+ *  — the command is then unavailable. `refreshZoneAtPos` takes exactly this. */
+function commandZonePos(state: EditorState): number | null {
+  const sel = selectedTransclusion(state.selection);
+  if (sel) return sel.pos;
+  return enclosingZonePos(state.doc, state.selection.head);
+}
+
+/** Whether the document holds at least one live zone (gates refresh-all). */
+function docHasZone(doc: PMNode): boolean {
+  let found = false;
+  doc.descendants((n) => {
+    if (found) return false;
+    if (isTransclusionNode(n)) {
+      found = true;
+      return false;
+    }
+    return true;
+  });
+  return found;
 }
 
 /**
@@ -4621,6 +4644,7 @@ export type RibbonCommandId =
   | 'sendToDropzone'
   | 'insertLiveZone'
   | 'refreshLiveZone'
+  | 'refreshAllLiveZones'
   | 'detachLiveZone'
   | 'sendToStarred'
   | 'insertReceivedAtCursor'
@@ -4827,6 +4851,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'sendToDropzone',
   'insertLiveZone',
   'refreshLiveZone',
+  'refreshAllLiveZones',
   'detachLiveZone',
   'sendToStarred',
   'insertReceivedAtCursor',
@@ -4993,6 +5018,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   sendToDropzone: 'Send to Dropzone',
   insertLiveZone: 'Insert Live Zone',
   refreshLiveZone: 'Refresh Live Zone',
+  refreshAllLiveZones: 'Refresh All Live Zones',
   detachLiveZone: 'Detach Live Zone',
   sendToStarred: 'Send to Starred Recipient',
   insertReceivedAtCursor: 'Insert Received Card (At Cursor)',
@@ -5123,6 +5149,13 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   insertFootnote: ['footnote', 'endnote', 'add footnote', 'new footnote', 'note'],
   insertLiveZone: ['transclude', 'transclusion', 'live zone', 'living zone', 'link section'],
   refreshLiveZone: ['refresh transclusion', 'update live zone', 'sync live zone'],
+  refreshAllLiveZones: [
+    'refresh all transclusions',
+    'update all live zones',
+    'sync all live zones',
+    'refresh whole document',
+    'refresh every live zone',
+  ],
   detachLiveZone: ['detach transclusion', 'unlink live zone', 'break live zone link'],
   timerToggleVisible: ['show timer', 'hide timer', 'toggle timer', 'timer panel'],
   timerStartPause: ['start timer', 'pause timer', 'speech timer', 'play timer'],
@@ -5266,6 +5299,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   toggleAutosave: '',
   insertLiveZone: '',
   refreshLiveZone: '',
+  refreshAllLiveZones: '',
   detachLiveZone: '',
   // Verbatim's "Send to speech" — bare backtick (next to 1 on US
   // layouts) for at-cursor, Alt-backtick for at-end-of-doc. Same
@@ -6085,15 +6119,37 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
         return true;
       };
     case 'refreshLiveZone':
-      // Acts on the selected live zone via the command's own view, so it works
-      // in single-doc and every multi-pane slot. Available only over a zone.
+      // Refresh the live zone the cursor is IN (or the one selected as a node) —
+      // the same action as its ⟳ menu item: re-read the source, re-extract the
+      // section, confirm first if the zone has local edits. Acts via the
+      // command's own view so it works in single-doc and every multi-pane slot.
       return (state, dispatch, view) => {
-        if (!selectedTransclusion(state.selection)) return false;
+        if (commandZonePos(state) === null) return false;
         if (!dispatch) return true;
-        const sel = selectedTransclusion(view ? view.state.selection : state.selection);
-        if (view && sel) {
-          void refreshZoneAtPos(view, sel.pos).then((o) => {
-            if (!o.ok) showToast(refreshFailMessage(o.reason));
+        const pos = view ? commandZonePos(view.state) : null;
+        if (view && pos !== null) {
+          void refreshZoneAtPos(view, pos).then((o) => {
+            const msg = o.ok ? '' : refreshFailMessage(o.reason);
+            if (msg) showToast(msg);
+          });
+        }
+        return true;
+      };
+    case 'refreshAllLiveZones':
+      // Refresh EVERY live zone in the document. One confirmation up front (in
+      // refreshAllZones) covers the whole batch, since it discards local edits
+      // and re-pulls every source throughout the doc.
+      return (state, dispatch, view) => {
+        if (!docHasZone(state.doc)) return false;
+        if (!dispatch) return true;
+        if (view) {
+          void refreshAllZones(view).then((s) => {
+            if (!s.confirmed || s.total === 0) return;
+            const msg =
+              s.failed === 0
+                ? `Refreshed ${s.refreshed} live zone${s.refreshed === 1 ? '' : 's'}.`
+                : `Refreshed ${s.refreshed} of ${s.total} live zones — ${s.failed} could not be reached.`;
+            showToast(msg);
           });
         }
         return true;

@@ -112,6 +112,7 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
       'insertFootnote',
       'insertLiveZone',
       'refreshLiveZone',
+      'refreshAllLiveZones',
       'detachLiveZone',
       'selectCurrentHeading',
       'deleteCurrentHeading',

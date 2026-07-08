@@ -2057,9 +2057,6 @@ The full, current list is always in the app: press **📖** in the ribbon.
 
 CardMirror is in active development. Planned, but not built yet:
 
-- **Library-wide search** — a persistent index of your whole evidence
-  corpus. For now, the [Search Everything palette](#5-finding-things)
-  searches files by name and lets you dive into one at a time.
 - **Real-time collaboration (co-editing)** — *early preview, desktop
   only.* Live shared editing of a document is built and being
   field-tested, but it is **off by default and experimental**: it can

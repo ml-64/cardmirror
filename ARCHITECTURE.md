@@ -370,13 +370,6 @@ per-file mtime + size and refreshed in the background; *content* search
 is still parse-on-demand, one file at a time. Find/replace within the
 open doc and the quick-card search palette round out what's shipped.
 
-**Corpus search (planned).** The cached mtimes are the hook for an
-eventual persistent on-disk index with a file watcher and schema-aware
-queries across the whole library ("all cites by author Y", "all cards
-under hat X") — superseding the standalone Block Search tool. Staged this
-way to find the performance ceiling before investing in full indexing.
-The same search UI will double as the transclusion target picker (§19).
-
 ## 12. Editing semantics at node boundaries
 
 The schema guarantees strong structure (a card has a required tag,
@@ -747,8 +740,6 @@ underline-vs-emphasis merge can never leave a schema-illegal run.
 
 - **Verbatim Flow integration** — CardMirror's take on Verbatim's
   Excel-based flowing tool.
-- **Corpus-wide search index** (§11) — the persistent on-disk layer above
-  the shipped on-demand file search.
 - **Transclusion.** A `transclusion_ref` node `{source_path,
   source_heading_id, content_hash, cached_content, last_refreshed}`,
   picked through the search UI (§11) and identified by the target's

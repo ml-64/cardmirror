@@ -5,7 +5,7 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
-## Unreleased
+## 0.1.0-beta.10 — 2026-07-07
 
 - **Live zones (transclusion)** (`schema/nodes.ts`, `transclusion.ts` NEW,
   `transclusion-actions.ts` NEW, `transclusion-nodeview.ts` NEW,
@@ -135,6 +135,30 @@ in each release, see `CHANGELOG.md`.
   the provider's fetch) to let an in-flight download finish. Wired into the
   Finder/"Open with", in-app Open dialog, Open Recent, and transclusion
   source-read paths.
+
+- **Unread-after-marker tint + rebindable marker/unread color** (PR #8 by
+  @shreerammodi: `mark-unread-plugin.ts` NEW, `index.ts`, `multi-pane-shell.ts`,
+  `reading-marker.ts`, `settings.ts`, `style.css`, `transform-for-export.ts`,
+  tests; follow-up: `style.css`, `settings.ts`). A default-off
+  `markUnreadAfterMarker` toggle decorates every card-body run AFTER a reading
+  marker with `.pmd-unread` — a `Decoration` set (display-only, zero cost when
+  off, diff-gated rebuild, bounded per card), mirrored into every multi-pane
+  slot. On `.docx` export, `transformForExport` reuses the plugin's exact
+  `computeUnreadDecorations` walk to bake the same ranges into real `font_color`
+  FF0000 runs (so screen and export match, and the two can't drift). A `toggle`
+  setting (moved to Appearance → Document typography), so it auto-registers a
+  command-bar Toggle. Follow-up: the marker's own red (`READING_MARKER_COLOR`
+  FF0000) and the unread tint both resolve from one shared, rebindable color — a
+  new `readingMarker` key in `DisplayColors` (a Style color, so the Appearance →
+  Style colors picker and the Accessibility → Document-text row stay linked to
+  one value, like analytic/undertag). `applyDisplayColors` writes
+  `--pmd-user-color-readingMarker`; `--pmd-color-reading-marker` resolves from it
+  (theme-invariant, default red). Display-only — the stored mark stays FF0000, so
+  export + `isReadingMarkerColor` detection are unchanged; a case-insensitive
+  `[data-color="ff0000" i]` rule (plus a dark-theme variant that out-specifies
+  the dark-band readability override) recolors the marker on screen in both
+  themes. Also renamed the ribbon "Show character styles" setting → "…in ribbon"
+  and moved it under Appearance → Formatting panel.
 
 ## 0.1.0-beta.9 — 2026-07-07
 

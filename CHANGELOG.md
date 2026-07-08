@@ -5,7 +5,7 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
-## Unreleased
+## 0.1.0-beta.10 — 2026-07-07
 
 ### Added
 
@@ -37,6 +37,15 @@ see `DETAILED_CHANGELOG.md`.
   Settings → General and the Help menu — covering eligibility, acceptable use
   of the sharing features, that you keep all rights to your content, and the
   beta "keep your own backups" disclaimer.
+
+- **Mark unread text after a reading marker.** A new toggle (Settings →
+  Appearance, or search "unread" in the command bar) tints card body text
+  *after* a reading marker red — a visual record of what you didn't reach in a
+  round. Off by default, bounded per card, and preserved when you export to
+  Word. That red and the marker's own red are now a single, rebindable **Style
+  color** (Settings → Appearance → Style colors, linked to Accessibility) so
+  colorblind users can change it. (Thanks to
+  [Shreeram Modi](https://github.com/shreerammodi).)
 
 ### Changed
 

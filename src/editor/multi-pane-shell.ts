@@ -33,6 +33,7 @@ import { Node as PMNode } from 'prosemirror-model';
 import { schema, newHeadingId } from '../schema/index.js';
 import { fromDocxFull, parseNative, serializeNativeAsync, NATIVE_FILE_EXTENSION } from '../index.js';
 import { settings } from './settings.js';
+import { MARK_UNREAD_TOGGLE } from './mark-unread-plugin.js';
 import { getHost, getElectronHost, isSameOpenHandle, type OpenedFile } from './host/index.js';
 import { isFileOpenInAnotherWindow } from './window-coordination.js';
 import { getCommentsState, loadThreads, type Thread } from './comments-plugin.js';
@@ -1101,6 +1102,10 @@ function closeOpenStackDropdown(): void {
   openStackDropdownEl = null;
 }
 
+/** Last-applied value of the global `markUnreadAfterMarker` toggle, so the
+ *  shell only rebuilds pane decorations when it actually flips. */
+let shellLastMarkUnread = settings.get('markUnreadAfterMarker');
+
 class MultiPaneShell {
   private slots: Record<SlotId, Slot>;
   private shellEl: HTMLElement;
@@ -1223,6 +1228,17 @@ class MultiPaneShell {
               'pmd-rm-no-emphasis-borders',
               hideEmphasisBorders,
             );
+          }
+        }
+      }
+      // The mark-unread toggle is settings-driven (a global display pref);
+      // when it flips, nudge every pane's plugin to rebuild. Diff-gated
+      // because the rebuild is O(doc): don't fire on unrelated settings changes.
+      if (s.markUnreadAfterMarker !== shellLastMarkUnread) {
+        shellLastMarkUnread = s.markUnreadAfterMarker;
+        for (const id of SLOT_IDS) {
+          for (const rec of this.slots[id].stack) {
+            rec.view.dispatch(rec.view.state.tr.setMeta(MARK_UNREAD_TOGGLE, true));
           }
         }
       }

@@ -51,7 +51,8 @@ export function formatMarkerTime(d: Date): string {
   return `${h}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-function isMarkerText(node: { isText: boolean; marks: readonly { type: { name: string }; attrs: Record<string, unknown> }[] }): boolean {
+/** True when a text node is a reading-position marker run (red `font_color`). */
+export function isMarkerText(node: { isText: boolean; marks: readonly { type: { name: string }; attrs: Record<string, unknown> }[] }): boolean {
   return (
     node.isText &&
     node.marks.some(

@@ -27,7 +27,9 @@
  */
 
 import type { Node as PMNode, Schema } from 'prosemirror-model';
-import { isReadingMarkerColor } from '../editor/reading-marker.js';
+import { Transform } from 'prosemirror-transform';
+import { isReadingMarkerColor, READING_MARKER_COLOR } from '../editor/reading-marker.js';
+import { computeUnreadDecorations } from '../editor/mark-unread-plugin.js';
 
 export interface ExportTransformOptions {
   includeComments: boolean;
@@ -38,22 +40,51 @@ export interface ExportTransformOptions {
    *  no analytics. Mutually exclusive with the other options (like readMode).
    *  Optional / defaults off so existing callers don't have to opt in. */
   markedCardsOnly?: boolean;
+  /** Bake the display-only "text after a reading marker is red"
+   *  (`markUnreadAfterMarker`) into real `font_color` runs, so the export
+   *  matches what's on screen. Mirror the live setting at the call site;
+   *  off by default so unrelated callers don't have to opt in. */
+  markUnreadAfterMarker?: boolean;
 }
 
 export function transformForExport(
   doc: PMNode,
   opts: ExportTransformOptions,
 ): PMNode {
-  if (opts.readMode) return applyReadModeTransform(doc);
-  if (opts.markedCardsOnly) return extractMarkedCards(doc);
-
-  let out = doc;
-  if (!opts.includeAnalytics) out = stripAnalytics(out);
-  if (!opts.includeUndertags) out = stripUndertags(out);
-  // includeComments needs no doc transform here: the export call site
-  // gates it by withholding the doc's comment threads from the
-  // exporter when off (notes / AI threads have their own flags there).
+  let out: PMNode;
+  if (opts.readMode) out = applyReadModeTransform(doc);
+  else if (opts.markedCardsOnly) out = extractMarkedCards(doc);
+  else {
+    out = doc;
+    if (!opts.includeAnalytics) out = stripAnalytics(out);
+    if (!opts.includeUndertags) out = stripUndertags(out);
+    // includeComments needs no doc transform here: the export call site
+    // gates it by withholding the doc's comment threads from the
+    // exporter when off (notes / AI threads have their own flags there).
+  }
+  // Last, so it colors whatever survived the transforms above.
+  if (opts.markUnreadAfterMarker) out = bakeUnreadRed(out);
   return out;
+}
+
+// ------------------- unread-after-marker red -------------------
+//
+// The `markUnreadAfterMarker` review aid tints body text after a reading
+// marker red via a display-only `.pmd-unread` decoration (see
+// `mark-unread-plugin.ts`) — it never touches the doc, so the exporter can't
+// see it. To make red-on-screen stay red in Word, reuse the plugin's exact
+// walk to get the same ranges, then bake them into real `font_color` FF0000
+// runs. Reused (not re-implemented) so the two can't drift.
+
+function bakeUnreadRed(doc: PMNode): PMNode {
+  const fontColor = doc.type.schema.marks['font_color'];
+  if (!fontColor) return doc;
+  const decos = computeUnreadDecorations(doc);
+  if (decos.length === 0) return doc;
+  const tr = new Transform(doc);
+  const mark = fontColor.create({ color: READING_MARKER_COLOR });
+  for (const d of decos) tr.addMark(d.from, d.to, mark);
+  return tr.doc;
 }
 
 // --------------------------- read mode ---------------------------

@@ -4692,6 +4692,15 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 .pmd-read-mode .pmd-rm-hide { display: none; }
 .pmd-read-mode .pmd-rm-keep { display: inline; }
 
+/* "Redden card text after a reading marker" (settings.markUnreadAfterMarker).
+   The mark-unread plugin tags each body run after a marker with `.pmd-unread`.
+   `!important` on both the wrapper and its descendants forces red over any
+   per-run `font_color` inline `style="color:…"` (which is a normal-priority
+   author declaration `!important` beats) regardless of how PM nests the
+   decoration span vs. the mark span. */
+.pmd-unread,
+.pmd-unread * { color: #ff0000 !important; }
+
 /* Images are never read-aloud content — hide them in read mode. */
 .pmd-read-mode img[data-pmd-image],
 .pmd-read-mode .pmd-image-wrap,

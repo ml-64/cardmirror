@@ -718,7 +718,7 @@ you *browse* that whole source.
 | **`d`** | The **dropzone** (only when it's turned on) | Inserts the item at your cursor |
 | **`c`** | Ribbon **commands** — each row shows its current shortcut | Runs the command |
 | **`s`** | **Settings** — both the section tabs and individual settings | Opens that tab and scrolls to the setting |
-| **`f`** | Your **`.cmir` files** by filename *(desktop only)* | Opens the file |
+| **`f`** | Your **files** by filename *(desktop only)* | Opens the file |
 
 Searching **version** (or "about this install") shows the running app
 version, and Enter jumps to the About this install section of Settings.

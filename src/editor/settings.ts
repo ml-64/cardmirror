@@ -724,6 +724,11 @@ export interface Settings {
    *  collapsed, so depth 3 (default) shows blocks with their tags
    *  collapsed. Mirrors the nav pane's `navMaxLevel`. */
   fileSearchOutlineDepth: number;
+  /** Same-tier ordering for file-search results (and the no-query browse
+   *  list): 'recency' (most-recently-modified first, default) or
+   *  'alphabetical'. Results are first ranked by match quality; this only
+   *  breaks ties within a tier. */
+  fileSearchTiebreak: 'recency' | 'alphabetical';
   /** Whether file search auto-pins recent + frequently-used files
    *  (keeping them warm for instant dives). Default on; turn off to
    *  warm only files pinned by hand (for memory-sensitive users). */
@@ -1354,6 +1359,7 @@ const DEFAULTS: Settings = {
   fileSearchFormats: 'both',
   fileSearchObjectTypes: ['block', 'tag'],
   fileSearchOutlineDepth: 3,
+  fileSearchTiebreak: 'recency',
   pinAutoEnabled: true,
   lineHeight: 1.3,
   lineHeightCite: 1.2,
@@ -1526,6 +1532,7 @@ export interface SettingMeta {
     | 'fileSearchFormats'
     | 'fileSearchObjectTypes'
     | 'fileSearchOutlineDepth'
+    | 'fileSearchTiebreak'
     | 'speechDocFormat'
     | 'saveFormat'
     | 'formattingGapClass'
@@ -1892,6 +1899,17 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'files',
     section: 'File search',
     electronOnly: true,
+  },
+  {
+    key: 'fileSearchTiebreak',
+    label: 'File search: tie-break order',
+    description:
+      'How equally-relevant file results are ordered. Results are ranked by match quality first (exact name, then prefix, then word-start, then anywhere in the name or folder); this decides ties within a tier — and the order of the browse list before you type. Recency (default) puts the most recently edited file first; Alphabetical sorts by name.',
+    kind: 'fileSearchTiebreak',
+    category: 'files',
+    section: 'File search',
+    electronOnly: true,
+    aliases: ['file search sort', 'file sort order', 'recency', 'alphabetical', 'sort files'],
   },
   {
     key: 'pinAutoEnabled',
@@ -3009,6 +3027,13 @@ export const CYCLABLE_SETTINGS: readonly CyclableSetting[] = [
       { value: 'wide', label: 'Wide-scroll' },
     ],
   },
+  {
+    key: 'fileSearchTiebreak',
+    values: [
+      { value: 'recency', label: 'Recency' },
+      { value: 'alphabetical', label: 'Alphabetical' },
+    ],
+  },
 ];
 
 /** The cyclable settings actionable right now (same host/dependency gating as
@@ -3394,6 +3419,7 @@ function sanitize(s: Settings): Settings {
     fileSearchOutlineDepth: Number.isFinite(s.fileSearchOutlineDepth)
       ? clamp(Math.round(s.fileSearchOutlineDepth), 1, 4)
       : 3,
+    fileSearchTiebreak: s.fileSearchTiebreak === 'alphabetical' ? 'alphabetical' : 'recency',
     pinAutoEnabled: s.pinAutoEnabled === false ? false : true,
     lineHeight: sanitizeLineHeight(s.lineHeight, DEFAULTS.lineHeight),
     lineHeightCite: sanitizeLineHeight(s.lineHeightCite, DEFAULTS.lineHeightCite),

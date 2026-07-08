@@ -3,6 +3,7 @@ import {
   SettingsStore,
   CUSTOMIZABLE_COLOR_TOKENS,
   CUSTOM_OVERRIDE_TOKEN_NAMES,
+  CYCLABLE_SETTINGS,
 } from '../../src/editor/settings.js';
 
 // SettingsStore tolerates the absence of localStorage / window (its
@@ -119,6 +120,25 @@ describe('settings import (replaceAll)', () => {
 // `customColorOverrides` (applied last, so the override won and left
 // the Appearance picker inert); sanitize migrates any such override
 // into `displayColors` and drops it from the overrides blob.
+describe('fileSearchTiebreak setting', () => {
+  it('defaults to recency and only accepts recency / alphabetical', () => {
+    expect(new SettingsStore().get('fileSearchTiebreak')).toBe('recency');
+    const s = new SettingsStore();
+    s.set('fileSearchTiebreak', 'alphabetical' as never);
+    expect(s.get('fileSearchTiebreak')).toBe('alphabetical');
+    // garbage coerces back to the default on the sanitize boundary
+    const g = new SettingsStore();
+    g.replaceAll({ fileSearchTiebreak: 'nonsense' } as never);
+    expect(g.get('fileSearchTiebreak')).toBe('recency');
+  });
+
+  it('is registered as a cyclable setting (drives the Cycle command)', () => {
+    const cyc = CYCLABLE_SETTINGS.find((c) => c.key === 'fileSearchTiebreak');
+    expect(cyc).toBeTruthy();
+    expect(cyc!.values.map((v) => v.value)).toEqual(['recency', 'alphabetical']);
+  });
+});
+
 describe('accessibility color tokens', () => {
   it('exposes the live-zone rail hue as a user-rebindable override (colorblind recourse)', () => {
     const tok = CUSTOMIZABLE_COLOR_TOKENS.find((t) => t.name === 'pmd-c-transclusion');

@@ -42,8 +42,8 @@ describe('path helpers', () => {
   });
 });
 
-function file(name: string, relPath = name): FileEntry {
-  return { path: `/root/${relPath}`, relPath, name, mtimeMs: 0 };
+function file(name: string, relPath = name, mtimeMs = 0): FileEntry {
+  return { path: `/root/${relPath}`, relPath, name, mtimeMs };
 }
 
 describe('searchFiles', () => {
@@ -58,11 +58,88 @@ describe('searchFiles', () => {
     expect(r.map((f) => f.name)).toEqual(['warming good.cmir']);
   });
 
-  it('ranks earlier first-token hits ahead', () => {
+  it('both prefix matches tie and fall back to input order (mtime equal)', () => {
     const r = searchFiles(files, 'warming');
-    // "warming good" leads with the token at index 0; "Warming Impacts"
-    // also starts with it — both rank by first-token index then order.
+    // "Warming Impacts" and "warming good" both start with the query (tier 1);
+    // equal mtime → the recency tiebreak is a no-op → input order.
     expect(r.map((f) => f.name)).toEqual(['Warming Impacts.cmir', 'warming good.cmir']);
+  });
+});
+
+describe('searchFiles — relevance tiers', () => {
+  const files = [
+    file('Rewarming notes'), // substring, mid-word
+    file('AT: Warming'), // word-start (not the label start)
+    file('Warming DA'), // prefix
+    file('Warming'), // exact
+    file('Heg Good'), // no match
+  ];
+
+  it('orders exact → prefix → word-start → substring', () => {
+    expect(searchFiles(files, 'warming').map((f) => f.name)).toEqual([
+      'Warming',
+      'Warming DA',
+      'AT: Warming',
+      'Rewarming notes',
+    ]);
+  });
+
+  it('prefers a word-start over a mid-word substring', () => {
+    const fs = [file('Software'), file('War powers')];
+    expect(searchFiles(fs, 'war').map((f) => f.name)).toEqual(['War powers', 'Software']);
+  });
+});
+
+describe('searchFiles — folder (relPath) matching', () => {
+  it('matches a folder term via the relative path, ranked below a name hit', () => {
+    const files = [
+      file('Warming DA', 'Neg/Warming DA.cmir'),
+      file('Impacts', 'Neg/Impacts.cmir'),
+    ];
+    // "neg" lives only in the folder → both match (secondary-only tier).
+    expect(
+      searchFiles(files, 'neg')
+        .map((f) => f.name)
+        .sort(),
+    ).toEqual(['Impacts', 'Warming DA']);
+    // "neg warming": only Warming DA has warming in the NAME and neg in the folder.
+    expect(searchFiles(files, 'neg warming').map((f) => f.name)).toEqual(['Warming DA']);
+  });
+});
+
+describe('searchFiles — tiebreak', () => {
+  const files = [
+    file('Beta', 'Beta.cmir', 100),
+    file('Alpha', 'Alpha.cmir', 300),
+    file('Gamma', 'Gamma.cmir', 200),
+  ];
+
+  it('recency: most-recently-modified first (also the no-query browse order)', () => {
+    expect(searchFiles(files, '', 'recency').map((f) => f.name)).toEqual(['Alpha', 'Gamma', 'Beta']);
+  });
+
+  it('alphabetical: by file name', () => {
+    expect(searchFiles(files, '', 'alphabetical').map((f) => f.name)).toEqual([
+      'Alpha',
+      'Beta',
+      'Gamma',
+    ]);
+  });
+
+  it('breaks same-tier ties by the chosen order', () => {
+    const fs = [
+      file('Warming Alpha', 'Warming Alpha.cmir', 100),
+      file('Warming Zeta', 'Warming Zeta.cmir', 300),
+    ];
+    // both prefix matches (tier 1) → the tiebreak decides
+    expect(searchFiles(fs, 'warming', 'recency').map((f) => f.name)).toEqual([
+      'Warming Zeta',
+      'Warming Alpha',
+    ]);
+    expect(searchFiles(fs, 'warming', 'alphabetical').map((f) => f.name)).toEqual([
+      'Warming Alpha',
+      'Warming Zeta',
+    ]);
   });
 });
 
@@ -84,6 +161,29 @@ describe('searchFileObjects', () => {
     ];
     // Query is only in the cite, not the tag label.
     expect(searchFileObjects(withCite, 'brooks').map((o) => o.label)).toEqual(['Heg good']);
+  });
+
+  it('a label hit outranks a cite-only hit', () => {
+    const mixed: FileObject[] = [
+      { kind: 'tag', label: 'Heg good', detail: '', cite: 'Warming 24', from: 0, to: 0 }, // cite-only
+      { kind: 'block', label: 'Warming Bad', detail: '', from: 0, to: 0 }, // label prefix
+    ];
+    expect(searchFileObjects(mixed, 'warming').map((o) => o.label)).toEqual([
+      'Warming Bad',
+      'Heg good',
+    ]);
+  });
+
+  it('keeps same-tier matches in document (input) order', () => {
+    const objs: FileObject[] = [
+      { kind: 'tag', label: 'Warming second', detail: '', from: 10, to: 20 },
+      { kind: 'tag', label: 'Warming first', detail: '', from: 0, to: 5 },
+    ];
+    // both prefix matches (tier 1) → preserve input order, never re-sorted
+    expect(searchFileObjects(objs, 'warming').map((o) => o.label)).toEqual([
+      'Warming second',
+      'Warming first',
+    ]);
   });
 });
 

@@ -1087,9 +1087,11 @@ class QuickCardSearchUI {
         ...searchSettingCycleSource(query),
         ...searchSettingsSource(query),
         ...(this.fileList && filePins
-          ? searchFiles(filterFilesByFormatSetting(this.fileList), query).map((f) =>
-              fileResult(f, filePins.has(f.path)),
-            )
+          ? searchFiles(
+              filterFilesByFormatSetting(this.fileList),
+              query,
+              settings.get('fileSearchTiebreak'),
+            ).map((f) => fileResult(f, filePins.has(f.path)))
           : []),
       ];
       this.emptyText = 'No matches.';
@@ -1143,7 +1145,11 @@ class QuickCardSearchUI {
     // ★ + top-sort reflect MANUAL pins (the user-controlled feature);
     // auto pins (recents/frequents) are warmed silently, not surfaced.
     const pins = this.manualPinPaths();
-    const matched = searchFiles(filterFilesByFormatSetting(this.fileList), query);
+    const matched = searchFiles(
+      filterFilesByFormatSetting(this.fileList),
+      query,
+      settings.get('fileSearchTiebreak'),
+    );
     const ordered = [
       ...matched.filter((f) => pins.has(f.path)),
       ...matched.filter((f) => !pins.has(f.path)),

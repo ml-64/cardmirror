@@ -119,31 +119,92 @@ export function dirName(relPath: string): string {
   return i < 0 ? '' : relPath.slice(0, i);
 }
 
-/** Order-independent multi-token substring AND-match + ranking by
- *  first-token position (prefix matches float up), then input order. */
-function rankByTokens<T>(items: readonly T[], query: string, text: (t: T) => string): T[] {
-  const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
-  if (tokens.length === 0) return [...items];
-  const t0 = tokens[0]!;
-  return items
-    .map((item, i) => ({ item, i, t: text(item).toLowerCase() }))
-    .filter(({ t }) => tokens.every((tok) => t.includes(tok)))
-    .sort((a, b) => {
-      const d = a.t.indexOf(t0) - b.t.indexOf(t0);
-      return d !== 0 ? d : a.i - b.i;
-    })
-    .map(({ item }) => item);
+/** Does `tok` begin at a word boundary anywhere in `text` (both lowercased)?
+ *  "war" is a word-start of "at: warming" but not of "software". */
+function startsAtWordBoundary(text: string, tok: string): boolean {
+  for (let i = text.indexOf(tok); i >= 0; i = text.indexOf(tok, i + 1)) {
+    if (i === 0 || !/[a-z0-9]/.test(text[i - 1]!)) return true;
+  }
+  return false;
 }
 
-export function searchFiles(files: readonly FileEntry[], query: string): FileEntry[] {
-  return rankByTokens(files, query, (f) => f.name);
+/** Relevance tier for a candidate, or null when it doesn't match every token.
+ *  Lower is better. Tiers key off the PRIMARY field (a heading's label, a
+ *  file's name); a match that only lands in the SECONDARY field (a card's cite,
+ *  a file's folder) is the weakest tier, so a primary hit always outranks it.
+ *    0 exact · 1 prefix · 2 word-start · 3 substring · 4 secondary-only */
+function matchTier(
+  primary: string,
+  secondary: string,
+  tokens: readonly string[],
+  q: string,
+  t0: string,
+): number | null {
+  const p = primary.toLowerCase();
+  const hay = secondary ? `${p} ${secondary.toLowerCase()}` : p;
+  if (!tokens.every((tok) => hay.includes(tok))) return null;
+  if (p === q) return 0;
+  if (p.startsWith(q)) return 1;
+  if (tokens.every((tok) => p.includes(tok))) return startsAtWordBoundary(p, t0) ? 2 : 3;
+  return 4;
+}
+
+/** Order-independent multi-token AND-match, ranked by relevance tier
+ *  (exact → prefix → word-start → substring → secondary-only), ties broken by
+ *  `tiebreak`. A stable no-op tiebreak (`() => 0`) preserves input order. An
+ *  empty query returns everything, ordered only by the tiebreak. */
+function rank<T>(
+  items: readonly T[],
+  query: string,
+  primary: (t: T) => string,
+  secondary: (t: T) => string,
+  tiebreak: (a: T, b: T) => number,
+): T[] {
+  const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return [...items].sort(tiebreak);
+  const q = tokens.join(' ');
+  const t0 = tokens[0]!;
+  return items
+    .map((item) => ({ item, tier: matchTier(primary(item), secondary(item), tokens, q, t0) }))
+    .filter((r): r is { item: T; tier: number } => r.tier !== null)
+    .sort((a, b) => a.tier - b.tier || tiebreak(a.item, b.item))
+    .map((r) => r.item);
+}
+
+/** Same-tier ordering for the file search (the setting the user picks). */
+export type FileTiebreak = 'recency' | 'alphabetical';
+
+export function searchFiles(
+  files: readonly FileEntry[],
+  query: string,
+  tiebreak: FileTiebreak = 'recency',
+): FileEntry[] {
+  // Match the bare name first; the folder (from relPath) is the secondary
+  // field, so "neg warming" finds Neg/Warming DA — ranked below a name hit.
+  const cmp: (a: FileEntry, b: FileEntry) => number =
+    tiebreak === 'alphabetical'
+      ? (a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase())
+      : (a, b) => b.mtimeMs - a.mtimeMs; // recency: most-recently-modified first
+  return rank(
+    files,
+    query,
+    (f) => f.name,
+    (f) => dirName(f.relPath),
+    cmp,
+  );
 }
 
 export function searchFileObjects(objects: readonly FileObject[], query: string): FileObject[] {
-  // Match a tag by its label OR its card's cite text, so searching an
-  // author/date surfaces the owning tag. Label leads the matched string
-  // so a label hit still ranks above a cite-only hit.
-  return rankByTokens(objects, query, (o) => (o.cite ? `${o.label} ${o.cite}` : o.label));
+  // Match a tag by its label OR its card's cite text (author/date); the cite is
+  // the secondary field, so a label hit outranks a cite-only hit. Same-tier
+  // ties stay in document order (stable no-op tiebreak).
+  return rank(
+    objects,
+    query,
+    (o) => o.label,
+    (o) => o.cite ?? '',
+    () => 0,
+  );
 }
 
 /**

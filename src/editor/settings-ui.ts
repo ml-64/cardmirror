@@ -883,6 +883,10 @@ class SettingsModal {
       row.appendChild(text);
       row.appendChild(buildFileSearchOutlineDepthEditor());
       return row;
+    } else if (meta.kind === 'fileSearchTiebreak') {
+      row.appendChild(text);
+      row.appendChild(buildFileSearchTiebreakEditor());
+      return row;
     } else if (meta.kind === 'keybindings') {
       row.appendChild(text);
       // The per-command keybindings list (~150 rows) is the single
@@ -4582,6 +4586,35 @@ function buildMultiDocLayoutModeEditor(): HTMLElement {
     input.checked = o.value === settings.get('multiDocLayoutMode');
     input.addEventListener('change', () => {
       if (input.checked) settings.set('multiDocLayoutMode', o.value);
+    });
+    row.appendChild(input);
+    const labelText = document.createElement('span');
+    labelText.className = 'pmd-multi-doc-layout-mode-row-label';
+    labelText.textContent = o.label;
+    row.appendChild(labelText);
+    wrap.appendChild(row);
+  }
+  return wrap;
+}
+
+function buildFileSearchTiebreakEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-multi-doc-layout-mode-editor';
+  const options: { value: 'recency' | 'alphabetical'; label: string }[] = [
+    { value: 'recency', label: 'Recency — most recently edited first' },
+    { value: 'alphabetical', label: 'Alphabetical — by file name' },
+  ];
+  const groupName = `pmd-file-search-tiebreak-${Math.random().toString(36).slice(2, 8)}`;
+  for (const o of options) {
+    const row = document.createElement('label');
+    row.className = 'pmd-multi-doc-layout-mode-row';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = groupName;
+    input.value = o.value;
+    input.checked = o.value === settings.get('fileSearchTiebreak');
+    input.addEventListener('change', () => {
+      if (input.checked) settings.set('fileSearchTiebreak', o.value);
     });
     row.appendChild(input);
     const labelText = document.createElement('span');

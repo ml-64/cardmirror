@@ -47,6 +47,7 @@ export type IconName =
   | 'shortcuts'
   | 'timer'
   | 'link'
+  | 'link-broken'
   | 'flashcard'
   | 'note'
   | 'edit'

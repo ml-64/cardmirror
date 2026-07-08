@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { SettingsStore } from '../../src/editor/settings.js';
+import {
+  SettingsStore,
+  CUSTOMIZABLE_COLOR_TOKENS,
+  CUSTOM_OVERRIDE_TOKEN_NAMES,
+} from '../../src/editor/settings.js';
 
 // SettingsStore tolerates the absence of localStorage / window (its
 // load + persist are try/caught), so a fresh instance boots to DEFAULTS
@@ -115,6 +119,17 @@ describe('settings import (replaceAll)', () => {
 // `customColorOverrides` (applied last, so the override won and left
 // the Appearance picker inert); sanitize migrates any such override
 // into `displayColors` and drops it from the overrides blob.
+describe('accessibility color tokens', () => {
+  it('exposes the live-zone rail hue as a user-rebindable override (colorblind recourse)', () => {
+    const tok = CUSTOMIZABLE_COLOR_TOKENS.find((t) => t.name === 'pmd-c-transclusion');
+    expect(tok).toBeTruthy();
+    expect(tok!.label).toMatch(/live.?zone/i);
+    // Applied via customColorOverrides (not displayColors-backed), so a pick sticks
+    // and cascades to the editor rail, the nav rail, and the glyph.
+    expect(CUSTOM_OVERRIDE_TOKEN_NAMES).toContain('pmd-c-transclusion');
+  });
+});
+
 describe('document-text color migration', () => {
   it('folds a legacy customColorOverrides analytic color into displayColors', () => {
     const s = new SettingsStore();

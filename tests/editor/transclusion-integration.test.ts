@@ -350,6 +350,32 @@ describe('deleteZoneAtPos', () => {
   });
 });
 
+describe('synced vs edited glyph is colorblind-differentiable (shape, not just tint)', () => {
+  it('a synced zone shows the intact-chain glyph', () => {
+    const view = makeView([freshZone([card('T', 'ev')])]);
+    const g = view.dom.querySelector('.pmd-transclusion-glyph')!;
+    expect(g.classList.contains('pmd-icon-link')).toBe(true);
+    expect(g.classList.contains('pmd-icon-link-broken')).toBe(false);
+    view.destroy();
+  });
+
+  it('an edited zone shows the broken-chain glyph and announces it', () => {
+    // A stored hash that can't match the content → the zone reads as edited.
+    const edited = createTransclusionNode(
+      schema,
+      { source_content_hash: 'STALE', source_label: 'Src › Block' },
+      Fragment.fromArray([card('T', 'ev')]),
+    );
+    const view = makeView([edited]);
+    const g = view.dom.querySelector('.pmd-transclusion-glyph')!;
+    expect(g.classList.contains('pmd-icon-link-broken')).toBe(true);
+    expect(g.classList.contains('pmd-icon-link')).toBe(false);
+    const btn = view.dom.querySelector('.pmd-transclusion-glyph-btn')!;
+    expect(btn.getAttribute('aria-label')).toMatch(/edited/i);
+    view.destroy();
+  });
+});
+
 describe('empty-zone reaper — undo grouping (history plugin)', () => {
   function makeHistoryView(children: PMNode[]): EditorView {
     const doc = schema.nodes['doc']!.create(null, children);

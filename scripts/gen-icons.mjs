@@ -63,6 +63,7 @@ const MAP = {
   shortcuts: { svg: 'keyboard-01', glyph: '📖' },
   timer: { svg: 'clock-stopwatch', glyph: '⏱' },
   link: { svg: 'link-01', glyph: '🔗' },
+  'link-broken': { svg: 'link-broken-01', glyph: '⛓️‍💥' },
   flashcard: { svg: 'graduation-hat-02', glyph: '🎓' },
   note: { svg: 'file-02', glyph: '📝' },
   edit: { svg: 'edit-02', glyph: '✎' },

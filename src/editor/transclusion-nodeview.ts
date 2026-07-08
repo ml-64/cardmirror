@@ -31,7 +31,9 @@ import { showConfirm } from './confirm-dialog.js';
 const CRUMB_SEP = ' › ';
 
 function railGlyph(): HTMLElement {
-  const g = icon('link', { label: 'Live zone' });
+  // Decorative — the button carries the accessible name (with synced/edited
+  // state). Starts as the intact chain; refreshEditedState swaps it.
+  const g = icon('link');
   g.classList.add('pmd-transclusion-glyph');
   return g;
 }
@@ -48,6 +50,7 @@ class TransclusionView implements NodeView {
   readonly dom: HTMLElement;
   readonly contentDOM: HTMLElement;
   private readonly glyphBtn: HTMLButtonElement;
+  private readonly glyphIcon: HTMLElement;
   private node: PMNode;
   private readonly view: EditorView;
   private readonly getPos: () => number | undefined;
@@ -71,7 +74,8 @@ class TransclusionView implements NodeView {
     this.glyphBtn.setAttribute('contenteditable', 'false');
     this.glyphBtn.title = 'Live zone — source & actions';
     this.glyphBtn.setAttribute('aria-label', 'Live zone actions');
-    this.glyphBtn.appendChild(railGlyph());
+    this.glyphIcon = railGlyph();
+    this.glyphBtn.appendChild(this.glyphIcon);
     this.glyphBtn.addEventListener('mousedown', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -123,6 +127,15 @@ class TransclusionView implements NodeView {
     const edited = isZoneEdited(this.node);
     this.dom.classList.toggle('pmd-transclusion-edited', edited);
     this.glyphBtn.classList.toggle('is-edited', edited);
+    // Colorblind-safe: the glyph SHAPE carries the state too — an intact chain
+    // when synced, a broken chain when the zone differs from its source — so it
+    // never rests on the teal-vs-amber tint alone.
+    this.glyphIcon.classList.toggle('pmd-icon-link', !edited);
+    this.glyphIcon.classList.toggle('pmd-icon-link-broken', edited);
+    this.glyphBtn.title = edited
+      ? 'Live zone (edited) — source & actions'
+      : 'Live zone — source & actions';
+    this.glyphBtn.setAttribute('aria-label', edited ? 'Live zone actions — edited' : 'Live zone actions');
   }
 
   /** Reflect the transient/busy state on the wrapper (drives the glyph tint). */

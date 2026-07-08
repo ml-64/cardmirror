@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { EditorState, TextSelection, NodeSelection } from 'prosemirror-state';
 import { deleteSelection } from 'prosemirror-commands';
+import { history, undo, redo } from 'prosemirror-history';
 import { EditorView } from 'prosemirror-view';
 import { Fragment, Node as PMNode } from 'prosemirror-model';
 import { schema, newHeadingId } from '../../src/schema/index.js';
@@ -345,6 +346,47 @@ describe('deleteZoneAtPos', () => {
   it('returns false when there is no zone at the position', () => {
     const view = makeView([card('Only', 'only-ev')]);
     expect(deleteZoneAtPos(view, 0)).toBe(false);
+    view.destroy();
+  });
+});
+
+describe('empty-zone reaper — undo grouping (history plugin)', () => {
+  function makeHistoryView(children: PMNode[]): EditorView {
+    const doc = schema.nodes['doc']!.create(null, children);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    return new EditorView(container, {
+      state: EditorState.create({ doc, plugins: [history(), transclusionEmptyZoneReaper] }),
+      nodeViews: editorNodeViews,
+    });
+  }
+
+  it('a single undo restores the whole zone after it is auto-removed on empty', () => {
+    const view = makeHistoryView([card('Keep', 'keep-ev'), freshZone([card('Z', 'z-ev')])]);
+    const zpos = zonePosOf(view);
+    const znode = view.state.doc.nodeAt(zpos)!;
+    // Delete the zone's only card → the reaper removes the now-empty zone.
+    view.dispatch(view.state.tr.delete(zpos + 1, zpos + znode.nodeSize - 1));
+    expect(countTypes(view).zones).toBe(0);
+
+    // ONE undo brings back the zone AND its content — the reaper's removal must
+    // ride the same history step as the delete, not sit as a separate undo.
+    undo(view.state, view.dispatch);
+    expect(countTypes(view)).toEqual({ zones: 1, cards: 2 }); // zone + its card + Keep
+    expect(view.state.doc.textContent).toContain('z-ev');
+    view.destroy();
+  });
+
+  it('redo re-applies the delete + reap together (round-trips cleanly)', () => {
+    const view = makeHistoryView([freshZone([card('Z', 'z-ev')])]);
+    const zpos = zonePosOf(view);
+    const znode = view.state.doc.nodeAt(zpos)!;
+    view.dispatch(view.state.tr.delete(zpos + 1, zpos + znode.nodeSize - 1));
+    expect(countTypes(view).zones).toBe(0);
+    undo(view.state, view.dispatch);
+    expect(countTypes(view).zones).toBe(1);
+    redo(view.state, view.dispatch);
+    expect(countTypes(view).zones).toBe(0); // reaped again in one redo
     view.destroy();
   });
 });

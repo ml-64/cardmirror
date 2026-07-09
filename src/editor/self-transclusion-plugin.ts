@@ -14,7 +14,7 @@
  * No document mutation, no history, no dirty flag — decorations only.
  */
 
-import { Plugin, PluginKey } from 'prosemirror-state';
+import { Plugin, PluginKey, NodeSelection } from 'prosemirror-state';
 import { Decoration, DecorationSet } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
 import { contentHash } from './transclusion.js';
@@ -50,6 +50,20 @@ export function makeSelfRefPlugin(): Plugin<DecorationSet> {
     props: {
       decorations(state) {
         return selfRefPluginKey.getState(state) ?? DecorationSet.empty;
+      },
+      // A plain click on a live view selects the WHOLE node (the green box) —
+      // reliably, and consistently across instances. Without this, a click on some
+      // views (e.g. two adjacent identical ones) starts a native word-selection in
+      // the read-only projection instead of node-selecting. MODIFIED clicks are
+      // left to native behavior: a shift-click must still EXTEND a text selection
+      // to include the view (the click-above → shift-click-below gesture that
+      // select→send-to-speech relies on), and the view stays span-selectable.
+      handleClickOn(view, _pos, node, nodePos, event) {
+        if (!isSelfRef(node)) return false;
+        const e = event as MouseEvent;
+        if (e.shiftKey || e.metaKey || e.ctrlKey || e.altKey || e.button !== 0) return false;
+        view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, nodePos)));
+        return true;
       },
     },
   });

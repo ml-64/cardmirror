@@ -8,7 +8,7 @@
  * node-selection case directly.
  */
 import { describe, it, expect } from 'vitest';
-import { EditorState, NodeSelection } from 'prosemirror-state';
+import { EditorState, NodeSelection, TextSelection } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { type Node as PMNode, type Slice } from 'prosemirror-model';
 import { schema, newHeadingId } from '../../src/schema/index.js';
@@ -101,6 +101,51 @@ describe('resolveSendRange — a node-selected live view', () => {
     const slice = resolveSendSlice(view)!;
     expect(sliceBodies(slice)).toEqual(['alpha']);
     expect(sliceHasSelfRef(slice)).toBe(false);
+    view.destroy();
+  });
+});
+
+describe('a text selection SPANNING a live view (click-above → shift-click-below)', () => {
+  // The live view must stay part of a text selection so select→send-to-speech
+  // carries it — the CSS keeps `.pmd-self-ref` selectable; the send path then
+  // flattens the spanned view to plain cards.
+  it('includes the view in the send range and sends its flattened content', () => {
+    const view = makeView([
+      block('Source', 'src'),
+      card('Alpha', 'alpha'), // src's section — what the view projects
+      block('Body', 'body'),
+      card('Above', 'above-body'),
+      createSelfRefNode(schema, 'src', '↳ Source'), // the view, between two cards
+      card('Below', 'below-body'),
+    ]);
+    let abovePos = -1;
+    let belowEnd = -1;
+    let selfRefPos = -1;
+    view.state.doc.forEach((n, off) => {
+      if (n.type.name === 'card' && n.firstChild?.textContent === 'Above') abovePos = off;
+      if (n.type.name === 'card' && n.firstChild?.textContent === 'Below') belowEnd = off + n.nodeSize;
+      if (isSelfRef(n)) selfRefPos = off;
+    });
+    // Span from inside Above, across the live view, to inside Below.
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.between(view.state.doc.resolve(abovePos + 2), view.state.doc.resolve(belowEnd - 2)),
+      ),
+    );
+
+    // The resolved send range spans the whole live view.
+    const range = resolveSendRange(view)!;
+    const selfNode = view.state.doc.nodeAt(selfRefPos)!;
+    expect(range.from).toBeLessThanOrEqual(selfRefPos);
+    expect(range.to).toBeGreaterThanOrEqual(selfRefPos + selfNode.nodeSize);
+
+    // The sent content carries the view (flattened to cards) between the two cards.
+    const slice = takeSendSlice(view)!;
+    expect(sliceHasSelfRef(slice)).toBe(false);
+    const bodies = sliceBodies(slice);
+    expect(bodies).toContain('above-body');
+    expect(bodies).toContain('alpha'); // the view's projected content came along
+    expect(bodies).toContain('below-body');
     view.destroy();
   });
 });

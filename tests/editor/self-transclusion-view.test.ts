@@ -5,7 +5,7 @@
  * decoration → NodeView.update), and Unlink/Delete behave.
  */
 import { describe, it, expect } from 'vitest';
-import { EditorState, TextSelection } from 'prosemirror-state';
+import { EditorState, TextSelection, NodeSelection } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { type Node as PMNode } from 'prosemirror-model';
 import { schema, newHeadingId } from '../../src/schema/index.js';
@@ -177,6 +177,44 @@ describe('self_ref window — actions', () => {
     expect(insertSelfRef(view, SRC)).toBe(true);
     expect(selfRefPos(view)).toBeGreaterThanOrEqual(0);
     expect(windowText(view)).toContain('alpha');
+    view.destroy();
+  });
+});
+
+describe('self_ref window — click selects the whole node (but stays span-selectable)', () => {
+  function clickOn(view: EditorView, mods: Partial<MouseEvent> = {}): unknown {
+    const pos = selfRefPos(view);
+    const node = view.state.doc.nodeAt(pos)!;
+    const event = { shiftKey: false, metaKey: false, ctrlKey: false, altKey: false, button: 0, ...mods } as MouseEvent;
+    return view.someProp('handleClickOn', (fn) => fn(view, pos + 1, node, pos, event, true));
+  }
+
+  it('a plain click node-selects the whole live view', () => {
+    const view = makeView();
+    expect(clickOn(view)).toBe(true);
+    const sel = view.state.selection;
+    expect(sel instanceof NodeSelection && isSelfRef(sel.node)).toBe(true);
+    expect(sel.from).toBe(selfRefPos(view));
+    view.destroy();
+  });
+
+  it('a SHIFT-click is left to native handling (so a selection can extend to span the view)', () => {
+    const view = makeView();
+    // Park a text selection first, then shift-click the view.
+    view.dispatch(view.state.tr.setSelection(TextSelection.atStart(view.state.doc)));
+    expect(clickOn(view, { shiftKey: true })).not.toBe(true);
+    // The plugin didn't force a node-selection.
+    expect(view.state.selection instanceof NodeSelection).toBe(false);
+    view.destroy();
+  });
+
+  it('ignores clicks that are not on a live view', () => {
+    const view = makeView();
+    const cardNode = view.state.doc.child(1); // the "A" card, not a self_ref
+    const handled = view.someProp('handleClickOn', (fn) =>
+      fn(view, 3, cardNode, view.state.doc.child(0).nodeSize, { button: 0 } as MouseEvent, true),
+    );
+    expect(handled).not.toBe(true);
     view.destroy();
   });
 });

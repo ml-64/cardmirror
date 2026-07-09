@@ -2517,15 +2517,11 @@ code {
 .pmd-self-ref {
   position: relative;
   margin: 0.15em 0;
-  /* A live view is a read-only atom: a click selects the WHOLE node. Suppressing
-     native text selection over the projection (and the glyph menu) is what makes
-     that reliable — otherwise a click can start a native word-selection inside the
-     read-only cards instead (seen only on some instances, e.g. two adjacent views,
-     where posAtCoords resolves into the text). It also stops the atom's node-
-     selection (a native DOM range spanning this element) from highlighting the
-     menu options when the menu is opened on an already-selected view. */
-  user-select: none;
-  -webkit-user-select: none;
+  /* Deliberately SELECTABLE (no user-select:none here): a text selection must be
+     able to span a live view — click-above → shift-click-below has to include the
+     view so select→send-to-speech carries it (the send path flattens it to cards).
+     Only the glyph menu is made unselectable (below), so opening it on an already-
+     selected view doesn't paint ::selection over the menu rows. */
 }
 .pmd-self-ref::before {
   content: '';

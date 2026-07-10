@@ -17,6 +17,8 @@ import {
   collabPluginsFor,
   collabPluginSourceFor,
   tagCollabTransaction,
+  collabCopresenceFor,
+  onCollabCopresenceChange,
 } from '../../src/editor/collab/collab-hooks.js';
 
 // Sessions are keyed by the owning doc's uid; this test window's one doc.
@@ -299,6 +301,67 @@ describe('collab UI flows through the editor seams', () => {
     clickPromptButton('End Session');
     await endB;
     expect(collabPluginSourceFor('doc-B')).toBeNull();
+    viewA.destroy();
+    viewB.destroy();
+  }, 20_000);
+
+  it('exposes per-doc copresence for the shell footer, isolated per session', async () => {
+    const viewA = mkIndexStyleView('cp-A');
+    const viewB = mkIndexStyleView('cp-B');
+    const viewForUid = (u: string): EditorView | null =>
+      u === 'cp-A' ? viewA : u === 'cp-B' ? viewB : null;
+    const depsFor = (uid: string, view: EditorView) => ({
+      getView: () => view,
+      getOwnerUid: () => uid,
+      getViewForUid: viewForUid,
+      refreshPlugins: () =>
+        view.updateState(view.state.reconfigure({ plugins: buildMiniPlugins(uid) })),
+      newSessionDoc: () => true,
+    });
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: () => Promise.resolve() },
+    });
+
+    // The shell subscribes to copresence changes to repaint slot footers;
+    // assert the notifier actually fires on start/end.
+    let notifications = 0;
+    const unsub = onCollabCopresenceChange(() => {
+      notifications++;
+    });
+
+    // No session yet → no copresence for either doc.
+    expect(collabCopresenceFor('cp-A')).toBeNull();
+
+    await collabUi.startSessionFlow(depsFor('cp-A', viewA));
+    await collabUi.startSessionFlow(depsFor('cp-B', viewB));
+    await settle();
+    expect(notifications).toBeGreaterThan(0);
+
+    // Each session reports its OWN copresence; a doc with no session is null.
+    const cpA = collabCopresenceFor('cp-A');
+    const cpB = collabCopresenceFor('cp-B');
+    expect(cpA).not.toBeNull();
+    expect(cpB).not.toBeNull();
+    expect(cpA).not.toBe(cpB);
+    // Each host sees itself in its own presence (self dot), isolated per doc.
+    expect(cpA!.peers.some((p) => p.self)).toBe(true);
+    expect(collabCopresenceFor('cp-none')).toBeNull();
+
+    // Ending A drops only A's copresence; B keeps reporting.
+    const endA = collabUi.endSessionFlow(depsFor('cp-A', viewA));
+    await settle();
+    clickPromptButton('End Session');
+    await endA;
+    expect(collabCopresenceFor('cp-A')).toBeNull();
+    expect(collabCopresenceFor('cp-B')).not.toBeNull();
+
+    const endB = collabUi.endSessionFlow(depsFor('cp-B', viewB));
+    await settle();
+    clickPromptButton('End Session');
+    await endB;
+    expect(collabCopresenceFor('cp-B')).toBeNull();
+    unsub();
     viewA.destroy();
     viewB.destroy();
   }, 20_000);

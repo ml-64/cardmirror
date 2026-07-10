@@ -93,7 +93,11 @@ import {
 import { sendViewToStarred } from './pairing/send-to-starred.js';
 import { editorNodeViews } from './image-resize-nodeview.js';
 import { coordinatorBlocks, flashLockedLeases } from './ai/edit-coordinator.js';
-import { tagCollabTransaction } from './collab/collab-hooks.js';
+import {
+  tagCollabTransaction,
+  collabCopresenceFor,
+  onCollabCopresenceChange,
+} from './collab/collab-hooks.js';
 import { icon, setIcon } from './icons';
 
 type SlotId = 'slot1' | 'slot2' | 'slot3';
@@ -465,6 +469,9 @@ class Slot {
   private bodyEl: HTMLElement;
   /** Footer word count. */
   private wcEl: HTMLElement;
+  /** Footer co-editing indicator — status text + presence dots for THIS slot's
+   *  visible doc's session. Hidden when that doc has no live session. */
+  private copresenceEl: HTMLElement;
   /** Nav section (in the multi-nav rail). Hidden when stack is empty. */
   readonly navSectionEl: HTMLElement;
   /** Nav body — DocRecord.navEl mounts here. */
@@ -607,6 +614,12 @@ class Slot {
     this.wcEl.className = 'pmd-pane-wc';
     this.wcEl.textContent = '—';
     footer.appendChild(this.wcEl);
+    // Per-slot co-editing indicator (this doc's session status + who's here).
+    // Empty/hidden until the slot's visible doc joins a session.
+    this.copresenceEl = document.createElement('span');
+    this.copresenceEl.className = 'pmd-pane-copresence';
+    this.copresenceEl.hidden = true;
+    footer.appendChild(this.copresenceEl);
     const openBtn = document.createElement('button');
     openBtn.type = 'button';
     openBtn.className = 'pmd-pane-open';
@@ -934,6 +947,7 @@ class Slot {
     this.chipNameEl.textContent = rec.filename;
     this.refreshChip();
     this.refreshWordCount();
+    this.refreshCopresence();
     // Speech-chip class lives on the pane element and reflects
     // the currently-visible record vs the speech-doc registry;
     // swapping records via the stack switcher needs to refresh.
@@ -963,6 +977,44 @@ class Slot {
     const rec = this.visible;
     if (!rec) return;
     this.chipNameEl.textContent = rec.filename;
+  }
+
+  /** Paint this slot footer's co-editing indicator from its VISIBLE record's
+   *  session — status text + one presence dot per person — or hide it when that
+   *  doc has no live session. Focus-independent: a slot always shows its own
+   *  doc's state, so swapping the stack's visible tab to a non-session doc hides
+   *  it while another doc's session (in the same slot's stack) keeps syncing. */
+  refreshCopresence(): void {
+    const uid = this.visible?.uid ?? null;
+    const cp = uid ? collabCopresenceFor(uid) : null;
+    if (!cp) {
+      this.copresenceEl.hidden = true;
+      this.copresenceEl.replaceChildren();
+      return;
+    }
+    this.copresenceEl.hidden = false;
+    const text = cp.connected
+      ? cp.queued > 0
+        ? `Sending ${cp.queued}…`
+        : 'Synced'
+      : cp.queued > 0
+        ? `Offline · ${cp.queued}`
+        : 'Offline';
+    const labelEl = document.createElement('span');
+    labelEl.className = 'pmd-pane-copresence-label';
+    labelEl.textContent = text;
+    // Reuse the status-bar chip's dot classes so per-slot and single-pane
+    // presence read identically.
+    const dots = document.createElement('span');
+    dots.className = 'pmd-collab-chip-dots';
+    for (const p of cp.peers) {
+      const dot = document.createElement('span');
+      dot.className = 'pmd-collab-presence-dot' + (p.self ? ' pmd-collab-presence-dot-self' : '');
+      dot.style.background = p.color;
+      dot.title = p.self ? `${p.name} (you)` : p.name;
+      dots.appendChild(dot);
+    }
+    this.copresenceEl.replaceChildren(labelEl, dots);
   }
 
   /** Recompute and display the visible doc's word count + read times
@@ -1192,6 +1244,13 @@ class MultiPaneShell {
       this.rowEl.appendChild(this.slots[id].paneEl);
       this.navRailEl.appendChild(this.slots[id].navSectionEl);
     }
+    // Repaint every slot footer's co-editing indicator whenever a session's
+    // status/presence changes or one starts/ends. The shell is a lifetime
+    // singleton (mountMultiPaneShell early-returns if built), so this
+    // subscription never needs tearing down.
+    onCollabCopresenceChange(() => {
+      for (const id of SLOT_IDS) this.slots[id].refreshCopresence();
+    });
     // Carry a persisted "nav hidden" preference into three-pane: start every
     // section closed so the rail — and the global toggle — reflect it. The
     // global toggle / per-slot toggles reopen them (reconcileNavRail syncs

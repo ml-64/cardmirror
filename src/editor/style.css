@@ -10532,6 +10532,23 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
   color: var(--pmd-c-text);
   cursor: pointer;
 }
+/* Per-slot co-editing indicator in the pane footer — status text + presence
+   dots for the slot's visible doc's session. Sits between the word count and
+   the Open-file button; `hidden` when that doc has no live session. The collab
+   accent (same hue as the lease/cursor treatment) marks it as "another machine
+   is here". */
+.pmd-pane-copresence {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--pmd-c-accent);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+.pmd-pane-copresence-label {
+  font-weight: 600;
+}
 
 
 /* ---- Routing prompt overlay ---- */

@@ -115,3 +115,46 @@ export function setCollabInviter(fn: ((target: CollabInviteTarget) => void) | nu
 export function collabInviter(): ((target: CollabInviteTarget) => void) | null {
   return inviter;
 }
+
+/** Live copresence for one open doc's session — connection status + who's here —
+ *  read by the multi-pane shell to paint each slot's footer with ITS visible
+ *  doc's session state. Provided by the lazily-loaded collab-ui once it's up;
+ *  null before then (footers stay blank). Kept here (the zero-dependency seam)
+ *  so the always-loaded shell never imports the heavy collab module. */
+export interface CollabCopresence {
+  connected: boolean;
+  queued: number;
+  peers: { name: string; color: string; self: boolean }[];
+}
+
+let copresenceProvider: ((uid: string) => CollabCopresence | null) | null = null;
+
+export function setCollabCopresenceProvider(
+  fn: ((uid: string) => CollabCopresence | null) | null,
+): void {
+  copresenceProvider = fn;
+}
+
+/** Copresence for the doc `uid`, or null when it has no live session (or collab
+ *  isn't loaded). */
+export function collabCopresenceFor(uid: string | null | undefined): CollabCopresence | null {
+  return uid != null && copresenceProvider ? copresenceProvider(uid) : null;
+}
+
+const copresenceListeners = new Set<() => void>();
+
+/** Subscribe to copresence changes (a session starting/ending, a status update,
+ *  or a presence tick). Returns an unsubscribe. The shell repaints every slot
+ *  footer on each fire. */
+export function onCollabCopresenceChange(fn: () => void): () => void {
+  copresenceListeners.add(fn);
+  return () => {
+    copresenceListeners.delete(fn);
+  };
+}
+
+/** Fire the copresence listeners — called by collab-ui whenever a session's
+ *  status/presence changes or a session starts/ends. No-op with no listeners. */
+export function notifyCollabCopresenceChange(): void {
+  for (const fn of copresenceListeners) fn();
+}

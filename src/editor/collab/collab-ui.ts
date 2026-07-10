@@ -26,6 +26,8 @@ import {
   registerCollabPluginSource,
   unregisterCollabPluginSource,
   setCollabTransactionTagger,
+  setCollabCopresenceProvider,
+  notifyCollabCopresenceChange,
 } from './collab-hooks.js';
 import { RoomsError } from './room-client.js';
 import { getElectronHost } from '../host/index.js';
@@ -87,6 +89,10 @@ interface ActiveSession {
   commentsSync: CommentsSyncHandle;
   persist: PersistHandle;
   wakeCleanup: () => void;
+  /** Latest connection status for THIS session. The shared status-bar chip only
+   *  ever reflects the focused doc's session; storing status per session lets
+   *  each multi-pane slot footer render its own visible doc's state. */
+  lastStatus: { connected: boolean; queuedUpdates: number } | null;
 }
 
 const sessions = new Map<string, ActiveSession>();
@@ -111,6 +117,20 @@ export function setCollabDocTitleResolver(fn: ((uid: string) => string | null) |
 function sessionFor(uid: string | null | undefined): ActiveSession | null {
   return uid != null ? sessions.get(uid) ?? null : null;
 }
+
+// Feed the multi-pane shell's per-slot footers: each slot paints the copresence
+// of ITS visible doc's session (or nothing when that doc isn't in a session).
+setCollabCopresenceProvider((uid) => {
+  const sess = sessionFor(uid);
+  if (!sess) return null;
+  return {
+    // Before the first onStatus, assume connected (start() flushes immediately);
+    // the flows also stamp lastStatus so an offline join/resume reads correctly.
+    connected: sess.lastStatus?.connected ?? true,
+    queued: sess.lastStatus?.queuedUpdates ?? 0,
+    peers: sess.cursors.presence().map((p) => ({ name: p.name, color: p.color, self: p.self })),
+  };
+});
 
 /** The session the shared chip / no-deps flows act on: the focused doc's, or —
  *  when focus isn't resolvable (or that doc has no session) — the sole session
@@ -226,8 +246,13 @@ function installSeams(session: CollabSession, deps: CollabUiDeps, shareCode: str
     sessionDocTitle(ownerUid) || sharedDocTitle(session),
   );
   const cursors = installCursorPresence(session, ownerView);
-  // One shared timer refreshes the focused session's presence dots.
-  if (presenceTimer === null) presenceTimer = setInterval(refreshPresenceDots, 3000);
+  // One shared timer refreshes the focused session's chip dots AND every slot
+  // footer's copresence (peers join/leave/expire between status updates).
+  if (presenceTimer === null)
+    presenceTimer = setInterval(() => {
+      refreshPresenceDots();
+      notifyCollabCopresenceChange();
+    }, 3000);
   // Concurrent new comments must not collide on the shared map key.
   setCommentIdSessionMode(true);
   const sess: ActiveSession = {
@@ -238,8 +263,11 @@ function installSeams(session: CollabSession, deps: CollabUiDeps, shareCode: str
     commentsSync,
     persist,
     wakeCleanup,
+    lastStatus: null,
   };
   sessions.set(ownerUid, sess);
+  // A session just appeared — repaint slot footers (this doc's may be visible).
+  notifyCollabCopresenceChange();
   registerCollabPluginSource({
     ownerUid,
     plugins: () => [
@@ -271,6 +299,8 @@ function installSeams(session: CollabSession, deps: CollabUiDeps, shareCode: str
 function teardownSession(sess: ActiveSession, keepRecord = false): void {
   unregisterCollabPluginSource(sess.ownerUid);
   sessions.delete(sess.ownerUid);
+  // A session went away — repaint slot footers (this doc's may be visible).
+  notifyCollabCopresenceChange();
   sess.wakeCleanup();
   sess.commentsSync.dispose();
   sess.cursors.dispose();
@@ -301,7 +331,12 @@ function sessionCallbacks(deps: CollabUiDeps, getSess: () => ActiveSession | nul
   return {
     onStatus: (s: { connected: boolean; queuedUpdates: number }) => {
       const sess = getSess();
-      if (sess && isChipSession(sess.ownerUid)) updateChip(s);
+      if (!sess) return;
+      // Every session records its own status (each slot footer renders its
+      // own); the shared chip still reflects only the focused doc's.
+      sess.lastStatus = s;
+      if (isChipSession(sess.ownerUid)) updateChip(s);
+      notifyCollabCopresenceChange();
     },
     onPresence: (bytes: Uint8Array) => getSess()?.cursors.applyRemote(bytes),
     onBacklogMerged: (count: number) => {
@@ -393,6 +428,7 @@ export async function startSessionFlow(deps: CollabUiDeps): Promise<void> {
     session.loroDoc.commit();
     deps.refreshPlugins();
     session.start();
+    sess.lastStatus = { connected: true, queuedUpdates: 0 };
     updateChip({ connected: true, queuedUpdates: 0 });
     const copied = await navigator.clipboard?.writeText(shareCode).then(
       () => true,
@@ -497,6 +533,7 @@ export async function joinSessionWithCode(deps: CollabUiDeps, code: string): Pro
     sessRef.commentsSync.pull();
     adoptSharedTitle(deps, session);
     session.start();
+    sessRef.lastStatus = { connected: !joinedOffline, queuedUpdates: 0 };
     updateChip({ connected: !joinedOffline, queuedUpdates: 0 });
     showToast(
       joinedOffline
@@ -570,6 +607,7 @@ export async function resumeSessionFlow(deps: CollabUiDeps, roomId: string): Pro
     sessRef.commentsSync.pull();
     adoptSharedTitle(deps, session);
     session.start();
+    sessRef.lastStatus = { connected: false, queuedUpdates: session.queuedUpdates };
     updateChip({ connected: false, queuedUpdates: session.queuedUpdates });
     showToast('Session resumed — syncing');
     deps.getView()?.focus();

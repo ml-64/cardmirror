@@ -1011,6 +1011,10 @@ const collabDeps = {
   // The uid of the doc a session is being started/joined for = the focused
   // doc's uid. Captured at install so the binding attaches only to that view.
   getOwnerUid: () => activeDocIdentity().sessionUid,
+  // Resolve a doc uid to its live view (single-doc main view + every pane are
+  // registered here). Lets a session bind to its OWNER's view, not the focused
+  // one — so each doc's presence/comments render in its own pane.
+  getViewForUid: (uid: string) => getSpeechDocResolver().viewForUid(uid),
   // The blessed same-view plugin swap (same pattern as the keybinding
   // settings subscriber): a session starting/ending changes the plugin
   // stack, and buildEditorPlugins consults the collab plugin source. Pass the

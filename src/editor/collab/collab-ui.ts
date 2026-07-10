@@ -48,6 +48,10 @@ export interface CollabUiDeps {
    *  for — captured at install so the binding plugins only ever attach to that
    *  one doc's view (multi-pane fusion guard). */
   getOwnerUid?(): string | null;
+  /** Resolve a doc uid to its live view. A session binds its cursors/comments to
+   *  its OWNER's view via this (not the focused view), so in multi-pane each
+   *  doc's presence renders in its own pane. Falls back to the focused view. */
+  getViewForUid?(uid: string): EditorView | null;
   /** Swap THIS window's editor to a fresh unsaved doc for a joined
    *  session — must never spawn a window (the binding installs into the
    *  current view; a spawned window would never get it — field bug on
@@ -169,16 +173,21 @@ function installSeams(session: CollabSession, deps: CollabUiDeps): void {
   // install time for host / join / resume). Only this uid's view gets the
   // binding plugins — see CollabPluginSource.ownerUid.
   const ownerUid = deps.getOwnerUid?.() ?? null;
+  // Bind this session's cursors + comments to its OWNER's view, not whatever is
+  // focused — so in multi-pane each doc's presence/comments render in ITS pane.
+  // Single-doc: the owner IS the focused view, so this is behavior-preserving.
+  const ownerView = (): EditorView | null =>
+    (ownerUid != null ? deps.getViewForUid?.(ownerUid) ?? null : null) ?? deps.getView();
   setCollabTransactionTagger(collabTagger);
   installWakeHooks(session);
-  commentsSync = installCommentsSync(session.loroDoc, () => deps.getView());
+  commentsSync = installCommentsSync(session.loroDoc, ownerView);
   // M3: crash-surviving session record (the home screen's Sessions
   // list resumes from it). Cleared only on explicit end/leave or a
   // remote tombstone — a crash leaving it behind is the feature.
   persist = attachSessionPersistence(session, active!.shareCode, () =>
     sessionDocTitle() || sharedDocTitle(session),
   );
-  cursors = installCursorPresence(session, () => deps.getView());
+  cursors = installCursorPresence(session, ownerView);
   // Keep the presence dots current as peers join / leave / time out — the
   // chip text only updates on connection-status changes, not presence ones.
   if (presenceTimer === null) presenceTimer = setInterval(refreshPresenceDots, 3000);

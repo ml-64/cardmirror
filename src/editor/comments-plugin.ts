@@ -259,22 +259,31 @@ function collectLiveThreadIds(doc: PMNode): Set<string> {
  *  `seedCommentIdCounter`) rather than seeded from `Date.now()`, whose
  *  ~1.7e12 values overflow int32 into ids Word can't represent. */
 let commentIdCounter = 0;
-let sessionRandomIds = false;
 const issuedSessionIds = new Set<string>();
 
-/** Collab sessions switch id allocation to random: two peers advancing
- *  the same small-integer counter WILL collide on concurrent new
- *  comments (same map key → one thread clobbers the other on merge).
- *  Random ids stay in Word's int32 `w:id` range, capped below int32
- *  max with headroom so the counter can keep incrementing after the
- *  session ends without overflowing. */
-export function setCommentIdSessionMode(on: boolean): void {
-  sessionRandomIds = on;
-  if (!on) issuedSessionIds.clear();
+/** Per-doc session-scope resolver, set by the editor host. When it returns true
+ *  for the doc a comment is being created in, `newCommentId` allocates a random
+ *  id instead of an incremented one: two peers advancing the same small-integer
+ *  counter WILL collide on concurrent new comments (same map key → one thread
+ *  clobbers the other on merge). Random ids stay in Word's int32 `w:id` range
+ *  (capped below int32 max, with headroom to keep incrementing afterwards).
+ *
+ *  Per-doc (not a window-global flag): a NON-co-edited doc open alongside a
+ *  co-edited one in a multi-pane window still gets clean sequential ids. Comment
+ *  creation always targets the active doc, so the resolver tests THAT doc. */
+let sessionIdResolver: (() => boolean) | null = null;
+export function setCommentIdSessionResolver(fn: (() => boolean) | null): void {
+  sessionIdResolver = fn;
+}
+
+/** Drop the issued-random-id dedup set — called when the last session ends so
+ *  it doesn't grow across the app's lifetime. */
+export function resetSessionCommentIds(): void {
+  issuedSessionIds.clear();
 }
 
 export function newCommentId(): string {
-  if (sessionRandomIds) {
+  if (sessionIdResolver?.()) {
     for (;;) {
       const id = String(1_000_000 + Math.floor(Math.random() * 1_999_000_000));
       if (!issuedSessionIds.has(id)) {

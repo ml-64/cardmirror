@@ -43,7 +43,7 @@ import { installCursorPresence, type CursorsHandle } from './collab-cursors.js';
 import { collabRepairPlugin, lowestPeerIsLeader } from './collab-repair.js';
 import { loadSessionRecord, loadPrefetch, deletePrefetch } from './collab-store.js';
 import { importRoomKey, decryptBlob } from './collab-crypto.js';
-import { setCommentIdSessionMode } from '../comments-plugin.js';
+import { resetSessionCommentIds } from '../comments-plugin.js';
 import { collabEnabled } from './collab-gate.js';
 import { decodeShareCode } from './collab-crypto.js';
 import { CollabSession } from './collab-session.js';
@@ -262,8 +262,9 @@ function installSeams(session: CollabSession, deps: CollabUiDeps, shareCode: str
       refreshPresenceDots();
       notifyCollabCopresenceChange();
     }, 3000);
-  // Concurrent new comments must not collide on the shared map key.
-  setCommentIdSessionMode(true);
+  // Comment-id allocation is per-doc now (the host's resolver tests each doc's
+  // session state), so nothing to toggle on here — a co-edited doc's new
+  // comments get random ids to avoid two peers colliding on the counter.
   const sess: ActiveSession = {
     session,
     shareCode,
@@ -320,7 +321,8 @@ function teardownSession(sess: ActiveSession, keepRecord = false): Promise<void>
   else cleared = sess.persist.clear();
   if (sessions.size === 0) {
     setCollabTransactionTagger(null);
-    setCommentIdSessionMode(false);
+    // Last session gone — drop the random-id dedup set so it doesn't grow.
+    resetSessionCommentIds();
     if (presenceTimer !== null) {
       clearInterval(presenceTimer);
       presenceTimer = null;

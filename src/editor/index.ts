@@ -122,7 +122,7 @@ import {
 import { openSaveAs } from './save-as-ui.js';
 import { highlightColorLabel, shadingColorLabel } from './color-palette.js';
 import { viewportSpellcheckPlugin } from './viewport-spellcheck.js';
-import { commentsPlugin, commentsKey, loadThreads, getCommentsState, gcOrphanThreads, newCommentId } from './comments-plugin.js';
+import { commentsPlugin, commentsKey, loadThreads, getCommentsState, gcOrphanThreads, newCommentId, setCommentIdSessionResolver } from './comments-plugin.js';
 import { scheduleIdle, cancelIdle, type IdleHandle } from './idle-scheduler.js';
 import { CommentsColumn, addCommentToSelection, FC_PREFIX, AI_PREFIX, NOTE_PREFIX } from './comments-ui.js';
 import { runAiCreateCite } from './ai/cite-creator.js';
@@ -1042,6 +1042,11 @@ setCollabInviteJoiner((code) => {
 setCollabInviter((target) => {
   void loadCollabUi().then((m) => m.inviteTargetFlow(collabDeps, target));
 });
+// Per-doc comment-id allocation: a comment gets a random (collision-safe) id
+// only when the doc it's created in is itself co-edited. Comment creation always
+// targets the active doc, so test THAT doc's session — a non-co-edited doc open
+// beside a co-edited one still gets clean sequential ids. Cheap sync check.
+setCommentIdSessionResolver(() => collabPluginSourceFor(activeDocIdentity().sessionUid) != null);
 const collabDeps = {
   getView: () => view,
   // The uid of the doc a session is being started/joined for = the focused

@@ -19,11 +19,10 @@
 import type { Command, Plugin, Transaction } from 'prosemirror-state';
 
 export interface CollabPluginSource {
-  /** The `DocRecord.uid` of the ONE document this session owns. Only that
-   *  document's view may receive the binding plugins — every other pane in a
-   *  multi-pane window must stay independent, or opening a second doc during a
-   *  session fuses it onto the session's shared LoroDoc. `buildEditorPlugins`
-   *  gates on `targetUid === ownerUid`. */
+  /** The `DocRecord.uid` of the ONE document this session owns — the registry
+   *  key. Only that document's view receives the binding plugins; every other
+   *  pane stays independent (the multi-pane fusion guard), and a window can hold
+   *  one session per open doc. */
   ownerUid: string | null;
   /** Binding plugins for the active session (sync, undo, cursors). */
   plugins(): Plugin[];
@@ -35,7 +34,9 @@ export interface CollabPluginSource {
 }
 
 let tagger: ((tr: Transaction) => void) | null = null;
-let pluginSource: CollabPluginSource | null = null;
+// One live session per OWNING doc uid. A multi-pane window can therefore hold
+// several independent sessions; each doc's view only ever sees its own.
+const pluginSources = new Map<string, CollabPluginSource>();
 
 export function setCollabTransactionTagger(fn: ((tr: Transaction) => void) | null): void {
   tagger = fn;
@@ -46,25 +47,37 @@ export function tagCollabTransaction(tr: Transaction): void {
   tagger?.(tr);
 }
 
-export function setCollabPluginSource(src: CollabPluginSource | null): void {
-  pluginSource = src;
+/** Register a live session's binding plugins, keyed by the doc it owns. */
+export function registerCollabPluginSource(src: CollabPluginSource): void {
+  if (src.ownerUid == null) return; // unownable session can't be scoped
+  pluginSources.set(src.ownerUid, src);
 }
 
-export function collabPluginSource(): CollabPluginSource | null {
-  return pluginSource;
+/** Drop the session owned by `ownerUid` (on end/leave). */
+export function unregisterCollabPluginSource(ownerUid: string | null): void {
+  if (ownerUid != null) pluginSources.delete(ownerUid);
+}
+
+/** The plugin source owned by `uid`, or null — for undo/redo routing and the
+ *  per-view `ownsUndo` decision. */
+export function collabPluginSourceFor(uid: string | null | undefined): CollabPluginSource | null {
+  return uid != null ? pluginSources.get(uid) ?? null : null;
+}
+
+/** True if ANY session is live in this window (dormant-fast-path check). */
+export function anyCollabSessionActive(): boolean {
+  return pluginSources.size > 0;
 }
 
 /**
- * The active session's binding plugins for the view identified by `targetUid`,
- * or `[]`. THE multi-pane fusion guard: a session's plugins attach ONLY to its
- * one owning doc's view (`ownerUid`). Every other pane — and the null/omitted
- * uid — gets nothing, so opening a second document while a session is live can
- * never bind that pane to the session's shared LoroDoc and overwrite it.
+ * A session's binding plugins for the view identified by `targetUid`, or `[]`.
+ * THE multi-pane fusion guard: a session's plugins attach ONLY to its own owning
+ * doc's view. Every other pane — and the null/omitted uid — gets nothing, so
+ * opening a second document while a session is live can never bind that pane to
+ * a session's shared LoroDoc and overwrite it.
  */
 export function collabPluginsFor(targetUid: string | null | undefined): Plugin[] {
-  const src = pluginSource;
-  if (src && targetUid != null && targetUid === src.ownerUid) return src.plugins();
-  return [];
+  return collabPluginSourceFor(targetUid)?.plugins() ?? [];
 }
 
 /** Invite-join seam: the Receive pill (always-loaded pairing UI) hands a

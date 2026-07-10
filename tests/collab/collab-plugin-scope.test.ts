@@ -1,24 +1,27 @@
 /**
- * Multi-pane fusion guard (regression for the released-build bug where opening a
- * second document while a co-editing session was live bound the new pane to the
- * session's shared LoroDoc and overwrote it — doc B "became" doc A).
+ * Per-doc session scoping — the multi-pane fusion guard AND the foundation for
+ * multiple independent sessions in one window.
  *
- * The fix scopes a session's binding plugins to its ONE owning `DocRecord.uid`
- * via `collabPluginsFor(targetUid)`, which `buildEditorPlugins` consults. This
- * pins down that gate: the owning uid gets the plugins; every other pane (and a
- * null/omitted uid) gets none.
+ * Regression for the released-build bug where opening a second document while a
+ * co-editing session was live bound the new pane to the session's shared LoroDoc
+ * and overwrote it (doc B "became" doc A). Sessions are now keyed by owning
+ * `DocRecord.uid`: `collabPluginsFor(targetUid)` returns a session's binding
+ * plugins ONLY for its owning doc, and two sessions coexist independently.
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { Plugin } from 'prosemirror-state';
 import {
-  setCollabPluginSource,
+  registerCollabPluginSource,
+  unregisterCollabPluginSource,
   collabPluginsFor,
+  anyCollabSessionActive,
   type CollabPluginSource,
 } from '../../src/editor/collab/collab-hooks.js';
 
-const marker = new Plugin({});
+const markerA = new Plugin({});
+const markerB = new Plugin({});
 
-function fakeSource(ownerUid: string | null): CollabPluginSource {
+function fakeSource(ownerUid: string, marker: Plugin): CollabPluginSource {
   return {
     ownerUid,
     plugins: () => [marker],
@@ -28,31 +31,44 @@ function fakeSource(ownerUid: string | null): CollabPluginSource {
   };
 }
 
-afterEach(() => setCollabPluginSource(null));
+afterEach(() => {
+  unregisterCollabPluginSource('doc-A');
+  unregisterCollabPluginSource('doc-B');
+});
 
-describe('collab plugin scoping (multi-pane fusion guard)', () => {
-  it('binds the session ONLY to its owning doc uid; a second pane stays independent', () => {
-    setCollabPluginSource(fakeSource('doc-A'));
-    expect(collabPluginsFor('doc-A')).toEqual([marker]); // owner: gets the binding
-    expect(collabPluginsFor('doc-B')).toEqual([]); // other pane: no binding → no fusion
+describe('per-doc session scoping (fusion guard + multi-session)', () => {
+  it('binds a session ONLY to its owning doc uid; other panes stay independent', () => {
+    registerCollabPluginSource(fakeSource('doc-A', markerA));
+    expect(collabPluginsFor('doc-A')).toEqual([markerA]); // owner: bound
+    expect(collabPluginsFor('doc-B')).toEqual([]); // second pane: no binding → no fusion
+  });
+
+  it('two sessions coexist, each bound to its OWN doc', () => {
+    registerCollabPluginSource(fakeSource('doc-A', markerA));
+    registerCollabPluginSource(fakeSource('doc-B', markerB));
+    expect(collabPluginsFor('doc-A')).toEqual([markerA]);
+    expect(collabPluginsFor('doc-B')).toEqual([markerB]); // independent, not fused
   });
 
   it('never binds for a null/undefined uid (transient editors, unknown target)', () => {
-    setCollabPluginSource(fakeSource('doc-A'));
+    registerCollabPluginSource(fakeSource('doc-A', markerA));
     expect(collabPluginsFor(null)).toEqual([]);
     expect(collabPluginsFor(undefined)).toEqual([]);
   });
 
-  it('binds nothing when no session is active', () => {
-    setCollabPluginSource(null);
-    expect(collabPluginsFor('doc-A')).toEqual([]);
+  it('unregister ends only that doc; the other session stays live', () => {
+    registerCollabPluginSource(fakeSource('doc-A', markerA));
+    registerCollabPluginSource(fakeSource('doc-B', markerB));
+    unregisterCollabPluginSource('doc-A');
+    expect(collabPluginsFor('doc-A')).toEqual([]); // ended
+    expect(collabPluginsFor('doc-B')).toEqual([markerB]); // still live
   });
 
-  it('re-targets when a new session owns a different doc', () => {
-    setCollabPluginSource(fakeSource('doc-A'));
-    expect(collabPluginsFor('doc-A')).toEqual([marker]);
-    setCollabPluginSource(fakeSource('doc-B'));
-    expect(collabPluginsFor('doc-A')).toEqual([]); // former owner no longer bound
-    expect(collabPluginsFor('doc-B')).toEqual([marker]);
+  it('anyCollabSessionActive tracks the registry', () => {
+    expect(anyCollabSessionActive()).toBe(false);
+    registerCollabPluginSource(fakeSource('doc-A', markerA));
+    expect(anyCollabSessionActive()).toBe(true);
+    unregisterCollabPluginSource('doc-A');
+    expect(anyCollabSessionActive()).toBe(false);
   });
 });

@@ -22,7 +22,11 @@ import { showToast } from '../toast.js';
 import { promptForText, promptForChoice } from '../text-prompt.js';
 import { markSyncOrigin } from '../sync-origin.js';
 import { readModePlugin } from '../read-mode-plugin.js';
-import { setCollabPluginSource, setCollabTransactionTagger } from './collab-hooks.js';
+import {
+  registerCollabPluginSource,
+  unregisterCollabPluginSource,
+  setCollabTransactionTagger,
+} from './collab-hooks.js';
 import { RoomsError } from './room-client.js';
 import { getElectronHost } from '../host/index.js';
 import { ensureBakedRelay, relayClient } from './collab-relay.js';
@@ -153,6 +157,10 @@ let commentsSync: CommentsSyncHandle | null = null;
 let persist: PersistHandle | null = null;
 let cursors: CursorsHandle | null = null;
 let wakeCleanup: (() => void) | null = null;
+// The owning doc uid of the (currently single) live session — the plugin-source
+// registry key. Stored so clearSeams can unregister the right entry after
+// `active` has already been nulled. (Becomes per-entry when `active` → a Map.)
+let sessionOwnerUid: string | null = null;
 
 /** Wake-from-sleep / network-return hooks (M3): a resumed laptop's
  *  stream socket is silently dead until timeouts notice — restart it
@@ -194,7 +202,8 @@ function installSeams(session: CollabSession, deps: CollabUiDeps): void {
   // Concurrent new comments must not collide on the shared map key —
   // both peers advance the same small-int counter otherwise.
   setCommentIdSessionMode(true);
-  setCollabPluginSource({
+  sessionOwnerUid = ownerUid;
+  registerCollabPluginSource({
     ownerUid,
     plugins: () => [
       ...session.plugins(),
@@ -223,7 +232,8 @@ function installSeams(session: CollabSession, deps: CollabUiDeps): void {
 
 function clearSeams(keepRecord = false): void {
   setCollabTransactionTagger(null);
-  setCollabPluginSource(null);
+  unregisterCollabPluginSource(sessionOwnerUid);
+  sessionOwnerUid = null;
   wakeCleanup?.();
   wakeCleanup = null;
   commentsSync?.dispose();

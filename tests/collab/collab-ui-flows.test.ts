@@ -14,9 +14,13 @@ import { EditorView } from 'prosemirror-view';
 import { schema } from '../../src/schema/index.js';
 import { readModePlugin, PMD_READ_MODE_TOGGLE } from '../../src/editor/read-mode-plugin.js';
 import {
-  collabPluginSource,
+  collabPluginsFor,
+  collabPluginSourceFor,
   tagCollabTransaction,
 } from '../../src/editor/collab/collab-hooks.js';
+
+// Sessions are keyed by the owning doc's uid; this test window's one doc.
+const OWNER = 'ui-flows-doc';
 import { settings } from '../../src/editor/settings.js';
 import { CollabSession } from '../../src/editor/collab/collab-session.js';
 import * as collabUi from '../../src/editor/collab/collab-ui.js';
@@ -63,7 +67,7 @@ afterAll(async () => {
 /** index.ts's plugin assembly in miniature: read mode + whatever the
  *  collab plugin source supplies, with the dispatch tagger applied. */
 function buildMiniPlugins(): Plugin[] {
-  return [readModePlugin, ...(collabPluginSource()?.plugins() ?? [])];
+  return [readModePlugin, ...collabPluginsFor(OWNER)];
 }
 
 function mkIndexStyleView(): EditorView {
@@ -85,6 +89,7 @@ describe('collab UI flows through the editor seams', () => {
     let hostView = mkIndexStyleView();
     const deps = {
       getView: () => hostView,
+      getOwnerUid: () => OWNER,
       refreshPlugins: () => {
         hostView.updateState(hostView.state.reconfigure({ plugins: buildMiniPlugins() }));
       },
@@ -111,7 +116,7 @@ describe('collab UI flows through the editor seams', () => {
     // Joiners name their unsaved copy from this (field bug: windows and
     // Sessions-list rows just said "collaboration session").
     expect(collabUi.activeSession()!.loroDoc.getMap('meta').get('title')).toBe('Aff Updates');
-    expect(collabPluginSource()?.ownsUndo()).toBe(true);
+    expect(collabPluginSourceFor(OWNER)?.ownsUndo()).toBe(true);
     await settle();
     const chip = document.getElementById('collab-chip')!;
     expect(chip.hidden).toBe(false);
@@ -152,7 +157,7 @@ describe('collab UI flows through the editor seams', () => {
     // reading — Loro undo transactions carry the binding meta (→
     // sync-origin) and would otherwise sail through the read-mode
     // lock and revert real edits.
-    const src = collabPluginSource()!;
+    const src = collabPluginSourceFor(OWNER)!;
     expect(src.undo(hostView.state, hostView.dispatch)).toBe(true);
     expect(docText(hostView.state.doc)).toBe(before);
     expect(src.redo(hostView.state, hostView.dispatch)).toBe(true);
@@ -168,7 +173,7 @@ describe('collab UI flows through the editor seams', () => {
     await endP;
     await sleep(120);
     expect(collabUi.activeSession()).toBeNull();
-    expect(collabPluginSource()).toBeNull();
+    expect(collabPluginSourceFor(OWNER)).toBeNull();
     expect(chip.hidden).toBe(true);
     expect(partnerEnded).toBe(true);
     await partner.stop();
@@ -187,6 +192,7 @@ describe('collab UI flows through the editor seams', () => {
     let v = mkIndexStyleView();
     const deps = {
       getView: () => v,
+      getOwnerUid: () => OWNER,
       refreshPlugins: () => {
         v.updateState(v.state.reconfigure({ plugins: buildMiniPlugins() }));
       },
@@ -196,7 +202,7 @@ describe('collab UI flows through the editor seams', () => {
     await collabUi.joinSessionWithCode(deps, shareCode);
     await settle();
     expect(collabUi.activeSession()).toBeNull();
-    expect(collabPluginSource()).toBeNull();
+    expect(collabPluginSourceFor(OWNER)).toBeNull();
     expect(document.getElementById('collab-chip')!.hidden).toBe(true);
 
     // The room is untouched — a second join attempt that goes through works.
@@ -225,6 +231,7 @@ describe('collab UI flows through the editor seams', () => {
     let newSessionDocCalled = false;
     const deps = {
       getView: () => v,
+      getOwnerUid: () => OWNER,
       refreshPlugins: () => {
         v.updateState(v.state.reconfigure({ plugins: buildMiniPlugins() }));
       },

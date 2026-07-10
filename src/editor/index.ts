@@ -146,7 +146,7 @@ import {
 import { flattenSelfRefs, flattenSelfRefsInSlice, fragmentHasSelfRef } from './self-transclusion.js';
 import { rememberLinkedCopy, clearLinkedCopy } from './clipboard-link-cache.js';
 import { makeTransclusionDivergencePlugin, transclusionDivergenceKey } from './transclusion-divergence-plugin.js';
-import { tagCollabTransaction, collabPluginSource, collabPluginsFor, setCollabInviteJoiner, setCollabInviter } from './collab/collab-hooks.js';
+import { tagCollabTransaction, collabPluginSourceFor, collabPluginsFor, setCollabInviteJoiner, setCollabInviter } from './collab/collab-hooks.js';
 import { learnHighlightPlugin, flashcardRangeAt } from './learn-highlight-plugin.js';
 import { repairHighlightPlugin } from './repair-highlight-plugin.js';
 import { aiWorkingPlugin } from './ai/ai-working-plugin.js';
@@ -4467,7 +4467,7 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     // reverts only this peer's edits, which prosemirror-history cannot
     // guarantee once remote transactions interleave. Outside a session,
     // the plain history stack as always.
-    ...(collabPluginSource()?.ownsUndo()
+    ...(collabPluginSourceFor(targetUid)?.ownsUndo()
       ? [keymap({ 'Mod-z': collabUndo, 'Mod-y': collabRedo, 'Mod-Shift-z': collabRedo })]
       : [
           history(),
@@ -4638,10 +4638,12 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
   return plugins;
 }
 
+// Route undo/redo to the FOCUSED doc's session (if it owns undo). These keymaps
+// only fire on the focused view, whose record uid is activeDocIdentity's.
 const collabUndo: Command = (state, dispatch, viewArg) =>
-  collabPluginSource()?.undo(state, dispatch, viewArg) ?? false;
+  collabPluginSourceFor(activeDocIdentity().sessionUid)?.undo(state, dispatch, viewArg) ?? false;
 const collabRedo: Command = (state, dispatch, viewArg) =>
-  collabPluginSource()?.redo(state, dispatch, viewArg) ?? false;
+  collabPluginSourceFor(activeDocIdentity().sessionUid)?.redo(state, dispatch, viewArg) ?? false;
 
 let voiceController: VoiceController | null = null;
 function getVoiceController(): VoiceController {

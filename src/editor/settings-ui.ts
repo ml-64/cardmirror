@@ -1272,7 +1272,12 @@ function buildColorsEditor(): HTMLElement {
     settings.set('displayColors', { ...settings.get('displayColors'), [key]: value });
   }
 
-  for (const key of DISPLAY_COLOR_KEYS) {
+  // The linked-copy source-updated badge is adjusted ONLY under Accessibility →
+  // Color overrides (its `pmd-color-zone-diverged` token is still linked to this
+  // `zoneDiverged` value), so it's omitted from the Style-colors editor here.
+  const EDITOR_KEYS = DISPLAY_COLOR_KEYS.filter((k) => k !== 'zoneDiverged');
+
+  for (const key of EDITOR_KEYS) {
     // A plain <div> wrapper, not <label> — a <label> would forward
     // clicks on the reset button to the color input and pop the picker.
     const row = document.createElement('div');
@@ -1308,7 +1313,7 @@ function buildColorsEditor(): HTMLElement {
   // edits from the linked Accessibility panel, another tab, or reset).
   function refresh(): void {
     const c = settings.get('displayColors');
-    for (const key of DISPLAY_COLOR_KEYS) {
+    for (const key of EDITOR_KEYS) {
       const inp = inputs[key];
       if (inp && inp.value !== c[key]) inp.value = c[key];
       const rst = resets[key];

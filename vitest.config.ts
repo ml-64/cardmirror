@@ -9,6 +9,16 @@ export default defineConfig({
     benchmark: {
       include: ['benchmarks/**/*.bench.ts'],
     },
+    // CI runners have ~7 GB of RAM. The heavy Loro / transclusion co-editing
+    // fuzz suites can each peak a fork at a couple GB (multiple wasm peers +
+    // megabyte docs), and vitest's default parallelism (one fork per core) then
+    // runs several at once and blows the runner's memory — a V8 heap-limit OOM.
+    // On CI, cap concurrency to one fork at a time; with per-file isolation each
+    // suite still runs in a fresh process, so peak memory is a single file's
+    // rather than the sum of several. Local runs keep full parallelism.
+    ...(process.env['CI']
+      ? { poolOptions: { forks: { minForks: 1, maxForks: 1 } } }
+      : {}),
   },
   resolve: {
     alias: [

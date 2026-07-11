@@ -112,6 +112,58 @@ export class LlmError extends Error {
   }
 }
 
+type OpenRouterBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+
+interface OpenRouterMessage {
+  role: string;
+  content: string | OpenRouterBlock[];
+}
+
+function toOpenRouterContent(content: string | LlmContentBlock[]): string | OpenRouterBlock[] {
+  if (typeof content === 'string') return content;
+  return content.map((b): OpenRouterBlock =>
+    b.type === 'text'
+      ? { type: 'text', text: b.text }
+      : {
+          type: 'image_url',
+          image_url: { url: `data:${b.source.media_type};base64,${b.source.data}` },
+        },
+  );
+}
+
+/** Translate an Anthropic-shaped request's system + messages into the
+ *  OpenRouter (OpenAI-chat) message array: the top-level `system` field
+ *  becomes a leading `system` message, image blocks become `image_url`
+ *  data URLs. Exported for testing. */
+export function toOpenRouterMessages(req: LlmRequest): OpenRouterMessage[] {
+  const msgs: OpenRouterMessage[] = [];
+  if (req.system) msgs.push({ role: 'system', content: req.system });
+  for (const m of req.messages) {
+    msgs.push({ role: m.role, content: toOpenRouterContent(m.content) });
+  }
+  return msgs;
+}
+
+/** Parse an OpenRouter chat-completions response into `LlmReply`.
+ *  Maps `finish_reason: 'length'` to `'max_tokens'` so callers' truncation
+ *  checks (`stopReason === 'max_tokens'`) keep working. Exported for testing. */
+export function parseOpenRouterReply(json: unknown): LlmReply {
+  const choice = (
+    json as {
+      choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
+    }
+  )?.choices?.[0];
+  const text = choice?.message?.content ?? '';
+  if (!text) {
+    throw new LlmError('OpenRouter returned an empty response.', null, 'parse');
+  }
+  const fr = choice?.finish_reason;
+  const stopReason = fr === 'length' ? 'max_tokens' : fr;
+  return { text, stopReason };
+}
+
 export async function callLlm(req: LlmRequest): Promise<LlmReply> {
   if (!req.apiKey || !req.apiKey.trim()) {
     throw new LlmError(

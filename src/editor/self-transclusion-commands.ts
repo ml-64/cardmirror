@@ -10,7 +10,7 @@
 import { TextSelection, NodeSelection, type EditorState } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import { newHeadingId } from '../schema/index.js';
-import { collectHeadings, computeHeadingRange } from './headings.js';
+import { collectHeadings } from './headings.js';
 import { preciseScrollIntoView } from './precise-scroll.js';
 import { rewriteHeadingIdsInFragment, enclosingZonePos } from './transclusion.js';
 import {
@@ -32,23 +32,6 @@ import {
 export function selfRefSelectionPos(state: EditorState): number | null {
   const sel = state.selection;
   return sel instanceof NodeSelection && isSelfRef(sel.node) ? sel.from : null;
-}
-
-/** [from, to] of a heading's section content — mirrors extractSection's range
- *  (the header line dropped for grouping headings) so the cycle guard matches. */
-function sectionRange(view: EditorView, headingId: string): { from: number; to: number } | null {
-  const doc = view.state.doc;
-  const entry = collectHeadings(doc, { skipCite: true }).find((h) => h.id === headingId);
-  if (!entry) return null;
-  const range = computeHeadingRange(doc, entry);
-  if (!range) return null;
-  let from = range.from;
-  if (entry.type !== 'tag' && entry.type !== 'analytic') {
-    const node = doc.nodeAt(entry.pos);
-    if (!node) return null;
-    from = entry.pos + node.nodeSize;
-  }
-  return from <= range.to ? { from, to: range.to } : null;
 }
 
 /** Insert a `self_ref` at the cursor mirroring the section under `headingId`.
@@ -150,80 +133,12 @@ export function deleteSelfRef(view: EditorView, pos: number): boolean {
   return true;
 }
 
-/** Minimal floating picker of THIS doc's headings. Shared by insert (cursor at
- *  `guardPos`) and re-pick (the window at `guardPos`). Skips empty headings and
- *  the section that contains `guardPos` (mirroring your own container is an
- *  immediate cycle — deeper cycles are caught at render). Self-contained. */
-export function openSelfRefPicker(
-  view: EditorView,
-  opts: { title: string; guardPos: number },
-  onPick: (headingId: string) => void,
-): void {
-  const doc = view.state.doc;
-  const options = collectHeadings(doc, { skipCite: true }).filter((h) => {
-    if (!h.id || h.zonePos !== null || !h.text.trim()) return false;
-    const section = resolveSelfProjection(doc, h.id);
-    if (section.missing || section.content.size === 0) return false;
-    const range = sectionRange(view, h.id); // cycle guard — don't mirror our own container
-    if (range && opts.guardPos >= range.from && opts.guardPos <= range.to) return false;
-    return true;
-  });
-
-  const overlay = document.createElement('div');
-  overlay.style.cssText =
-    'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;' +
-    'justify-content:center;background:rgba(0,0,0,0.28)';
-  const box = document.createElement('div');
-  box.style.cssText =
-    'min-width:280px;max-width:min(460px,90vw);max-height:70vh;overflow:auto;' +
-    'background:var(--pmd-color-surface,#fff);color:var(--pmd-color-text,#111);' +
-    'border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,0.35);padding:10px 0';
-  const title = document.createElement('div');
-  title.textContent = opts.title;
-  title.style.cssText = 'padding:6px 16px 8px;font-weight:600;font-size:13px;opacity:0.8';
-  box.appendChild(title);
-
-  const close = (): void => {
-    document.removeEventListener('keydown', onKey, true);
-    overlay.remove();
-  };
-  const onKey = (e: KeyboardEvent): void => {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      close();
-    }
-  };
-
-  if (!options.length) {
-    const empty = document.createElement('div');
-    empty.textContent = 'No eligible sections in this document.';
-    empty.style.cssText = 'padding:8px 16px;opacity:0.7;font-size:13px';
-    box.appendChild(empty);
-  }
-  for (const h of options) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.textContent = h.text.trim();
-    btn.style.cssText =
-      `display:block;width:100%;text-align:left;border:0;background:none;cursor:pointer;` +
-      `font:inherit;color:inherit;padding:6px 16px 6px ${16 + Math.max(0, h.level - 1) * 14}px`;
-    btn.addEventListener('mouseenter', () => (btn.style.background = 'rgba(127,127,127,0.14)'));
-    btn.addEventListener('mouseleave', () => (btn.style.background = 'none'));
-    btn.addEventListener('click', () => {
-      close();
-      onPick(h.id!);
-      view.focus();
-    });
-    box.appendChild(btn);
-  }
-
-  overlay.addEventListener('mousedown', (e) => {
-    if (e.target === overlay) close();
-  });
-  document.addEventListener('keydown', onKey, true);
-  overlay.appendChild(box);
-  document.body.appendChild(overlay);
-}
+// The section picker lives in self-ref-picker.ts (peek-pattern rebuild,
+// 2026-07-11): one collectHeadings pass + extent math instead of per-heading
+// resolveSelfProjection/sectionRange, plus a collapsible/filterable outline.
+// Re-exported here so callers keep their import path.
+import { openSelfRefPicker } from './self-ref-picker.js';
+export { openSelfRefPicker };
 
 /** Insert: pick a section of this doc to mirror; drop a window at the cursor. */
 export function openInsertSelfRef(view: EditorView): void {

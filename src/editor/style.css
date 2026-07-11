@@ -2311,6 +2311,71 @@ code {
 .pmd-card-number-match {
   color: inherit;
 }
+/* ---- In-document section picker (live view / linked copy) ----
+   Peek-pattern outline: collapsible leveled rows + filter, in the
+   route-dialog vocabulary. Disabled rows keep the hierarchy readable
+   (empty sections, the cursor's own section); zone innards never render. */
+.pmd-selfref-picker {
+  min-width: 340px;
+  max-width: min(520px, 92vw);
+  max-height: 72vh;
+}
+.pmd-selfref-picker-filter {
+  font: inherit;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--pmd-c-border-soft);
+  border-radius: 4px;
+  background: var(--pmd-c-bg);
+  color: var(--pmd-c-text);
+}
+.pmd-selfref-picker-list {
+  overflow-y: auto;
+  min-height: 0;
+}
+.pmd-selfref-picker-empty {
+  padding: 0.5rem 0.75rem;
+  opacity: 0.7;
+  font-size: 0.85rem;
+}
+.pmd-selfref-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-right: 12px;
+  border-radius: 4px;
+}
+.pmd-selfref-picker-row:hover { background: var(--pmd-c-surface); }
+.pmd-selfref-picker-row-active {
+  background: var(--pmd-c-surface);
+  outline: 1px solid var(--pmd-c-border-soft);
+}
+.pmd-selfref-picker-row-disabled { opacity: 0.55; cursor: default; }
+.pmd-selfref-picker-row-disabled:hover { background: none; }
+.pmd-selfref-picker-row-untitled .pmd-selfref-picker-label {
+  font-style: italic;
+  opacity: 0.8;
+}
+.pmd-selfref-picker-toggle {
+  width: 1em;
+  flex: none;
+  opacity: 0.7;
+  font-size: 0.8em;
+}
+.pmd-selfref-picker-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* "Match heading" checkbox inline with the numbering-color swatch. */
 .pmd-inline-color-match {
   display: inline-flex;

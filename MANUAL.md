@@ -1156,7 +1156,9 @@ times, and CardMirror documents are self-contained.)
 **Make one.** From the command bar (Mod-Shift-Space, or the ribbon):
 
 - **Insert Live View** / **Insert Linked Copy from This Document** — pick a
-  section of the current document.
+  section of the current document. The picker is a collapsible outline of your
+  headings with a filter box — type a few letters to narrow it, use the arrow
+  keys, press Enter to pick.
 - **Insert Linked Copy from a File** — open the Search Everything palette, dive
   into the source file, land on a heading and press **Mod-Enter**. The source
   can be a `.cmir` or a Word `.docx`; for a Word file CardMirror adds a small,

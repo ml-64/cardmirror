@@ -197,6 +197,11 @@ remains **experimental** — keep your own saved copies.)
 - A couple of messages still pointed at the old "Card Sharing" settings name;
   they now say **Collaboration**.
 
+- **Choosing a section for a live view or linked copy is instant on large
+  documents** — the picker was re-resolving every section's full content just
+  to list the headings. It is now a collapsible outline with a filter box and
+  keyboard navigation.
+
 ## 0.1.0-beta.11 — 2026-07-10
 
 > **Renamed — please read if you used "live zones."** The beta.10 "live zones"

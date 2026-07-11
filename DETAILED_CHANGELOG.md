@@ -297,6 +297,33 @@ single-pane module state that is stale garbage in the workspace.
   dialogs warn when live sessions exist, via a new synchronous
   `collabLiveSessionCount` bridge. `resumeSessionFlow`'s `existingDoc` option
   remains as a caller-less capability.
+- **Self-ref section picker rebuilt on the peek pattern** (new
+  `self-ref-picker.ts`; old picker + `sectionRange` deleted from
+  `self-transclusion-commands.ts`; tests in
+  `tests/editor/selfref-picker.test.ts`; spec:
+  CardMirror-selfref-picker-spec.md). The old in-document picker for
+  Insert Live View / Linked Copy resolved EVERY heading's full section
+  content just to decide list eligibility — per heading, a
+  `resolveSelfProjection` (which re-ran `collectHeadings` internally, then
+  `computeHeadingRange`'s doc scan, then materialized the section as a
+  Fragment via `doc.slice`) plus a `sectionRange` (another full
+  `collectHeadings`) — O(headings × doc) with allocation, taking seconds on
+  tournament master files. The rebuild computes everything from ONE
+  `collectHeadings({skipCite:true})` pass: span boundaries via a stack sweep
+  over the flat entry list (zone-inner entries are never boundaries,
+  mirroring `computeHeadingRange`'s refusal to descend into
+  `transclusion_ref`), wrapper extents (tags, analytics in
+  analytic_unit/card) from `doc.resolve` geometry — O(doc + headings), no
+  Fragments. UI switches from a flat `promptForChoice` list to a
+  collapsible leveled outline in the route-dialog vocabulary — disclosure
+  triangles (blocks start collapsed past 150 rows), a type-to-filter box
+  (matches + their ancestors stay visible; Enter picks the first pickable
+  MATCH, not a visible ancestor), arrow-key navigation, and disabled (not
+  hidden) ineligible rows so hierarchy stays readable. Two deliberate
+  behavior deltas (spec §3.4): the guard interval now includes the heading
+  line (cursor ON a heading can no longer pick that section — an immediate
+  cycle), and a section whose only content is dead windows is pickable
+  (renders an empty window; cycles are still caught at render).
 
 ## 0.1.0-beta.11 — 2026-07-10
 

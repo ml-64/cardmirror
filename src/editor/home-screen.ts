@@ -38,6 +38,9 @@ import {
   subscribeSessionRecords,
   type PersistedSessionRecord,
 } from './collab/collab-store.js';
+import { endRoomOnRelay } from './collab/collab-relay.js';
+import { promptForRouteChoice } from './text-prompt.js';
+import { showToast } from './toast.js';
 
 export interface HomeScreenCallbacks {
   newDoc: () => void;
@@ -443,11 +446,61 @@ class HomeScreen {
     forget.type = 'button';
     forget.className = 'pmd-home-session-forget';
     forget.textContent = '✕';
-    forget.title = 'Forget this session (your partner is unaffected)';
-    forget.setAttribute('aria-label', 'Forget this session');
+    forget.title =
+      record.role === 'host'
+        ? 'End this session (or just forget your copy)'
+        : 'Forget this session (your partner is unaffected)';
+    forget.setAttribute(
+      'aria-label',
+      record.role === 'host' ? 'End or forget this session' : 'Forget this session',
+    );
     forget.addEventListener('click', (e) => {
       e.stopPropagation();
-      void deleteSessionRecord(record.roomId);
+      // Participant: purely local — abandoning your copy leaves the room (and
+      // everyone in it) untouched.
+      if (record.role !== 'host') {
+        void deleteSessionRecord(record.roomId);
+        return;
+      }
+      // Host: X should be able to actually END the session. Just deleting the
+      // record left the room alive on the relay — previously-invited partners
+      // could silently rejoin a session the host thought was gone (field bug,
+      // 2026-07-10) — and threw away the host's only handle for ending it.
+      void (async (): Promise<void> => {
+        const title = record.docTitle || 'this session';
+        const choice = await promptForRouteChoice({
+          message: `End the session for “${title}”?`,
+          choices: [
+            {
+              value: 'end',
+              label: 'End Session',
+              description:
+                'Ends it for every participant — they keep their current copies but can no longer sync or rejoin.',
+            },
+            {
+              value: 'forget',
+              label: 'Forget My Copy',
+              description: 'Removes it from this list only. Others in the session can keep editing.',
+            },
+          ],
+        });
+        if (choice === 'end') {
+          try {
+            await endRoomOnRelay(record.roomId);
+          } catch (err) {
+            // Keep the record so the host can retry — deleting it without the
+            // tombstone would recreate the silent-rejoin bug.
+            showToast(
+              `Couldn't end the session — check your connection and try again. (${err instanceof Error ? err.message : err})`,
+            );
+            return;
+          }
+          await deleteSessionRecord(record.roomId);
+          showToast('Session ended for everyone');
+        } else if (choice === 'forget') {
+          await deleteSessionRecord(record.roomId);
+        }
+      })();
     });
     wrap.appendChild(forget);
 

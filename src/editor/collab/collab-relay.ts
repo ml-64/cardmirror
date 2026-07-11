@@ -9,7 +9,7 @@
 import { settings } from '../settings.js';
 import { getElectronHost } from '../host/index.js';
 import { collabDevRelay } from './collab-gate.js';
-import { RoomsClient } from './room-client.js';
+import { RoomsClient, RoomsError } from './room-client.js';
 
 /** Baked relay endpoint from the desktop main process — resolved once,
  *  used as the LAST fallback so packaged builds work with zero setup.
@@ -36,4 +36,23 @@ export function relayClient(): RoomsClient | null {
   const token = settings.get('pairingRelayToken').trim() || dev?.token || bakedRelay?.token || '';
   if (!url || !token) return null;
   return new RoomsClient({ baseUrl: () => url, token: () => token });
+}
+
+/** Tombstone a room on the relay — the home-screen Sessions list's host-side
+ *  "End Session" (no live session object exists there, so this speaks to the
+ *  relay directly). A room that is already ended (410) or expired/GC'd (404)
+ *  counts as success: the goal — nobody can rejoin — already holds. Throws on
+ *  anything else (offline, auth) so the caller can KEEP the record and let
+ *  the host retry; deleting it without the tombstone would strand a live room
+ *  that invited participants can silently rejoin. */
+export async function endRoomOnRelay(roomId: string): Promise<void> {
+  await ensureBakedRelay();
+  const client = relayClient();
+  if (!client) throw new Error('no relay configured');
+  try {
+    await client.deleteRoom(roomId);
+  } catch (err) {
+    if (err instanceof RoomsError && (err.status === 410 || err.status === 404)) return;
+    throw err;
+  }
 }

@@ -82,12 +82,35 @@ function isPlausibleModelId(s: string): boolean {
   return /^[A-Za-z0-9][A-Za-z0-9._-]{2,}$/.test(s);
 }
 
-/** The model the app should use: the user's `aiModelOverride` when it
- *  looks valid, otherwise `DEFAULT_MODEL`. Single resolver so every AI
+/** The model the app should use: for OpenRouter, the user's configured
+ *  `openrouterModel` verbatim; for Anthropic, the `aiModelOverride` when
+ *  it looks valid, otherwise `DEFAULT_MODEL`. Single resolver so every AI
  *  feature (cite, explain, translate, flashcards, image) stays in sync. */
 export function resolveAiModel(): string {
+  if (settings.get('aiProvider') === 'openrouter') {
+    return settings.get('openrouterModel').trim();
+  }
   const override = (settings.get('aiModelOverride') || '').trim();
   return isPlausibleModelId(override) ? override : DEFAULT_MODEL;
+}
+
+/** The API key for the currently selected provider, trimmed. Single
+ *  source so every AI feature reads the right key when the provider
+ *  changes. */
+export function activeApiKey(): string {
+  const key =
+    settings.get('aiProvider') === 'openrouter'
+      ? settings.get('openrouterApiKey')
+      : settings.get('anthropicApiKey');
+  return key.trim();
+}
+
+/** Whether AI features are usable right now: master switch on AND the
+ *  active provider has a key. (An OpenRouter key with no model still
+ *  reads as configured; the missing model surfaces as a friendly error
+ *  on use, mirroring how a retired Claude id already behaves.) */
+export function aiConfigured(): boolean {
+  return settings.get('aiFeaturesEnabled') && activeApiKey() !== '';
 }
 
 /** Custom error so callers can branch on AI-specific failures
@@ -164,15 +187,7 @@ export function parseOpenRouterReply(json: unknown): LlmReply {
   return { text, stopReason };
 }
 
-export async function callLlm(req: LlmRequest): Promise<LlmReply> {
-  if (!req.apiKey || !req.apiKey.trim()) {
-    throw new LlmError(
-      'Anthropic API key is not set — open Settings to add one.',
-      null,
-      'no-key',
-    );
-  }
-
+async function callAnthropicApi(req: LlmRequest): Promise<LlmReply> {
   const requestedModel = req.model ?? resolveAiModel();
   const body = {
     model: requestedModel,
@@ -265,4 +280,88 @@ export async function callLlm(req: LlmRequest): Promise<LlmReply> {
   }
   const stopReason = (json as { stop_reason?: string })?.stop_reason;
   return { text, stopReason };
+}
+
+async function callOpenRouter(req: LlmRequest): Promise<LlmReply> {
+  const model = req.model ?? resolveAiModel();
+  if (!model) {
+    throw new LlmError(
+      'No OpenRouter model is set - add one under Settings -> Comments & AI -> ' +
+        'OpenRouter model (e.g. anthropic/claude-sonnet-4.6).',
+      null,
+      'model',
+    );
+  }
+  const body = {
+    model,
+    max_tokens: req.maxTokens ?? DEFAULT_MAX_TOKENS,
+    ...(req.temperature != null ? { temperature: req.temperature } : {}),
+    messages: toOpenRouterMessages(req),
+  };
+
+  let res: Response;
+  try {
+    res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${req.apiKey}`,
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    throw new LlmError(
+      `Network error contacting OpenRouter: ${e instanceof Error ? e.message : String(e)}`,
+      null,
+      'network',
+    );
+  }
+
+  if (!res.ok) {
+    let detail = '';
+    try {
+      const payload = (await res.json()) as { error?: { message?: string } };
+      detail = payload?.error?.message ?? '';
+    } catch {
+      // Body wasn't JSON. Fall back to status.
+    }
+    const looksLikeModelError =
+      res.status === 404 || (res.status >= 400 && res.status < 500 && /\bmodel\b/i.test(detail));
+    if (looksLikeModelError) {
+      throw new LlmError(
+        `The AI model "${model}" was rejected by OpenRouter - check the model id under ` +
+          `Settings -> Comments & AI -> OpenRouter model.`,
+        res.status,
+        'model',
+      );
+    }
+    const kind: LlmError['kind'] =
+      res.status === 401 ? 'auth' : res.status === 429 ? 'rate-limit' : 'server';
+    throw new LlmError(
+      `OpenRouter API returned ${res.status}${detail ? `: ${detail}` : ''}`,
+      res.status,
+      kind,
+    );
+  }
+
+  let json: unknown;
+  try {
+    json = await res.json();
+  } catch (e) {
+    throw new LlmError(
+      `Failed to parse OpenRouter response: ${e instanceof Error ? e.message : String(e)}`,
+      res.status,
+      'parse',
+    );
+  }
+  return parseOpenRouterReply(json);
+}
+
+export async function callLlm(req: LlmRequest): Promise<LlmReply> {
+  if (!req.apiKey || !req.apiKey.trim()) {
+    throw new LlmError('API key is not set - open Settings to add one.', null, 'no-key');
+  }
+  return settings.get('aiProvider') === 'openrouter'
+    ? callOpenRouter(req)
+    : callAnthropicApi(req);
 }

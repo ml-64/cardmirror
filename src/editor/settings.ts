@@ -1584,6 +1584,23 @@ export type SettingsCategory =
   | 'comments-ai'
   | 'pairing';
 
+export type SettingCondition =
+  | keyof Settings
+  | { key: keyof Settings; equals: unknown };
+
+/** Evaluate a row's `dependsOn` against current settings. Bare key →
+ *  truthy check; object → equality; array → conjunction. Undefined → true. */
+export function evalDependsOn(
+  dependsOn: SettingCondition | readonly SettingCondition[] | undefined,
+  get: (key: keyof Settings) => unknown = (k) => settings.get(k),
+): boolean {
+  if (dependsOn === undefined) return true;
+  const conds = Array.isArray(dependsOn) ? dependsOn : [dependsOn as SettingCondition];
+  return conds.every((c) =>
+    typeof c === 'object' ? get(c.key) === c.equals : Boolean(get(c)),
+  );
+}
+
 /**
  * Human-readable metadata for each setting, used by the settings UI.
  * Add new entries when introducing new settings.
@@ -1684,11 +1701,11 @@ export interface SettingMeta {
     | 'pairingReceiveFlash';
   /** Which tab this setting lives under in the settings dialog. */
   category: SettingsCategory;
-  /** When set, this row is greyed out and its controls disabled
-   *  unless the named boolean setting evaluates to true. Used for
-   *  e.g. greying out the multi-doc layout picker when multi-doc is
-   *  off, or AI-key rows when AI features are disabled. */
-  dependsOn?: keyof Settings;
+  /** When set, this row is greyed out and its controls disabled unless
+   *  its condition holds. A bare key means "that boolean setting is
+   *  truthy"; an object means "that setting equals a value"; an array
+   *  means "all of these hold". */
+  dependsOn?: SettingCondition | readonly SettingCondition[];
   /** When true, this setting is only relevant on Electron-style
    *  hosts (real file paths, native dialogs). The settings UI
    *  hides the row entirely on the web edition. */
@@ -2869,20 +2886,32 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'aiFeaturesEnabled',
     label: 'Enable AI features',
     description:
-      'Master switch for AI-powered comment features (in-comment "Explain" prompts, @AI mentions). Requires an Anthropic API key below.',
+      'Master switch for AI-powered comment features (in-comment "Explain" prompts, @AI mentions). Requires selecting a provider and pasting its API key below.',
     kind: 'toggle',
     category: 'comments-ai',
     mobile: true,
   },
   {
-    key: 'anthropicApiKey',
-    label: 'Anthropic API key',
+    key: 'aiProvider',
+    label: 'AI provider',
     description:
-      'Used only when AI features are enabled. Stored locally in browser settings; sent only to api.anthropic.com.',
-    kind: 'password',
+      'Which inference service the AI features use. Anthropic talks to the ' +
+      'Anthropic API; OpenRouter talks to openrouter.ai (OpenAI-compatible). ' +
+      'Each provider has its own key below.',
+    kind: 'aiProvider',
     category: 'comments-ai',
     mobile: true,
     dependsOn: 'aiFeaturesEnabled',
+    aliases: ['openrouter', 'provider', 'model provider'],
+  },
+  {
+    key: 'anthropicApiKey',
+    label: 'Anthropic API key',
+    description: 'Used when AI features are enabled and the provider is Anthropic.',
+    kind: 'password',
+    category: 'comments-ai',
+    mobile: true,
+    dependsOn: ['aiFeaturesEnabled', { key: 'aiProvider', equals: 'anthropic' }],
   },
   {
     key: 'aiModelOverride',
@@ -2892,8 +2921,32 @@ export const SETTING_METADATA: SettingMeta[] = [
     kind: 'text',
     category: 'comments-ai',
     mobile: true,
-    dependsOn: 'aiFeaturesEnabled',
+    dependsOn: ['aiFeaturesEnabled', { key: 'aiProvider', equals: 'anthropic' }],
     aliases: ['model', 'claude model', 'model override', 'opus', 'sonnet', 'haiku'],
+  },
+  {
+    key: 'openrouterApiKey',
+    label: 'OpenRouter API key',
+    description:
+      'Used when the provider is OpenRouter. Stored locally in browser ' +
+      'settings; sent only to openrouter.ai.',
+    kind: 'password',
+    category: 'comments-ai',
+    mobile: true,
+    dependsOn: ['aiFeaturesEnabled', { key: 'aiProvider', equals: 'openrouter' }],
+  },
+  {
+    key: 'openrouterModel',
+    label: 'OpenRouter model',
+    description:
+      'Required when the provider is OpenRouter. The model id, e.g. ' +
+      'anthropic/claude-sonnet-4.6 or openai/gpt-4o. No default - AI features ' +
+      'will not run until this is set.',
+    kind: 'text',
+    category: 'comments-ai',
+    mobile: true,
+    dependsOn: ['aiFeaturesEnabled', { key: 'aiProvider', equals: 'openrouter' }],
+    aliases: ['openrouter model', 'model'],
   },
   {
     key: 'clodEnabled',
@@ -3156,7 +3209,7 @@ function isSettingActionable(m: SettingMeta, env: ToggleEnv): boolean {
     (!m.windowsOnly || env.isWindows) &&
     (!m.webOnly || env.hostKind === 'browser') &&
     (!m.revealWhen || env.get(m.revealWhen) === true) &&
-    (!m.dependsOn || !!env.get(m.dependsOn))
+    evalDependsOn(m.dependsOn, env.get)
   );
 }
 

@@ -337,6 +337,19 @@ single-pane module state that is stale garbage in the workspace.
   its shared `pmd-transclusion-glyph-btn` class). The mirrored children are
   real editor content, so the depth-independent card rules and the
   keep/hide text decorations apply inside with no plugin change.
+- **Docx-flatten warning counts live views** (`index.ts`). The
+  pre-re-architecture `confirmDocxUnlinksZones` counted only
+  `transclusion_ref` nodes, so a doc whose only live content was `self_ref`
+  live views wrote to `.docx` (flattening them via `flattenSelfRefs` /
+  the exporter's `transclusion_ref` unwrap) with no warning. Renamed to
+  `confirmDocxDropsLiveLinks`; the count walks both node types (matched
+  nodes not descended into) and the message names the mix ("a live view
+  and 2 linked copies"). No new call sites needed: every `.docx`-writing
+  path funnels through `runSaveFlow` / `runSaveAsFlow` — Save, Save As,
+  single-pane close + Electron please-close, three-pane `closeVisible`
+  and `promptSaveDirtyForQuit` (each focuses the pane first, so
+  `activeFile()` / the counted doc is the closing doc) — and autosave is
+  `.cmir`-only by design.
 
 ## 0.1.0-beta.11 — 2026-07-10
 

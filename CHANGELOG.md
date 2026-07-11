@@ -207,6 +207,12 @@ remains **experimental** — keep your own saved copies.)
   it mirrors — headings, cites, and highlighted text — with its dotted rail
   still visible so you can tell mirrored content from its source.
 
+- **The "saving to Word drops live links" warning now counts live views.** It
+  only knew about linked copies, so a document whose only live content was
+  live views saved to `.docx` — flattening them — without a word. The warning
+  now covers both, on every path that writes a `.docx`: Save, Save As, and the
+  save prompts when closing a document or quitting, in both layouts.
+
 ## 0.1.0-beta.11 — 2026-07-10
 
 > **Renamed — please read if you used "live zones."** The beta.10 "live zones"

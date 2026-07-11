@@ -147,7 +147,12 @@ import {
   openInsertInDocCopy,
   selfRefSelectionPos,
 } from './self-transclusion-commands.js';
-import { flattenSelfRefs, flattenSelfRefsInSlice, fragmentHasSelfRef } from './self-transclusion.js';
+import {
+  flattenSelfRefs,
+  flattenSelfRefsInSlice,
+  fragmentHasSelfRef,
+  isSelfRef,
+} from './self-transclusion.js';
 import { rememberLinkedCopy, clearLinkedCopy } from './clipboard-link-cache.js';
 import { makeTransclusionDivergencePlugin, transclusionDivergenceKey } from './transclusion-divergence-plugin.js';
 import {
@@ -6365,39 +6370,51 @@ async function serializeForSave(
  * save (and the bytes hit disk / downloaded), `false` when they
  * cancelled the dialog or the OS file picker.
  */
-/** How many live zones the doc that a save would serialize contains — the same
+/** Live views + linked copies in the doc a save would serialize — the same
  *  doc `serializeForSave` exports (`view` when present, else `currentDoc`).
- *  Zones never nest, so a matched zone isn't descended into. */
-function activeSaveDocZoneCount(): number {
+ *  A matched node isn't descended into: whatever it contains is part of the
+ *  view/copy being flattened, not a separately-droppable link. */
+function activeSaveDocLiveLinkCounts(): { views: number; copies: number } {
   const doc = view ? view.state.doc : currentDoc;
-  if (!doc) return 0;
-  let n = 0;
+  const counts = { views: 0, copies: 0 };
+  if (!doc) return counts;
   doc.descendants((node) => {
+    if (isSelfRef(node)) {
+      counts.views++;
+      return false;
+    }
     if (isTransclusionNode(node)) {
-      n++;
+      counts.copies++;
       return false;
     }
     return true;
   });
-  return n;
+  return counts;
 }
 
-/** Warn before a `.docx` write that would flatten live zones. Word can't store
- *  live links, so saving to `.docx` drops them (the content stays, the link
- *  doesn't) — a silent, one-way loss if the doc is later reopened from that
- *  `.docx`. Returns true to proceed, false to cancel. `.cmir` saves never ask. */
-async function confirmDocxUnlinksZones(): Promise<boolean> {
-  const count = activeSaveDocZoneCount();
-  if (count === 0) return true;
-  const zones = count === 1 ? 'a live zone' : `${count} live zones`;
-  const them = count === 1 ? 'it' : 'them';
+/** Warn before a `.docx` write that would flatten live views / linked copies.
+ *  Word can't store live links, so saving to `.docx` drops them (the content
+ *  stays, the link doesn't) — a silent, one-way loss if the doc is later
+ *  reopened from that `.docx`. Every `.docx`-writing path asks: Save, Save As,
+ *  and the close/quit prompts in both layouts all route through
+ *  `runSaveFlow` / `runSaveAsFlow` (autosave never writes `.docx`).
+ *  Returns true to proceed, false to cancel. `.cmir` saves never ask. */
+async function confirmDocxDropsLiveLinks(): Promise<boolean> {
+  const { views, copies } = activeSaveDocLiveLinkCounts();
+  const total = views + copies;
+  if (total === 0) return true;
+  const parts: string[] = [];
+  if (views > 0) parts.push(views === 1 ? 'a live view' : `${views} live views`);
+  if (copies > 0) parts.push(copies === 1 ? 'a linked copy' : `${copies} linked copies`);
+  const what = parts.join(' and ');
+  const them = total === 1 ? 'it' : 'them';
   return showConfirm({
-    title: 'Saving to Word unlinks live zones',
+    title: 'Saving to Word drops live links',
     message:
-      `This document contains ${zones}. Word (.docx) files can't hold live links, ` +
+      `This document contains ${what}. Word (.docx) files can't hold live links, ` +
       `so saving to .docx flattens ${them} to plain cards — the content stays, but the ` +
       `link to the source is dropped and won't come back when you reopen the .docx. ` +
-      `Save as CardMirror (.cmir) instead to keep the live zones.`,
+      `Save as CardMirror (.cmir) instead to keep ${them} live.`,
     confirmLabel: 'Save to Word anyway',
     cancelLabel: 'Cancel',
   });
@@ -6415,8 +6432,8 @@ export async function runSaveAsFlow(): Promise<boolean> {
     defaultFormat,
   });
   if (!choice) return false;
-  // Writing to .docx flattens any live zones — confirm before proceeding.
-  if (choice.format === 'docx' && !(await confirmDocxUnlinksZones())) return false;
+  // Writing to .docx flattens live views / linked copies — confirm first.
+  if (choice.format === 'docx' && !(await confirmDocxDropsLiveLinks())) return false;
   // A full-fidelity save (everything included, not read-mode) IS the
   // working document written to disk, so the doc adopts the new
   // name / handle / format. Anything that drops content — the Send
@@ -6700,8 +6717,9 @@ export async function runSaveFlow(): Promise<boolean> {
   if (!(await getHost().ensureWritable(file.handle))) {
     return runSaveAsFlow();
   }
-  // Saving in place to a .docx flattens any live zones — confirm first.
-  if (file.format === 'docx' && !(await confirmDocxUnlinksZones())) return false;
+  // Saving in place to a .docx flattens live views / linked copies — confirm
+  // first. This also covers the close/quit save prompts, which route here.
+  if (file.format === 'docx' && !(await confirmDocxDropsLiveLinks())) return false;
   try {
     // Ensure a stable docId (minting + rekeying pre-save annotations on
     // first save), keyed to the focused doc in either layout.

@@ -50,7 +50,7 @@ remains **experimental** — keep your own saved copies.)
   intercept the connection now produce a plain-language error naming the
   blocked address, instead of the cryptic `Unexpected token '<'` message. If
   you see it on a school-managed device, ask IT to allow
-  `scouting-assistant.up.railway.app`. (Thanks to Jacob for the diagnostics.)
+  `scouting-assistant.up.railway.app`.
 
 - **Starting a session sticks to the right document.** In three-pane, a
   session now binds to the document you started it from even if you click
@@ -168,7 +168,7 @@ remains **experimental** — keep your own saved copies.)
   typing was dead until a reload. We'd patched these one at a time; this
   release replaces **every** native popup in the app with CardMirror's own
   dialogs, which also now return your cursor to exactly where it was when
-  any dialog closes. (Thanks for the tilde-key report that pinned it down.)
+  any dialog closes.
 
 - A couple of messages still pointed at the old "Card Sharing" settings name;
   they now say **Collaboration**.

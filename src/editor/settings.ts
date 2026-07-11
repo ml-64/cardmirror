@@ -69,6 +69,7 @@ const TRANSIENT_SETTING_KEYS = new Set<string>([
  *  preserved (not overwritten) on import. */
 const SECRET_SETTING_KEYS = new Set<string>([
   'anthropicApiKey',
+  'openrouterApiKey',
   'googleTranslateApiKey',
   'myMemoryEmail',
 ]);
@@ -1089,6 +1090,17 @@ export interface Settings {
    *  well-formed id is sent as-is. Lets a user move to a newer model
    *  without updating the whole app when the default is retired. */
   aiModelOverride: string;
+  /** Which inference provider the AI features talk to. `'anthropic'`
+   *  uses the Anthropic Messages API + `anthropicApiKey`; `'openrouter'`
+   *  uses OpenRouter (OpenAI-chat-compatible) + `openrouterApiKey` /
+   *  `openrouterModel`. */
+  aiProvider: 'anthropic' | 'openrouter';
+  /** OpenRouter API key. Used only when `aiProvider === 'openrouter'`.
+   *  Stored locally; sent only to openrouter.ai. */
+  openrouterApiKey: string;
+  /** OpenRouter model id (e.g. `anthropic/claude-sonnet-4.6`). Required
+   *  when OpenRouter is selected; there is no built-in default. */
+  openrouterModel: string;
   /** Master switch for AI features (the explainer comment shortcut,
    *  @AI mentions inside comments, etc.). When false, no UI for
    *  AI shows up and no API calls happen even if a key is set. */
@@ -1499,6 +1511,9 @@ const DEFAULTS: Settings = {
   commentsVisible: false,
   anthropicApiKey: '',
   aiModelOverride: '',
+  aiProvider: 'anthropic',
+  openrouterApiKey: '',
+  openrouterModel: '',
   aiFeaturesEnabled: false,
   clodEnabled: false,
   clodActivitiesByTime: { morning: [], day: [], evening: [], night: [] },
@@ -1652,6 +1667,7 @@ export interface SettingMeta {
     | 'clod'
     | 'clodCustomize'
     | 'aiCitePrompt'
+    | 'aiProvider'
     | 'translationConfig'
     | 'multiDocLayoutMode'
     | 'mobileLayout'
@@ -3793,6 +3809,10 @@ function sanitize(s: Settings): Settings {
         ? s.anthropicApiKey
         : DEFAULTS.anthropicApiKey,
     aiModelOverride: typeof s.aiModelOverride === 'string' ? s.aiModelOverride.trim() : '',
+    aiProvider: s.aiProvider === 'openrouter' ? 'openrouter' : 'anthropic',
+    openrouterApiKey:
+      typeof s.openrouterApiKey === 'string' ? s.openrouterApiKey : DEFAULTS.openrouterApiKey,
+    openrouterModel: typeof s.openrouterModel === 'string' ? s.openrouterModel.trim() : '',
     aiFeaturesEnabled: !!s.aiFeaturesEnabled,
     clodEnabled: !!s.clodEnabled,
     clodActivitiesByTime: sanitizeClodActivitiesByTime(s.clodActivitiesByTime),

@@ -80,6 +80,20 @@ single-pane module state that is stale garbage in the workspace.
   sessions) — now "Open and focus a document to start a co-editing session,"
   and join/resume no longer require an up-front view at all (an empty
   workspace can join straight into a slot).
+- **Host ✕ on the home-screen Sessions list actually ends the session**
+  (`home-screen.ts`, `collab-relay.ts` `endRoomOnRelay`). The ✕ only called
+  `deleteSessionRecord` — a local IndexedDB delete — for host and participant
+  alike, so a host "ending" a session from the home screen left the room live
+  on the relay: previously-invited partners could rejoin and keep editing,
+  and the host had discarded their only handle for ending it (field bug,
+  2026-07-10). Host ✕ now opens a route-style choice — **End Session**
+  (tombstone the room via the relay, then delete the record; on relay
+  failure the record is KEPT so the host can retry, since deleting without
+  the tombstone recreates the silent-rejoin hole) or **Forget My Copy** (the
+  old local-only behavior). 410/404 from the relay count as already-ended.
+  Participant ✕ is unchanged. Composes with this release's strict-410 join:
+  a stale invite to the ended room now reports "That co-editing session has
+  ended" and clears itself.
 - **Mode-switch: co-edited docs close resumable instead of auto-resuming**
   (`index.ts`, `collab-hooks.ts`, `collab-ui.ts`). The single↔three-pane
   toggle previously captured live sessions to sessionStorage

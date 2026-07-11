@@ -56,6 +56,13 @@ remains **experimental** — keep your own saved copies.)
   session now binds to the document you started it from even if you click
   into another pane while it connects.
 
+- **The host's ✕ on a home-screen session now really ends it.** Clicking ✕ on
+  a session you host asks whether to **End Session** (for everyone — nobody
+  can rejoin) or just **Forget My Copy**. Before, it only removed the session
+  from your own list, so people you'd invited could quietly rejoin and keep
+  editing a session you thought was over. A guest's ✕ still just forgets
+  their copy.
+
 - A couple of messages still pointed at the old "Card Sharing" settings name;
   they now say **Collaboration**.
 

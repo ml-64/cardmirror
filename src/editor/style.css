@@ -5138,6 +5138,20 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   /* Above the ribbon / status bar (z=200) so the modal covers the chrome. */
   z-index: 1000;
 }
+/* Route dialogs specifically (promptFor*, alertDialog, confirmDialog) beat
+   every surface they can spawn FROM — not just the chrome, but the
+   full-screen managers too: Quick Cards (1200), Learn create/manage
+   (1200/1090), search palette (1300), Settings (1000). At the shared 1000 a
+   confirm opened from the Quick Cards manager rendered BEHIND it: invisible,
+   yet its Enter/Esc keydown listener still ran, which read as "the manager
+   is stuck until I hit Enter" (field bug, 2026-07-11). Scoped to
+   .pmd-route-overlay alone so the other overlay families keep their existing
+   stacking (e.g. palette above Settings). Toasts (2000) stay above dialogs
+   on purpose; .pmd-learn-create-overlay still overrides to 1200 for its own
+   stack. */
+.pmd-route-overlay {
+  z-index: 1400;
+}
 
 .pmd-settings-dialog {
   background: var(--pmd-c-bg);
@@ -10754,6 +10768,19 @@ textarea.pmd-text-prompt-input {
   font-family: inherit;
 }
 .pmd-text-prompt-ok:hover { background: var(--pmd-c-accent-hover); }
+/* In a button row, Cancel matches the accent button's size exactly — the
+   default .pmd-route-cancel is the compact trailing link-style used under
+   the big route-choice cards, which looked mismatched beside an OK button
+   (field feedback, 2026-07-11). Same padding/size/radius; quiet coloring
+   stays. */
+.pmd-text-prompt-buttons .pmd-route-cancel {
+  align-self: auto;
+  padding: 0.3rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  border-radius: 4px;
+  font-family: inherit;
+}
 
 /* ---- Create-flashcard dialog (learn-create-ui) ----
  * Re-uses the route-dialog chrome; adds the anchored-quote note, a

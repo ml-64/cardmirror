@@ -113,6 +113,21 @@ single-pane module state that is stale garbage in the workspace.
   RouteChoice and the select-speech-doc modal) restores it on close, so
   in-DOM overlays no longer drop the caret to `<body>` either. Zero native
   alert/confirm/prompt calls remain under src/.
+- **Dialog follow-ups from the sweep's field test** (`style.css`,
+  `text-prompt.ts` call sites). (1) `.pmd-route-overlay` gets its own
+  z-index (1400, scoped so the other overlay families keep their stacking):
+  at the shared 1000, a confirm spawned from the Quick Cards manager
+  (z 1200) rendered BEHIND it — invisible, but its Enter/Esc keydown still
+  ran, reading as "the manager is stuck until I hit Enter" (the native
+  dialogs it replaced were always-on-top, which had masked the layering
+  question entirely). Only the toast (2000) and cursor-attached transients
+  (drag pill, ribbon tooltip) sit above dialogs now. (2) In button rows,
+  `.pmd-route-cancel` matches the accent button's size (the compact
+  trailing-link style remains for the route-choice card layout). (3) Plain
+  yes/no confirmations converted from single-choice route cards to
+  `confirmDialog`'s two equal buttons: start-session, end/leave-session,
+  and the mode-switch confirm — route cards are reserved for genuine
+  multi-option decisions (Save/Don't-Save, keep/end/leave, End/Forget).
 - **Round 3 audit follow-through: transport taxonomy + polish**
   (`collab-session.ts`, `room-client.ts`, `collab-ui.ts`,
   `collab-persist.ts`, `comments-plugin.ts`, `home-screen.ts`, `index.ts`).

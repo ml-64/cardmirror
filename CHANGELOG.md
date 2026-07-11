@@ -21,6 +21,12 @@ remains **experimental** — keep your own saved copies.)
   during the reload, only ever restored some sessions, and left stray copies
   of documents from other windows.
 
+- **Dialog polish.** Plain yes/no confirmations (starting or ending a
+  co-editing session, switching workspace modes) now show two equal buttons
+  instead of one large option card with a small cancel link — the big option
+  cards are reserved for real multi-choice decisions like Save / Don't Save.
+  Cancel buttons everywhere now match the primary button's size.
+
 ### Fixed
 
 - **Accepting a co-editing invite works in three-pane.** Clicking **Join** in

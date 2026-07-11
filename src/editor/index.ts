@@ -39,7 +39,7 @@ import {
   buildDeleteStructureTr,
   installIncomingSpeechSliceHandler,
 } from './speech-doc-send.js';
-import { promptForText, promptForRouteChoice, alertDialog } from './text-prompt.js';
+import { promptForText, promptForRouteChoice, alertDialog, confirmDialog } from './text-prompt.js';
 import { openDocMenu } from './doc-menu-ui.js';
 import { createReference } from './create-reference.js';
 import { showToast } from './toast.js';
@@ -7933,17 +7933,19 @@ async function handleModeSwitch(newValue: boolean): Promise<void> {
         ? ' Your co-editing session will close — reopen it from the Sessions list on the home screen (your unsynced changes are saved).'
         : ` Your ${liveSessions} co-editing sessions will close — reopen them from the Sessions list on the home screen (your unsynced changes are saved).`;
   }
-  // Route-style dialog, NOT window.confirm: Electron's native confirm on
-  // Windows/Linux never hands keyboard focus back to the renderer — the
-  // editor was untypeable until a reload (same field-bug class as the
-  // co-editing End dialog, 2026-07-03; audit find, 2026-07-10).
-  const confirmed = await promptForRouteChoice({
-    message: newValue
+  // In-DOM confirm (two equal buttons), NOT window.confirm: Electron's
+  // native confirm on Windows/Linux never hands keyboard focus back to the
+  // renderer — the editor was untypeable until a reload (field bug,
+  // 2026-07-03; audit find, 2026-07-10). And not the big route-choice cards
+  // either: those are for genuine multi-option decisions, not a yes/no
+  // (field feedback, 2026-07-11).
+  const confirmed = await confirmDialog(message, {
+    title: newValue
       ? 'Switch to three-pane workspace?'
       : 'Switch to one-document-per-window mode?',
-    choices: [{ value: 'switch', label: 'Switch', description: message }],
+    okLabel: 'Switch',
   });
-  if (confirmed !== 'switch') {
+  if (!confirmed) {
     // Revert. The `modeSwitchInFlight` guard prevents the
     // subscriber from re-running and looping.
     settings.set('multiDocWorkspace', BOOT_MULTI_DOC_WORKSPACE);

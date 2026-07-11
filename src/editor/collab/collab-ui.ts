@@ -19,7 +19,7 @@ import type { EditorView } from 'prosemirror-view';
 import { LoroUndoPlugin, loroSyncPluginKey, loroUndoPluginKey, undo as loroUndo, redo as loroRedo } from 'loro-prosemirror';
 import { settings } from '../settings.js';
 import { showToast } from '../toast.js';
-import { promptForText, promptForRouteChoice } from '../text-prompt.js';
+import { promptForText, promptForRouteChoice, confirmDialog } from '../text-prompt.js';
 import { markSyncOrigin } from '../sync-origin.js';
 import { readModePlugin } from '../read-mode-plugin.js';
 import {
@@ -594,17 +594,17 @@ async function startSessionFlowInner(
   // Confirm, naming the doc the session will be created for — removes any
   // ambiguity about which doc is being shared (multi-pane: the focused one).
   const startName = sessionDocTitle(ownerUid);
-  const startConfirm = await promptForRouteChoice({
-    message: `Start a co-editing session for ${startName ? `"${startName}"` : 'this document'}?`,
-    choices: [
-      {
-        value: 'start',
-        label: 'Start Session',
-        description: 'Anyone you share the code with can edit this document with you in real time.',
-      },
-    ],
-  });
-  if (startConfirm !== 'start') return;
+  // A plain yes/no — two equal buttons (confirmDialog), NOT the big
+  // route-choice cards, which are reserved for genuine multi-option
+  // decisions (field feedback, 2026-07-11).
+  const startConfirm = await confirmDialog(
+    'Anyone you share the code with can edit this document with you in real time.',
+    {
+      title: `Start a co-editing session for ${startName ? `"${startName}"` : 'this document'}?`,
+      okLabel: 'Start Session',
+    },
+  );
+  if (!startConfirm) return;
   await ensureBakedRelay();
   const client = relayClient();
   if (!client) {
@@ -1082,17 +1082,14 @@ export async function endSessionFlow(deps: CollabUiDeps): Promise<void> {
   // In-app overlay, NOT window.confirm: Electron's native confirm on
   // Windows/Linux never hands keyboard focus back to the renderer —
   // the editor was untypeable until a reload (field bug, 2026-07-03).
-  const choice = await promptForRouteChoice({
-    message: isHost ? 'End the session for everyone?' : 'Leave the session?',
-    choices: [
-      {
-        value: 'confirm',
-        label: isHost ? 'End Session' : 'Leave Session',
-        description: isHost ? 'Participants keep their current copy.' : 'Your copy stays as it is now.',
-      },
-    ],
-  });
-  if (choice !== 'confirm') return;
+  const choice = await confirmDialog(
+    isHost ? 'Participants keep their current copy.' : 'Your copy stays as it is now.',
+    {
+      title: isHost ? 'End the session for everyone?' : 'Leave the session?',
+      okLabel: isHost ? 'End Session' : 'Leave Session',
+    },
+  );
+  if (!choice) return;
   // A failed host End (relay unreachable) already toasted and left the
   // session live — don't repaint plugins or claim success.
   if (!(await endOrLeaveSession(sess))) return;

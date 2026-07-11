@@ -1,6 +1,6 @@
 /**
- * Minimal Anthropic Messages API client.
- *
+ * LLM client. Dispatches on the `aiProvider` setting between the
+ * Anthropic Messages API and OpenRouter (OpenAI-chat-compatible).
  * Browser-direct calls — the user's API key lives in local settings
  * and is sent on every request from the client. Documented as a
  * security tradeoff in PROJECT.md; users opt in by enabling AI
@@ -14,7 +14,7 @@ import { settings } from '../settings.js';
  *  block-array form: `[{ type: 'text', text }, { type: 'image', ... }]`.
  *  Block ordering matters — Anthropic recommends placing images
  *  before the text instruction in multimodal prompts. */
-export type AnthropicContentBlock =
+export type LlmContentBlock =
   | { type: 'text'; text: string }
   | {
       type: 'image';
@@ -39,12 +39,12 @@ export const VISION_MEDIA_TYPES: ReadonlySet<string> = new Set([
   'image/webp',
 ]);
 
-export interface AnthropicMessage {
+export interface LlmMessage {
   role: 'user' | 'assistant';
-  content: string | AnthropicContentBlock[];
+  content: string | LlmContentBlock[];
 }
 
-export interface AnthropicRequest {
+export interface LlmRequest {
   apiKey: string;
   /** Default `claude-sonnet-4-6`; callers can override. */
   model?: string;
@@ -55,10 +55,10 @@ export interface AnthropicRequest {
   temperature?: number;
   /** System prompt. Falls back to the explainer-flavored default. */
   system?: string;
-  messages: AnthropicMessage[];
+  messages: LlmMessage[];
 }
 
-export interface AnthropicReply {
+export interface LlmReply {
   text: string;
   /** The API's `stop_reason` — `'max_tokens'` means the output was
    *  truncated by the token limit (i.e. likely invalid/cut-off JSON). */
@@ -93,7 +93,7 @@ export function resolveAiModel(): string {
 /** Custom error so callers can branch on AI-specific failures
  *  (missing key, auth error, rate limit, retired model, generic network)
  *  without parsing string messages. */
-export class AnthropicError extends Error {
+export class LlmError extends Error {
   constructor(
     message: string,
     /** HTTP status when the call reached the server, else `null`. */
@@ -108,13 +108,13 @@ export class AnthropicError extends Error {
       | 'model',
   ) {
     super(message);
-    this.name = 'AnthropicError';
+    this.name = 'LlmError';
   }
 }
 
-export async function callAnthropic(req: AnthropicRequest): Promise<AnthropicReply> {
+export async function callLlm(req: LlmRequest): Promise<LlmReply> {
   if (!req.apiKey || !req.apiKey.trim()) {
-    throw new AnthropicError(
+    throw new LlmError(
       'Anthropic API key is not set — open Settings to add one.',
       null,
       'no-key',
@@ -145,7 +145,7 @@ export async function callAnthropic(req: AnthropicRequest): Promise<AnthropicRep
       body: JSON.stringify(body),
     });
   } catch (e) {
-    throw new AnthropicError(
+    throw new LlmError(
       `Network error contacting Anthropic: ${e instanceof Error ? e.message : String(e)}`,
       null,
       'network',
@@ -170,7 +170,7 @@ export async function callAnthropic(req: AnthropicRequest): Promise<AnthropicRep
       res.status === 404 ||
       (res.status >= 400 && res.status < 500 && /\bmodel\b/i.test(detail));
     if (looksLikeModelError) {
-      throw new AnthropicError(
+      throw new LlmError(
         `The AI model "${requestedModel}" was rejected by Anthropic — it may have been retired. ` +
           `Update CardMirror to the latest version, or, if you'd rather not update the whole app, ` +
           `set a newer model under Settings → Comments & AI → AI model.`,
@@ -178,9 +178,9 @@ export async function callAnthropic(req: AnthropicRequest): Promise<AnthropicRep
         'model',
       );
     }
-    const kind: AnthropicError['kind'] =
+    const kind: LlmError['kind'] =
       res.status === 401 ? 'auth' : res.status === 429 ? 'rate-limit' : 'server';
-    throw new AnthropicError(
+    throw new LlmError(
       `Anthropic API returned ${res.status}${detail ? `: ${detail}` : ''}`,
       res.status,
       kind,
@@ -191,7 +191,7 @@ export async function callAnthropic(req: AnthropicRequest): Promise<AnthropicRep
   try {
     json = await res.json();
   } catch (e) {
-    throw new AnthropicError(
+    throw new LlmError(
       `Failed to parse Anthropic response: ${e instanceof Error ? e.message : String(e)}`,
       res.status,
       'parse',
@@ -209,7 +209,7 @@ export async function callAnthropic(req: AnthropicRequest): Promise<AnthropicRep
     .map((c) => c.text ?? '')
     .join('');
   if (!text) {
-    throw new AnthropicError('Anthropic returned an empty response.', res.status, 'parse');
+    throw new LlmError('Anthropic returned an empty response.', res.status, 'parse');
   }
   const stopReason = (json as { stop_reason?: string })?.stop_reason;
   return { text, stopReason };

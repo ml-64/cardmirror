@@ -20,7 +20,7 @@
 
 import type { EditorView } from 'prosemirror-view';
 import { settings, condenseWarningCloseFor } from './settings.js';
-import { callAnthropic, AnthropicError, resolveAiModel } from './ai/anthropic.js';
+import { callLlm, LlmError, resolveAiModel } from './ai/llm.js';
 import { showToast } from './toast.js';
 
 /** Languages offered in the source / target pickers. ISO 639-1 codes —
@@ -217,7 +217,7 @@ async function translateAnthropic(
   if (!anthropicReady()) {
     throw new Error('Anthropic translation needs AI features — enable them under Comments & AI.');
   }
-  const reply = await callAnthropic({
+  const reply = await callLlm({
     apiKey: settings.get('anthropicApiKey').trim(),
     system: anthropicTranslatorPrompt(languageName(target)),
     maxTokens: ANTHROPIC_TRANSLATE_MAX_TOKENS,
@@ -373,7 +373,7 @@ export function runTranslate(view: EditorView): void {
         truncated ? { durationMs: 4000 } : undefined,
       );
     } catch (e) {
-      if (e instanceof AnthropicError) showToast(`Translate: ${e.message}`);
+      if (e instanceof LlmError) showToast(`Translate: ${e.message}`);
       else showToast(`Translate: ${e instanceof Error ? e.message : String(e)}`);
     }
   })();

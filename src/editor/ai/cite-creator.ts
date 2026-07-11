@@ -28,7 +28,7 @@ import { Selection, TextSelection } from 'prosemirror-state';
 import type { EditorState, Transaction } from 'prosemirror-state';
 import { schema } from '../../schema/index.js';
 import { settings } from '../settings.js';
-import { callAnthropic, AnthropicError } from './anthropic.js';
+import { callLlm, LlmError } from './llm.js';
 import { AiActivity } from './ai-activity.js';
 import { claimRegion } from './edit-coordinator.js';
 import { showToast } from '../toast.js';
@@ -399,7 +399,7 @@ export function runAiCreateCite(view: EditorView): void {
 
   void (async () => {
     try {
-      const reply = await callAnthropic({
+      const reply = await callLlm({
         apiKey,
         system: systemPrompt,
         messages: [{ role: 'user', content: raw }],
@@ -415,7 +415,7 @@ export function runAiCreateCite(view: EditorView): void {
       }
       applyCiteToSelection(view, region.from, region.to, parsed, (tr) => lease.apply(tr));
     } catch (e) {
-      if (e instanceof AnthropicError) {
+      if (e instanceof LlmError) {
         showToast(`Cite: ${e.message}`);
       } else {
         showToast(`Cite: ${e instanceof Error ? e.message : String(e)}`);

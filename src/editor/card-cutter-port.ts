@@ -7,7 +7,7 @@
  *
  * Responsibilities, all app-side:
  *  - hold whatever engine registered (registry),
- *  - inject an LlmCaller wrapping the app's browser-direct callAnthropic,
+ *  - inject an LlmCaller wrapping the app's browser-direct callLlm,
  *  - extract tag / cite / body text from the focused card,
  *  - translate the engine's returned mark spans into ONE ProseMirror
  *    transaction (underline / emphasis / highlight), with the highlight
@@ -24,8 +24,8 @@ import type { Node as PMNode } from 'prosemirror-model';
 import { schema } from '../schema/index.js';
 import { settings } from './settings.js';
 import { compileShrinkProtections, findProtectedRanges } from './ribbon-commands.js';
-import { callAnthropic } from './ai/anthropic.js';
-import { resolveAiModel } from './ai/anthropic.js';
+import { callLlm } from './ai/llm.js';
+import { resolveAiModel } from './ai/llm.js';
 import { showToast } from './toast.js';
 import { AiActivity } from './ai/ai-activity.js';
 import { claimRegion, type EditLease } from './ai/edit-coordinator.js';
@@ -215,7 +215,7 @@ export async function tryLoadCardCutterEngine(): Promise<boolean> {
 
 function makeLlm(): LlmCaller {
   return async (system, user, model) => {
-    const reply = await callAnthropic({
+    const reply = await callLlm({
       apiKey: settings.get('anthropicApiKey').trim(),
       model,
       system,

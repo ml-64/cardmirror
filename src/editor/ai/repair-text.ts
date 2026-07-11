@@ -22,7 +22,7 @@ import { Selection } from 'prosemirror-state';
 import type { EditorState, Transaction } from 'prosemirror-state';
 import type { Node as PMNode } from 'prosemirror-model';
 import { settings } from '../settings.js';
-import { callAnthropic, AnthropicError } from './anthropic.js';
+import { callLlm, LlmError } from './llm.js';
 import { showToast } from '../toast.js';
 import { AiActivity } from './ai-activity.js';
 import { claimRegion, type EditLease } from './edit-coordinator.js';
@@ -612,7 +612,7 @@ async function fetchFixes(
 ): Promise<{ fixesReturned: number; located: LocatedFix[]; skipped: number }> {
   const flat = flattenSelection(view.state.doc, from, to);
   if (!flat.text.trim()) return { fixesReturned: 0, located: [], skipped: 0 };
-  const reply = await callAnthropic({
+  const reply = await callLlm({
     apiKey,
     system: DEFAULT_REPAIR_PROMPT,
     messages: [{ role: 'user', content: flat.text }],
@@ -799,7 +799,7 @@ export function runRepairText(view: EditorView): void {
       // Mirror the failure to the console (forwarded to the dev log) —
       // the toast is transient and otherwise leaves no trace to debug.
       console.warn(`[repair] error: ${e instanceof Error ? e.message : String(e)}`);
-      if (e instanceof AnthropicError) showToast(`Repair: ${e.message}`);
+      if (e instanceof LlmError) showToast(`Repair: ${e.message}`);
       else showToast(`Repair: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       activity.stop();

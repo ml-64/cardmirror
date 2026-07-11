@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { resolveAiModel, DEFAULT_MODEL } from '../../src/editor/ai/anthropic.js';
+import { resolveAiModel, DEFAULT_MODEL } from '../../src/editor/ai/llm.js';
 import { settings } from '../../src/editor/settings.js';
 
 describe('resolveAiModel (custom model override)', () => {

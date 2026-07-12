@@ -10,7 +10,7 @@
 
 import type { EditorState } from 'prosemirror-state';
 import type { Node as PMNode } from 'prosemirror-model';
-import { VISION_MEDIA_TYPES, type AnthropicContentBlock } from './anthropic.js';
+import { VISION_MEDIA_TYPES, type LlmContentBlock } from './llm.js';
 
 /** Max images sent to the model per request, to bound vision-token cost
  *  on large selections. */
@@ -208,10 +208,10 @@ export function formatExplainPrompt(
 export function formatExplainFirstTurn(
   question: string,
   ctx: ExplainContext,
-): string | AnthropicContentBlock[] {
+): string | LlmContentBlock[] {
   const text = formatExplainPrompt(question, ctx);
   if (ctx.images.length === 0) return text;
-  const blocks: AnthropicContentBlock[] = ctx.images.map((img) => ({
+  const blocks: LlmContentBlock[] = ctx.images.map((img) => ({
     type: 'image',
     source: { type: 'base64', media_type: img.mediaType, data: img.data },
   }));

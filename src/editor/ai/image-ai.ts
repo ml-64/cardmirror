@@ -30,11 +30,12 @@ import {
 import { showToast } from '../toast.js';
 import { promptForChoice } from '../text-prompt.js';
 import {
-  AnthropicError,
-  callAnthropic,
+  LlmError,
+  callLlm,
   VISION_MEDIA_TYPES,
-  type AnthropicContentBlock,
-} from './anthropic.js';
+  type LlmContentBlock,
+  activeApiKey,
+} from './llm.js';
 import { AiActivity } from './ai-activity.js';
 import { claimRegion } from './edit-coordinator.js';
 
@@ -60,9 +61,9 @@ function preflight(): string | null {
     showToast('AI features are disabled — enable them in Settings.');
     return null;
   }
-  const apiKey = settings.get('anthropicApiKey').trim();
+  const apiKey = activeApiKey();
   if (!apiKey) {
-    showToast('Set an Anthropic API key in Settings to use AI features.');
+    showToast('Set an API key in Settings to use AI features.');
     return null;
   }
   return apiKey;
@@ -299,14 +300,14 @@ function runAiAltTextRequest(
 
   void (async () => {
     try {
-      const userContent: AnthropicContentBlock[] = [];
+      const userContent: LlmContentBlock[] = [];
       if (contextText) userContent.push({ type: 'text', text: contextText });
       userContent.push({
         type: 'image',
         source: { type: 'base64', media_type: contentType, data },
       });
       userContent.push({ type: 'text', text: 'Write the alt text for this image.' });
-      const reply = await callAnthropic({
+      const reply = await callLlm({
         apiKey,
         system: ALT_TEXT_SYSTEM_PROMPT,
         messages: [{ role: 'user', content: userContent }],
@@ -330,7 +331,7 @@ function runAiAltTextRequest(
       }
       applyAltTextResult(view, region.from, altText, { writeAttribute: true }, (tr) => lease.apply(tr));
     } catch (err) {
-      if (err instanceof AnthropicError) {
+      if (err instanceof LlmError) {
         showToast(`Alt text: ${err.message}`);
       } else {
         showToast(`Alt text: ${err instanceof Error ? err.message : String(err)}`);
@@ -507,7 +508,7 @@ export function runGenerateTable(
 
   void (async () => {
     try {
-      const reply = await callAnthropic({
+      const reply = await callLlm({
         apiKey,
         system: TABLE_SYSTEM_PROMPT,
         // Big headroom — a large table is a lot of JSON, and a low
@@ -538,7 +539,7 @@ export function runGenerateTable(
         // Hand the broken output to a second pass to reformat into the
         // schema — a text-only call (no image), purely a formatting fix.
         // The "Thinking…" tooltip stays up across both calls.
-        const repair = await callAnthropic({
+        const repair = await callLlm({
           apiKey,
           system: TABLE_REPAIR_SYSTEM_PROMPT,
           maxTokens: 16384,
@@ -576,7 +577,7 @@ export function runGenerateTable(
       const tr = view.state.tr.insert(target.insertPos, tableNode);
       lease.apply(tr.scrollIntoView());
     } catch (err) {
-      if (err instanceof AnthropicError) {
+      if (err instanceof LlmError) {
         showToast(`Table: ${err.message}`);
       } else {
         showToast(`Table: ${err instanceof Error ? err.message : String(err)}`);

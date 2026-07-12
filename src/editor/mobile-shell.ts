@@ -38,6 +38,7 @@ import {
   type UnitRange,
 } from './structural-move.js';
 import { preciseScrollIntoView } from './precise-scroll.js';
+import { aiConfigured } from './ai/llm.js';
 import { showToast } from './toast.js';
 
 const ZOOM_MIN = ZOOM_MIN_PCT;
@@ -525,7 +526,7 @@ function buildRepairSheet(): HTMLElement {
 }
 
 function aiReady(): boolean {
-  return settings.get('aiFeaturesEnabled') && settings.get('anthropicApiKey').trim() !== '';
+  return aiConfigured();
 }
 
 function showRepairSheet(unit: UnitRange): void {
@@ -542,7 +543,7 @@ function showRepairSheet(unit: UnitRange): void {
   if (!aiReady()) {
     const note = document.createElement('div');
     note.className = 'pmd-mobile-movesheet-label';
-    note.textContent = 'AI repair needs AI features enabled and an Anthropic API key.';
+    note.textContent = 'AI repair needs AI features enabled and an API key.';
     body.appendChild(note);
     const open = document.createElement('button');
     open.type = 'button';

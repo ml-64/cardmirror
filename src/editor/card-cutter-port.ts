@@ -7,7 +7,7 @@
  *
  * Responsibilities, all app-side:
  *  - hold whatever engine registered (registry),
- *  - inject an LlmCaller wrapping the app's browser-direct callAnthropic,
+ *  - inject an LlmCaller wrapping the app's browser-direct callLlm,
  *  - extract tag / cite / body text from the focused card,
  *  - translate the engine's returned mark spans into ONE ProseMirror
  *    transaction (underline / emphasis / highlight), with the highlight
@@ -24,8 +24,8 @@ import type { Node as PMNode } from 'prosemirror-model';
 import { schema } from '../schema/index.js';
 import { settings } from './settings.js';
 import { compileShrinkProtections, findProtectedRanges } from './ribbon-commands.js';
-import { callAnthropic } from './ai/anthropic.js';
-import { resolveAiModel } from './ai/anthropic.js';
+import { callLlm, activeApiKey } from './ai/llm.js';
+import { resolveAiModel } from './ai/llm.js';
 import { showToast } from './toast.js';
 import { AiActivity } from './ai/ai-activity.js';
 import { claimRegion, type EditLease } from './ai/edit-coordinator.js';
@@ -213,10 +213,14 @@ export async function tryLoadCardCutterEngine(): Promise<boolean> {
 
 // ─── LLM injection ────────────────────────────────────────────────
 
+// ponytail: card-cutter forwards bare Anthropic model ids (claude-…) from its
+// engine, so it is effectively Anthropic-only under OpenRouter (OpenRouter needs
+// the "anthropic/…" prefix). Make model selection provider-aware here if the
+// card cutter needs OpenRouter support.
 function makeLlm(): LlmCaller {
   return async (system, user, model) => {
-    const reply = await callAnthropic({
-      apiKey: settings.get('anthropicApiKey').trim(),
+    const reply = await callLlm({
+      apiKey: activeApiKey(),
       model,
       system,
       maxTokens: 8000,
@@ -492,8 +496,8 @@ export async function cutFocusedCard(
     }
   }
   const api = engine!;
-  if (!settings.get('anthropicApiKey').trim()) {
-    showToast('Set an Anthropic API key in Settings to use the card cutter.');
+  if (!activeApiKey()) {
+    showToast('Set an API key in Settings to use the card cutter.');
     return null;
   }
   const focused = focusedPlainCard(view);
@@ -741,8 +745,8 @@ export async function refineHighlightFocusedCard(
     showToast('Card-cutter engine not loaded.');
     return;
   }
-  if (!settings.get('anthropicApiKey').trim()) {
-    showToast('Set an Anthropic API key in Settings to use the card cutter.');
+  if (!activeApiKey()) {
+    showToast('Set an API key in Settings to use the card cutter.');
     return;
   }
   const feedback = inv.feedback?.trim() || undefined;
@@ -848,8 +852,8 @@ export async function addHighlightFocusedCard(view: EditorView): Promise<void> {
     showToast('Card-cutter engine not loaded.');
     return;
   }
-  if (!settings.get('anthropicApiKey').trim()) {
-    showToast('Set an Anthropic API key in Settings to use the card cutter.');
+  if (!activeApiKey()) {
+    showToast('Set an API key in Settings to use the card cutter.');
     return;
   }
   const focused = focusedPlainCard(view);

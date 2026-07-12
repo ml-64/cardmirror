@@ -20,7 +20,7 @@ import type { EditorView } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
 import { schema } from '../schema/index.js';
 import { settings } from './settings.js';
-import { callAnthropic, AnthropicError, type AnthropicMessage } from './ai/anthropic.js';
+import { callLlm, LlmError, type LlmMessage, activeApiKey } from './ai/llm.js';
 import {
   buildExplainContext,
   formatExplainFirstTurn,
@@ -1379,9 +1379,9 @@ export class CommentsColumn {
       showToast('AI features are disabled — enable them in Settings.');
       return;
     }
-    const apiKey = settings.get('anthropicApiKey').trim();
+    const apiKey = activeApiKey();
     if (!apiKey) {
-      showToast('Set an Anthropic API key in Settings to use AI features.');
+      showToast('Set an API key in Settings to use AI features.');
       return;
     }
     const item = kind === 'ai' ? learnStore.getAiThread(id) : learnStore.getNote(id);
@@ -1396,7 +1396,7 @@ export class CommentsColumn {
     const promptCtx = ctx;
     this.aiContextByThread.set(id, promptCtx);
 
-    const messages = item.comments.flatMap((c, i): AnthropicMessage[] => {
+    const messages = item.comments.flatMap((c, i): LlmMessage[] => {
       if (!c.text.trim()) return [];
       if (c.ai) return [{ role: 'assistant', content: c.text }];
       const isFirstUserTurn = !item.comments.slice(0, i).some((p) => !p.ai && p.text.trim());
@@ -1415,7 +1415,7 @@ export class CommentsColumn {
 
     void (async () => {
       try {
-        const reply = await callAnthropic({ apiKey, system: EXPLAIN_SYSTEM_PROMPT, messages });
+        const reply = await callLlm({ apiKey, system: EXPLAIN_SYSTEM_PROMPT, messages });
         // Drop the in-flight flag BEFORE appending so the store-driven
         // re-render shows the reply without the Thinking… placeholder.
         this.aiInFlight.delete(id);
@@ -1429,7 +1429,7 @@ export class CommentsColumn {
         if (kind === 'ai') learnStore.appendAiComment(id, aiTurn);
         else learnStore.appendNoteComment(id, aiTurn);
       } catch (e) {
-        if (e instanceof AnthropicError) showToast(`AI: ${e.message}`);
+        if (e instanceof LlmError) showToast(`AI: ${e.message}`);
         else showToast(`AI error: ${e instanceof Error ? e.message : String(e)}`);
       } finally {
         this.aiInFlight.delete(id);
@@ -1491,9 +1491,9 @@ export class CommentsColumn {
       showToast('AI features are disabled — enable them in Settings.');
       return;
     }
-    const apiKey = settings.get('anthropicApiKey').trim();
+    const apiKey = activeApiKey();
     if (!apiKey) {
-      showToast('Set an Anthropic API key in Settings to use AI features.');
+      showToast('Set an API key in Settings to use AI features.');
       return;
     }
     const thread = learnStore.getAiThread(threadId);
@@ -1517,7 +1517,7 @@ export class CommentsColumn {
     try {
       card = await requestFlashcard(apiKey, ctx, turns);
     } catch (e) {
-      if (e instanceof AnthropicError) showToast(`AI: ${e.message}`);
+      if (e instanceof LlmError) showToast(`AI: ${e.message}`);
       else showToast(`AI error: ${e instanceof Error ? e.message : String(e)}`);
       btn.disabled = false;
       btn.textContent = 'Convert to Flashcard';
@@ -2226,9 +2226,9 @@ export class CommentsColumn {
       showToast('AI features are disabled — enable them in Settings.');
       return;
     }
-    const apiKey = settings.get('anthropicApiKey').trim();
+    const apiKey = activeApiKey();
     if (!apiKey) {
-      showToast('Set an Anthropic API key in Settings to use AI features.');
+      showToast('Set an API key in Settings to use AI features.');
       return;
     }
     const thread = getCommentsState(view.state).threads.get(threadId);
@@ -2250,7 +2250,7 @@ export class CommentsColumn {
     // the formatted prompt with the surrounding context; later
     // turns are plain. Skip empty bodies defensively (e.g. an
     // empty-root thread that was opened then closed).
-    const messages = thread.comments.flatMap((c, i): AnthropicMessage[] => {
+    const messages = thread.comments.flatMap((c, i): LlmMessage[] => {
       if (!c.text.trim()) return [];
       if (isAiComment(c)) {
         return [{ role: 'assistant', content: c.text }];
@@ -2291,7 +2291,7 @@ export class CommentsColumn {
 
     void (async () => {
       try {
-        const reply = await callAnthropic({
+        const reply = await callLlm({
           apiKey,
           system: EXPLAIN_SYSTEM_PROMPT,
           messages,
@@ -2314,7 +2314,7 @@ export class CommentsColumn {
         if (!getCommentsState(v2.state).threads.has(threadId)) return;
         v2.dispatch(v2.state.tr.setMeta(commentsKey, addReplyMeta(threadId, aiComment)));
       } catch (e) {
-        if (e instanceof AnthropicError) {
+        if (e instanceof LlmError) {
           showToast(`AI: ${e.message}`);
         } else {
           showToast(`AI error: ${e instanceof Error ? e.message : String(e)}`);

@@ -19,6 +19,7 @@ import { confirmDialog } from './text-prompt.js';
 import {
   settings,
   SETTING_METADATA,
+  evalDependsOn,
   type SettingMeta,
   type Settings,
   type SettingsCategory,
@@ -132,7 +133,7 @@ function buildRow(meta: SettingMeta): HTMLElement {
   // dependsOn greying, live (e.g. API-key row follows the AI toggle).
   if (meta.dependsOn) {
     const sync = (): void => {
-      row.classList.toggle('pmd-msettings-disabled', !settings.get(meta.dependsOn!));
+      row.classList.toggle('pmd-msettings-disabled', !evalDependsOn(meta.dependsOn));
     };
     sync();
     pageSubscribe(sync);
@@ -155,6 +156,11 @@ function buildEditor(meta: SettingMeta): HTMLElement {
       return buildSegment(meta.key, ['system', 'on', 'off']);
     case 'saveFormat':
       return buildSegment(meta.key, ['cmir', 'docx'], { cmir: '.cmir', docx: '.docx' });
+    case 'aiProvider':
+      return buildSegment(meta.key, ['anthropic', 'openrouter'], {
+        anthropic: 'Anthropic',
+        openrouter: 'OpenRouter',
+      });
     case 'mobileLayout':
       return buildMobileLayoutSegment();
     case 'displaySizes':

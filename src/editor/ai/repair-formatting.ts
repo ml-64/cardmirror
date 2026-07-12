@@ -30,7 +30,7 @@ import type { EditorState, Transaction } from 'prosemirror-state';
 import type { Node as PMNode } from 'prosemirror-model';
 import { schema } from '../../schema/index.js';
 import { settings } from '../settings.js';
-import { callAnthropic, AnthropicError } from './anthropic.js';
+import { callLlm, LlmError, activeApiKey } from './llm.js';
 import { salvageJson, extractJsonObjects } from './repair-text.js';
 import { showToast } from '../toast.js';
 import { AiActivity } from './ai-activity.js';
@@ -575,9 +575,9 @@ export function runRepairFormatting(view: EditorView): void {
     showToast('AI features are disabled — enable them in Settings.');
     return;
   }
-  const apiKey = settings.get('anthropicApiKey').trim();
+  const apiKey = activeApiKey();
   if (!apiKey) {
-    showToast('Set an Anthropic API key in Settings to use AI features.');
+    showToast('Set an API key in Settings to use AI features.');
     return;
   }
   const sel = view.state.selection;
@@ -620,7 +620,7 @@ export function runRepairFormatting(view: EditorView): void {
               s.samples.map((x) => JSON.stringify(x)).join(', '),
           );
         }
-        const reply = await callAnthropic({
+        const reply = await callLlm({
           apiKey,
           system: DEFAULT_FORMAT_REPAIR_PROMPT,
           messages: [{ role: 'user', content: buildCardRequest(analysis) }],
@@ -684,7 +684,7 @@ export function runRepairFormatting(view: EditorView): void {
       );
     } catch (e) {
       console.warn(`[repair-fmt] error: ${e instanceof Error ? e.message : String(e)}`);
-      if (e instanceof AnthropicError) showToast(`Repair formatting: ${e.message}`);
+      if (e instanceof LlmError) showToast(`Repair formatting: ${e.message}`);
       else showToast(`Repair formatting: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       activity.stop();

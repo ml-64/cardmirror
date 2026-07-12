@@ -21,6 +21,8 @@ import {
   type SettingMeta,
   type SettingsCategory,
   type Settings,
+  type SettingCondition,
+  evalDependsOn,
   type ReaderConfig,
   type DisplaySizes,
   DEFAULT_PARAGRAPH_SPACING,
@@ -209,10 +211,13 @@ class SettingsModal {
    *  when it's the topmost (a dialog opened from here — e.g. the AI
    *  cite-prompt editor — handles its own Escape first). */
   private overlayToken: symbol | null = null;
-  /** Rows whose enabled state is gated on another boolean setting,
-   *  keyed by the setting that drives them. Refilled each open()
-   *  via renderEntry bookkeeping; consumed by `refreshDependents`. */
-  private dependentRows: Map<keyof Settings, HTMLElement[]> = new Map();
+  /** Rows whose enabled state is gated on a `dependsOn` condition.
+   *  Refilled each open() via renderEntry bookkeeping; consumed by
+   *  `refreshDependents`. */
+  private dependentRows: Array<{
+    row: HTMLElement;
+    dependsOn: SettingCondition | readonly SettingCondition[];
+  }> = [];
   /** Unsubscribe handle returned by `settings.subscribe` while the
    *  dialog is open. Cleared on close. */
   private settingsUnsubscribe: (() => void) | null = null;
@@ -433,7 +438,7 @@ class SettingsModal {
     // Panels — one per category. Only the active panel is visible
     // (set via `hidden`); we build all of them up-front so the
     // refreshDependents pass can find rows under inactive tabs too.
-    this.dependentRows.clear();
+    this.dependentRows = [];
     const panels: Partial<Record<SettingsCategory, HTMLDivElement>> = {};
     for (const { id } of visibleCategoryTabs()) {
       const panel = document.createElement('div');
@@ -462,9 +467,7 @@ class SettingsModal {
         lastSection = meta.section;
         const row = this.renderEntry(meta);
         if (meta.dependsOn) {
-          const bucket = this.dependentRows.get(meta.dependsOn) ?? [];
-          bucket.push(row);
-          this.dependentRows.set(meta.dependsOn, bucket);
+          this.dependentRows.push({ row, dependsOn: meta.dependsOn });
         }
         panel.appendChild(row);
       }
@@ -605,15 +608,13 @@ class SettingsModal {
    *  disables every input / button inside those rows so the controls
    *  don't fire events while the row reads as "off". */
   private refreshDependents(): void {
-    for (const [parentKey, rows] of this.dependentRows) {
-      const enabled = Boolean(settings.get(parentKey));
-      for (const row of rows) {
-        row.classList.toggle('pmd-settings-row-disabled', !enabled);
-        const controls = row.querySelectorAll<HTMLInputElement | HTMLButtonElement | HTMLTextAreaElement | HTMLSelectElement>(
-          'input, button, textarea, select',
-        );
-        for (const c of controls) c.disabled = !enabled;
-      }
+    for (const { row, dependsOn } of this.dependentRows) {
+      const enabled = evalDependsOn(dependsOn);
+      row.classList.toggle('pmd-settings-row-disabled', !enabled);
+      const controls = row.querySelectorAll<
+        HTMLInputElement | HTMLButtonElement | HTMLTextAreaElement | HTMLSelectElement
+      >('input, button, textarea, select');
+      for (const c of controls) c.disabled = !enabled;
     }
   }
 
@@ -757,9 +758,10 @@ class SettingsModal {
       row.appendChild(btn);
       return row;
     } else if (meta.kind === 'number') {
-      row.appendChild(text);
-      row.appendChild(buildNumberEditor(meta.key as keyof Settings));
-      return row;
+      // Inline: the numeric input sits on the right of the label, like
+      // toggles / text inputs. Falls through to `row.appendChild(label)`
+      // so the description stays width-limited inside the flex row.
+      label.appendChild(buildNumberEditor(meta.key as keyof Settings, meta.min));
     } else if (meta.kind === 'defaultZoomPct') {
       row.appendChild(text);
       row.appendChild(buildDefaultZoomEditor());
@@ -791,6 +793,10 @@ class SettingsModal {
     } else if (meta.kind === 'saveFormat') {
       row.appendChild(text);
       row.appendChild(buildSaveFormatEditor());
+      return row;
+    } else if (meta.kind === 'aiProvider') {
+      row.appendChild(text);
+      row.appendChild(buildAiProviderEditor());
       return row;
     } else if (meta.kind === 'formattingGapClass') {
       row.appendChild(text);
@@ -3310,15 +3316,15 @@ function buildDefaultZoomEditor(): HTMLElement {
   return input;
 }
 
-function buildNumberEditor(key: keyof Settings): HTMLElement {
+function buildNumberEditor(key: keyof Settings, min = 0): HTMLElement {
   const input = document.createElement('input');
   input.type = 'number';
   input.className = 'pmd-line-height-input';
-  input.min = '0';
+  input.min = String(min);
   input.step = '1';
   input.value = String(settings.get(key));
   input.addEventListener('change', () => {
-    const v = Math.max(0, Math.round(parseFloat(input.value)));
+    const v = Math.max(min, Math.round(parseFloat(input.value)));
     if (!Number.isFinite(v)) {
       input.value = String(settings.get(key));
       return;
@@ -4694,6 +4700,35 @@ function buildSaveFormatEditor(): HTMLElement {
     labelText.textContent = o.label;
     row.appendChild(labelText);
     wrap.appendChild(row);
+  }
+  return wrap;
+}
+
+function buildAiProviderEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-multi-doc-layout-mode-editor';
+  const options: { value: 'anthropic' | 'openrouter'; label: string }[] = [
+    { value: 'anthropic', label: 'Anthropic (api.anthropic.com)' },
+    { value: 'openrouter', label: 'OpenRouter (openrouter.ai, OpenAI-compatible)' },
+  ];
+  const groupName = `pmd-ai-provider-${Math.random().toString(36).slice(2, 8)}`;
+  for (const o of options) {
+    const optRow = document.createElement('label');
+    optRow.className = 'pmd-multi-doc-layout-mode-row';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = groupName;
+    input.value = o.value;
+    input.checked = o.value === settings.get('aiProvider');
+    input.addEventListener('change', () => {
+      if (input.checked) settings.set('aiProvider', o.value);
+    });
+    optRow.appendChild(input);
+    const labelText = document.createElement('span');
+    labelText.className = 'pmd-multi-doc-layout-mode-row-label';
+    labelText.textContent = o.label;
+    optRow.appendChild(labelText);
+    wrap.appendChild(optRow);
   }
   return wrap;
 }

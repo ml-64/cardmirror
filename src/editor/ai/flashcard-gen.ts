@@ -23,7 +23,7 @@
  *     concise; Q&A over cloze by default).
  */
 
-import { callAnthropic, AnthropicError } from './anthropic.js';
+import { callLlm, LlmError } from './llm.js';
 import type { ExplainContext } from './explain-context.js';
 import type { NewCardDef } from '../learn-create-ui.js';
 
@@ -162,21 +162,21 @@ export function parseFlashcardReply(text: string): NewCardDef | null {
   return { type, front, back };
 }
 
-/** Request one flashcard for an AI thread. Throws `AnthropicError` on a
+/** Request one flashcard for an AI thread. Throws `LlmError` on a
  *  failed call or an unparseable reply. */
 export async function requestFlashcard(
   apiKey: string,
   ctx: ExplainContext,
   turns: FlashcardTurn[],
 ): Promise<NewCardDef> {
-  const reply = await callAnthropic({
+  const reply = await callLlm({
     apiKey,
     system: FLASHCARD_SYSTEM_PROMPT,
     messages: [{ role: 'user', content: formatFlashcardPrompt(ctx, turns) }],
   });
   const card = parseFlashcardReply(reply.text);
   if (!card) {
-    throw new AnthropicError("Couldn't read a flashcard from the AI's reply.", null, 'parse');
+    throw new LlmError("Couldn't read a flashcard from the AI's reply.", null, 'parse');
   }
   return card;
 }

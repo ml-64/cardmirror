@@ -69,6 +69,7 @@ const TRANSIENT_SETTING_KEYS = new Set<string>([
  *  preserved (not overwritten) on import. */
 const SECRET_SETTING_KEYS = new Set<string>([
   'anthropicApiKey',
+  'openrouterApiKey',
   'googleTranslateApiKey',
   'myMemoryEmail',
 ]);
@@ -1106,6 +1107,23 @@ export interface Settings {
    *  well-formed id is sent as-is. Lets a user move to a newer model
    *  without updating the whole app when the default is retired. */
   aiModelOverride: string;
+  /** Which inference provider the AI features talk to. `'anthropic'`
+   *  uses the Anthropic Messages API + `anthropicApiKey`; `'openrouter'`
+   *  uses OpenRouter (OpenAI-chat-compatible) + `openrouterApiKey` /
+   *  `openrouterModel`. */
+  aiProvider: 'anthropic' | 'openrouter';
+  /** OpenRouter API key. Used only when `aiProvider === 'openrouter'`.
+   *  Stored locally; sent only to openrouter.ai. */
+  openrouterApiKey: string;
+  /** OpenRouter model id (e.g. `anthropic/claude-sonnet-4.6`). Required
+   *  when OpenRouter is selected; there is no built-in default. */
+  openrouterModel: string;
+  /** Max output tokens for AI calls that don't set their own ceiling
+   *  (cite, explain, flashcards, image alt text). Applies to both
+   *  providers. Reasoning models count hidden thinking tokens against
+   *  this budget, so a low value can leave no room for the actual reply
+   *  — hence a 1024 floor and a recommendation to go higher. */
+  aiMaxTokens: number;
   /** Master switch for AI features (the explainer comment shortcut,
    *  @AI mentions inside comments, etc.). When false, no UI for
    *  AI shows up and no API calls happen even if a key is set. */
@@ -1520,6 +1538,10 @@ const DEFAULTS: Settings = {
   commentsVisible: false,
   anthropicApiKey: '',
   aiModelOverride: '',
+  aiProvider: 'anthropic',
+  openrouterApiKey: '',
+  openrouterModel: '',
+  aiMaxTokens: 4096,
   aiFeaturesEnabled: false,
   clodEnabled: false,
   clodActivitiesByTime: { morning: [], day: [], evening: [], night: [] },
@@ -1589,6 +1611,23 @@ export type SettingsCategory =
   | 'shortcuts'
   | 'comments-ai'
   | 'pairing';
+
+export type SettingCondition =
+  | keyof Settings
+  | { key: keyof Settings; equals: unknown };
+
+/** Evaluate a row's `dependsOn` against current settings. Bare key →
+ *  truthy check; object → equality; array → conjunction. Undefined → true. */
+export function evalDependsOn(
+  dependsOn: SettingCondition | readonly SettingCondition[] | undefined,
+  get: (key: keyof Settings) => unknown = (k) => settings.get(k),
+): boolean {
+  if (dependsOn === undefined) return true;
+  const conds = Array.isArray(dependsOn) ? dependsOn : [dependsOn as SettingCondition];
+  return conds.every((c) =>
+    typeof c === 'object' ? get(c.key) === c.equals : Boolean(get(c)),
+  );
+}
 
 /**
  * Human-readable metadata for each setting, used by the settings UI.
@@ -1674,6 +1713,7 @@ export interface SettingMeta {
     | 'clod'
     | 'clodCustomize'
     | 'aiCitePrompt'
+    | 'aiProvider'
     | 'translationConfig'
     | 'multiDocLayoutMode'
     | 'mobileLayout'
@@ -1690,11 +1730,11 @@ export interface SettingMeta {
     | 'pairingReceiveFlash';
   /** Which tab this setting lives under in the settings dialog. */
   category: SettingsCategory;
-  /** When set, this row is greyed out and its controls disabled
-   *  unless the named boolean setting evaluates to true. Used for
-   *  e.g. greying out the multi-doc layout picker when multi-doc is
-   *  off, or AI-key rows when AI features are disabled. */
-  dependsOn?: keyof Settings;
+  /** When set, this row is greyed out and its controls disabled unless
+   *  its condition holds. A bare key means "that boolean setting is
+   *  truthy"; an object means "that setting equals a value"; an array
+   *  means "all of these hold". */
+  dependsOn?: SettingCondition | readonly SettingCondition[];
   /** When true, this setting is only relevant on Electron-style
    *  hosts (real file paths, native dialogs). The settings UI
    *  hides the row entirely on the web edition. */
@@ -1718,6 +1758,9 @@ export interface SettingMeta {
   /** When set, the row only renders while this boolean setting is on.
    *  Used to hide the console-gated card-cutter rows until enabled. */
   revealWhen?: keyof Settings;
+  /** Floor for `kind: 'number'` editors — the input's `min` and the
+   *  clamp applied on change. Defaults to 0 when unset. */
+  min?: number;
   /** Extra search terms for the command palette. The label often
    *  uses one name for a thing the user might search by another
    *  ("Theme" vs "dark mode", "Line spacing" vs "line height"); these
@@ -2895,20 +2938,32 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'aiFeaturesEnabled',
     label: 'Enable AI features',
     description:
-      'Master switch for AI-powered comment features (in-comment "Explain" prompts, @AI mentions). Requires an Anthropic API key below.',
+      'Master switch for AI-powered comment features (in-comment "Explain" prompts, @AI mentions). Requires selecting a provider and pasting its API key below.',
     kind: 'toggle',
     category: 'comments-ai',
     mobile: true,
   },
   {
-    key: 'anthropicApiKey',
-    label: 'Anthropic API key',
+    key: 'aiProvider',
+    label: 'AI provider',
     description:
-      'Used only when AI features are enabled. Stored locally in browser settings; sent only to api.anthropic.com.',
-    kind: 'password',
+      'Which inference service the AI features use. Anthropic talks to the ' +
+      'Anthropic API; OpenRouter talks to openrouter.ai (OpenAI-compatible). ' +
+      'Each provider has its own key below.',
+    kind: 'aiProvider',
     category: 'comments-ai',
     mobile: true,
     dependsOn: 'aiFeaturesEnabled',
+    aliases: ['openrouter', 'provider', 'model provider'],
+  },
+  {
+    key: 'anthropicApiKey',
+    label: 'Anthropic API key',
+    description: 'Used when AI features are enabled and the provider is Anthropic.',
+    kind: 'password',
+    category: 'comments-ai',
+    mobile: true,
+    dependsOn: ['aiFeaturesEnabled', { key: 'aiProvider', equals: 'anthropic' }],
   },
   {
     key: 'aiModelOverride',
@@ -2918,8 +2973,48 @@ export const SETTING_METADATA: SettingMeta[] = [
     kind: 'text',
     category: 'comments-ai',
     mobile: true,
-    dependsOn: 'aiFeaturesEnabled',
+    dependsOn: ['aiFeaturesEnabled', { key: 'aiProvider', equals: 'anthropic' }],
     aliases: ['model', 'claude model', 'model override', 'opus', 'sonnet', 'haiku'],
+  },
+  {
+    key: 'openrouterApiKey',
+    label: 'OpenRouter API key',
+    description:
+      'Used when the provider is OpenRouter. Stored locally in browser ' +
+      'settings; sent only to openrouter.ai.',
+    kind: 'password',
+    category: 'comments-ai',
+    mobile: true,
+    dependsOn: ['aiFeaturesEnabled', { key: 'aiProvider', equals: 'openrouter' }],
+  },
+  {
+    key: 'openrouterModel',
+    label: 'OpenRouter model',
+    description:
+      'Required when the provider is OpenRouter. The model id, e.g. ' +
+      'anthropic/claude-sonnet-4.6 or openai/gpt-4o. No default - AI features ' +
+      'will not run until this is set.',
+    kind: 'text',
+    category: 'comments-ai',
+    mobile: true,
+    dependsOn: ['aiFeaturesEnabled', { key: 'aiProvider', equals: 'openrouter' }],
+    aliases: ['openrouter model', 'model'],
+  },
+  {
+    key: 'aiMaxTokens',
+    label: 'Max output tokens',
+    description:
+      'Token budget for AI features that do not set their own (cite, explain, ' +
+      'flashcards, image alt text). Applies to both providers. Reasoning models ' +
+      'spend hidden thinking tokens from this budget, so we recommend higher ' +
+      'values (e.g. 4096-8192) - too low and the model can run out before it ' +
+      'writes the reply. Minimum 1024.',
+    kind: 'number',
+    min: 1024,
+    category: 'comments-ai',
+    mobile: true,
+    dependsOn: 'aiFeaturesEnabled',
+    aliases: ['max tokens', 'output tokens', 'token budget', 'reasoning', 'thinking'],
   },
   {
     key: 'clodEnabled',
@@ -3182,7 +3277,7 @@ function isSettingActionable(m: SettingMeta, env: ToggleEnv): boolean {
     (!m.windowsOnly || env.isWindows) &&
     (!m.webOnly || env.hostKind === 'browser') &&
     (!m.revealWhen || env.get(m.revealWhen) === true) &&
-    (!m.dependsOn || !!env.get(m.dependsOn))
+    evalDependsOn(m.dependsOn, env.get)
   );
 }
 
@@ -3861,6 +3956,14 @@ function sanitize(s: Settings): Settings {
         ? s.anthropicApiKey
         : DEFAULTS.anthropicApiKey,
     aiModelOverride: typeof s.aiModelOverride === 'string' ? s.aiModelOverride.trim() : '',
+    aiProvider: s.aiProvider === 'openrouter' ? 'openrouter' : 'anthropic',
+    openrouterApiKey:
+      typeof s.openrouterApiKey === 'string' ? s.openrouterApiKey : DEFAULTS.openrouterApiKey,
+    openrouterModel: typeof s.openrouterModel === 'string' ? s.openrouterModel.trim() : '',
+    aiMaxTokens:
+      typeof s.aiMaxTokens === 'number' && Number.isFinite(s.aiMaxTokens)
+        ? Math.max(1024, Math.round(s.aiMaxTokens))
+        : DEFAULTS.aiMaxTokens,
     aiFeaturesEnabled: !!s.aiFeaturesEnabled,
     clodEnabled: !!s.clodEnabled,
     clodActivitiesByTime: sanitizeClodActivitiesByTime(s.clodActivitiesByTime),

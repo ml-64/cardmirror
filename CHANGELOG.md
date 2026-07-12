@@ -5,6 +5,24 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## Unreleased
+
+### Fixed
+
+- **Renamed or moved folders no longer strand your document.** If a file's
+  folder is renamed, moved, or deleted while the document is open (for
+  example by a cloud-sync change on a shared Dropbox), saving used to fail
+  with a raw "ENOENT" error and closing the document became impossible.
+  Save now explains what happened and offers **Save As…** so your work has
+  somewhere to go — including when the save was triggered from the
+  close-document prompt.
+
+- **Autosave failures are no longer silent.** When an autosave can't write
+  (stale path, permissions, full disk), CardMirror now shows a toast the
+  first time it happens, and the autosave button turns red with a solid
+  outline until a save succeeds — so "I thought it was saved" can't happen
+  quietly anymore. Hover the button for the reason.
+
 ## 0.1.0-beta.12 — 2026-07-10
 
 Co-editing bug-fix release, focused on the three-pane workspace. (Co-editing

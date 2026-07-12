@@ -85,6 +85,8 @@ import {
   resolveCoEditedClose,
   runSaveFlow,
   runSaveAsFlow,
+  reportAutosaveFailure,
+  reportAutosaveSuccess,
   refreshWindowTitle,
   commentsColumn,
   getCommentsColumnEl,
@@ -219,6 +221,7 @@ async function runAutosaveForRecord(record: DocRecord): Promise<void> {
     });
     await host.saveExisting(record.handle, bytes);
     record.dirty = false;
+    reportAutosaveSuccess();
     // Successful save → drop the journal. Mirrors the single-doc
     // post-save journal cleanup so a re-crash doesn't surface a
     // recovery offer for a doc that's already on disk.
@@ -228,7 +231,7 @@ async function runAutosaveForRecord(record: DocRecord): Promise<void> {
       /* best-effort */
     }
   } catch (err) {
-    console.warn('Autosave (record) failed:', err);
+    reportAutosaveFailure(record.filename, err);
   }
 }
 

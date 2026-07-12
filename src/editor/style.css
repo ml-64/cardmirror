@@ -1358,6 +1358,21 @@ html:has(body.pmd-speech-banner-visible) {
   outline: 2px solid var(--pmd-c-focus);
   outline-offset: -2px;
 }
+/* Autosave FAILURE: the last attempt bounced (e.g., the file's folder was
+   renamed out from under it) — set by reportAutosaveFailure, cleared by the
+   next successful save. Placed after (and specificity-tied with) the two
+   states above so it wins while present. SOLID error outline vs the inert
+   state's DASHED warning keeps a shape channel alongside the hue. */
+#ribbon #autosave-btn[aria-pressed="true"][data-autosave-error] {
+  color: var(--pmd-c-error);
+  background: var(--pmd-c-error-bg);
+  outline: 1.5px solid var(--pmd-c-error);
+  outline-offset: -1.5px;
+}
+#ribbon #autosave-btn[aria-pressed="true"][data-autosave-error]:focus-visible {
+  outline: 2px solid var(--pmd-c-focus);
+  outline-offset: -2px;
+}
 
 /* Speech-doc button stack. Same layout rhythm as the file stack
    (Open/New/Save), placed immediately to its right. Hidden in

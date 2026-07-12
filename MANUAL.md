@@ -1641,8 +1641,13 @@ and headings instead of importing flat text.
   files. The button shows whether autosave is actually protecting the
   current doc: a **solid filled** button means it's saving; a **hollow
   button with a dashed outline** means it's on but not firing (the doc
-  is `.docx`, or hasn't been saved once yet) — hover over it for the reason.
-  **(Desktop only.)**
+  is `.docx`, or hasn't been saved once yet); a **red button with a solid
+  outline** means the last autosave FAILED and your latest changes are not
+  on disk — hover over it for the reason. **(Desktop only.)**
+- **If a file's folder gets renamed or moved** while the document is open
+  (say, someone reorganizes a shared Dropbox), the next save can't find the
+  old location. CardMirror will tell you what happened and offer
+  **Save As…** so you can put the document somewhere new — nothing is lost.
 
 ### Save As presets
 

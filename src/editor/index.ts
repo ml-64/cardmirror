@@ -6182,7 +6182,9 @@ function commitSaveResult(filename: string, handle: unknown | null, format: 'cmi
   updateWindowTitle();
   // Format/handle may have changed (e.g., Save-As from unsaved →
   // .cmir-with-handle), which flips the autosave button between
-  // inert and effective states.
+  // inert and effective states. A new handle also moots any earlier
+  // autosave failure (the stale-path rescue lands here via Save As).
+  reportAutosaveSuccess();
   refreshAutosaveBtn();
   // A save (especially Save-As, which mints a path for a
   // previously-unsaved doc) makes the file recents-worthy.
@@ -6699,6 +6701,17 @@ export async function runSaveMarkedCardsFlow(): Promise<boolean> {
   }
 }
 
+/** Whether a save failure means the file's on-disk location is GONE —
+ *  Electron surfaces a renamed/moved/deleted parent folder as ENOENT
+ *  (via the IPC error message); the web FS Access API throws a
+ *  NotFoundError DOMException for a handle whose file was removed.
+ *  Distinct from "couldn't write" errors (permissions, disk full),
+ *  which Save As can't fix any better than Save. */
+function isFileGoneError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return err.message.includes('ENOENT') || err.name === 'NotFoundError';
+}
+
 /**
  * Run the "silent" Save flow — writes back to the existing on-disk
  * file in its existing format, no dialog. Falls through to Save-As
@@ -6748,11 +6761,26 @@ export async function runSaveFlow(): Promise<boolean> {
     flashSaveSuccess();
     markNonPristineStarter();
     markCurrentDocClean();
+    reportAutosaveSuccess();
     multiDocNotifyFocusedSaved?.();
     void clearJournalForActiveDoc();
     return true;
   } catch (err) {
     console.error('Save failed:', err);
+    // The file's folder was renamed/moved/deleted out from under us (field
+    // bug 2026-07-11: a shared Dropbox folder rename left every open doc
+    // with a stale path — saves ENOENT'd with no way forward, and the
+    // close flow dead-ended). Offer Save As so the work has an exit.
+    if (isFileGoneError(err)) {
+      const rescue = await confirmDialog(
+        `"${file.filename ?? 'This document'}" couldn't be saved because its ` +
+          `file no longer exists at the saved location — the folder may have ` +
+          `been renamed, moved, or deleted (for example by a cloud-sync ` +
+          `change). Choose a new location to keep your work.`,
+        { title: 'File location not found', okLabel: 'Save As…' },
+      );
+      return rescue ? runSaveAsFlow() : false;
+    }
     void alertDialog(`Save failed: ${err instanceof Error ? err.message : err}`);
     return false;
   }
@@ -6939,15 +6967,47 @@ async function runAutosaveAttempt(): Promise<void> {
     await getHost().saveExisting(file.handle, bytes);
     flashSaveSuccess();
     markCurrentDocClean();
+    reportAutosaveSuccess();
     void clearJournalForActiveDoc();
   } catch (err) {
-    // Autosave failures are noisy if we alert(); the user will
-    // notice manual saves failing if anything's actually broken.
-    console.warn('Autosave failed:', err);
+    reportAutosaveFailure(file.filename ?? 'Untitled', err);
   }
 }
 
 // ─── Autosave button wiring ────────────────────────────────────────
+
+/** Whether the most recent autosave attempt (either layout) failed.
+ *  Gates the one-per-streak toast and drives the button's error
+ *  styling + tooltip suffix. Cleared by any successful save. */
+let autosaveFailureActive = false;
+
+/** Surface an autosave failure. Autosave used to fail silently
+ *  (console.warn only) — with a stale file path that meant the user
+ *  believed their doc was saved while every write was bouncing (field
+ *  bug 2026-07-11, folder renamed under a shared Dropbox). One toast
+ *  per failure streak (not per retry), plus a persistent error state
+ *  on the autosave button until a save lands. */
+export function reportAutosaveFailure(filename: string, err: unknown): void {
+  console.warn('Autosave failed:', err);
+  autosaveBtn?.setAttribute('data-autosave-error', 'true');
+  if (autosaveFailureActive) return;
+  autosaveFailureActive = true;
+  refreshAutosaveBtn();
+  showToast(
+    isFileGoneError(err)
+      ? `Autosave failed — "${filename}" no longer exists at its saved location. Use Save As to pick a new one.`
+      : `Autosave failed for "${filename}" — your latest changes are not saved.`,
+  );
+}
+
+/** Any successful save (manual, Save As, or autosave, either layout)
+ *  ends the failure streak and clears the button's error state. */
+export function reportAutosaveSuccess(): void {
+  if (!autosaveFailureActive && !autosaveBtn?.hasAttribute('data-autosave-error')) return;
+  autosaveFailureActive = false;
+  autosaveBtn?.removeAttribute('data-autosave-error');
+  refreshAutosaveBtn();
+}
 
 /** Update the autosave button's pressed state + tooltip based on
  *  the current setting and the active file's format. The button
@@ -6975,6 +7035,9 @@ function refreshAutosaveBtn(): void {
     } else {
       label = 'Autosave is on, but this doc has not been saved yet. Save once to enable.';
     }
+  }
+  if (autosaveFailureActive) {
+    label += ' LAST AUTOSAVE FAILED — the latest changes are not on disk.';
   }
   // Route through the tooltip controller so the current
   // ribbonTooltipMode (none / tooltip / shortcut / both) governs

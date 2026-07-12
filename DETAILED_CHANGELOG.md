@@ -5,6 +5,34 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## Unreleased
+
+- **Stale-path save rescue + loud autosave failures** (`index.ts`,
+  `multi-pane-shell.ts`, `style.css`). Field bugs 2026-07-11 (two reports,
+  same root cause — a shared Dropbox folder rename left open docs with
+  stale absolute paths): (1) `host:save-existing` is a bare `fs.writeFile`,
+  so a renamed parent folder = ENOENT; `runSaveFlow`'s catch showed the raw
+  error and returned false, which the close flow treats as "abort close" —
+  a doc whose folder moved could not be closed via Save. (2) Autosave
+  failures were `console.warn`-only, so with autosave on the user believed
+  the doc was saved while every write bounced; the close prompt's
+  "unsaved changes" then looked like a false positive. Fixes: new
+  `isFileGoneError` (ENOENT via Electron IPC message / `NotFoundError`
+  DOMException from the web FS Access API) → `runSaveFlow` catch offers a
+  confirmDialog rescue ("File location not found" → **Save As…**), which
+  also serves every close/quit prompt since they all route through
+  `runSaveFlow`. New `reportAutosaveFailure`/`reportAutosaveSuccess`
+  (exported; wired into BOTH autosave paths — single-doc
+  `runAutosaveAttempt` and multi-pane `runAutosaveForRecord`): one toast
+  per failure streak, `data-autosave-error` attr on the ribbon button
+  (solid `--pmd-c-error` outline vs the inert state's dashed warning —
+  shape channel preserved for colorblind users; dark-theme error tokens
+  already existed), tooltip suffix while failing. Cleared by any
+  successful save, including the Save As rescue (`commitSaveResult`).
+  Recents were already self-healing (`openRecentInPlace` prunes dead
+  paths with a toast; `commitSaveResult` records the new handle), so no
+  recents work was needed.
+
 ## 0.1.0-beta.12 — 2026-07-10
 
 Co-editing bug-fix release, driven by a multi-agent audit of the collaboration

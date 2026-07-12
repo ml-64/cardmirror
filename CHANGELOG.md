@@ -40,6 +40,18 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Changed
 
+- **AI errors are clearer, and momentary failures fix themselves.** When the
+  AI provider is briefly overloaded, rate-limiting, or having a server
+  hiccup, the request now retries once on its own before showing an error —
+  and a hung connection times out after five minutes instead of spinning
+  forever. Error messages got smarter too: a safety-filter decline says so
+  (instead of a confusing "empty response"), an out-of-credits OpenRouter
+  account is pointed at where to add credits, a moderation block names what
+  was flagged, and a model that doesn't accept CardMirror's temperature
+  setting no longer fails the request — it's retried without it. This
+  matters if you point the **AI model** setting at the newest Claude models,
+  which reject that setting outright.
+
 - **Structural commands are dramatically faster on large documents.** Finding
   where a section ends used to scan the rest of the document — now it checks
   siblings only. Move Container Up/Down drops from a hard freeze per press on

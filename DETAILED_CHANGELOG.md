@@ -7,6 +7,33 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **LLM client hardening** (`llm.ts`; 24 tests in
+  `tests/editor/llm-errors.test.ts`). Both providers now share a failure
+  envelope beyond the kind-tagged `LlmError`s: (1) ONE automatic retry on
+  transient statuses — 429 (honoring `retry-after` up to 8 s; longer waits
+  surface immediately rather than stalling an interactive action), 408, and
+  5xx including Anthropic's 529 "overloaded", which also gets a friendly
+  message; (2) a 5-minute `AbortController` timeout on every request so a
+  hung connection can't spin the AI activity pill forever (timeouts and
+  connection failures both read as `'network'`); (3) sampling-param
+  compatibility — the newest Claude models reject `temperature` with a 400
+  naming the parameter (directly and passed through OpenRouter), so the
+  client strips it and retries once instead of failing, and such 400s are
+  excluded from the retired-model heuristic (their messages contain
+  "model", which previously would have misdiagnosed them as a retired id
+  and told the user to "set a newer model" they'd just set); (4) safety
+  declines become `'refusal'`-kind errors that explain themselves —
+  Anthropic's `stop_reason: 'refusal'` (checked before the empty-content
+  fallback, and a refusal-cut partial is never passed off as an answer),
+  OpenRouter moderation 403s (surfacing `metadata.reasons` +
+  `provider_name`), and `finish_reason: 'content_filter'`; (5) OpenRouter
+  402 gets a first-class out-of-credits message, and failures OpenRouter
+  embeds in an HTTP 200 (top-level `error` envelope, `finish_reason:
+  'error'`) throw instead of parsing as an empty/truncated reply; (6)
+  Anthropic 403 maps to `'auth'` with a message naming the key. Callers
+  are untouched — everyone still toasts `e.message`. Test seams:
+  `llmSleep.wait` (stubbed pause) and exported `transientRetryDelayMs`.
+
 - **OpenRouter as a second AI provider** (PR #13, thanks to
   [Shreeram Modi](https://github.com/shreerammodi); `anthropic.ts` →
   `llm.ts`). All nine AI call sites now go through one `callLlm`

@@ -531,7 +531,7 @@ class SettingsModal {
     const desc = document.createElement('div');
     desc.className = 'pmd-settings-row-desc';
     desc.textContent =
-      'Save all your settings — shortcuts, keyboard macros, appearance, and the rest — to a file, or import a file to replace them. Importing overwrites your current settings. Your API keys (Anthropic, Google Translate) and MyMemory email are never included.';
+      'Save all your settings — shortcuts, keyboard macros, appearance, and the rest — to a file, or import a file to replace them. Importing overwrites your current settings. Your API keys (Anthropic, OpenRouter, Google Translate) and MyMemory email are never included.';
     section.appendChild(desc);
 
     const actions = document.createElement('div');
@@ -4767,14 +4767,18 @@ function buildTranslationEditor(): HTMLElement {
   wrap.className = 'pmd-translation-editor';
 
   // --- Backend radios ---
+  // The stored value stays 'anthropic' for compatibility; the label says
+  // "AI provider" because the backend follows the Comments & AI provider
+  // selection (Anthropic or OpenRouter).
   const providers: { value: 'auto' | 'mymemory' | 'anthropic' | 'google'; label: string; note?: string }[] = [
-    { value: 'auto', label: 'Automatic — Anthropic when AI features are on, otherwise MyMemory' },
+    { value: 'auto', label: 'Automatic — your AI provider when AI features are on, otherwise MyMemory' },
     { value: 'mymemory', label: 'MyMemory — free, no key, works with AI features off' },
-    { value: 'anthropic', label: 'Anthropic — highest quality (requires AI features)' },
+    { value: 'anthropic', label: 'AI provider — highest quality (requires AI features)' },
     { value: 'google', label: 'Google Cloud Translation — needs an API key below' },
   ];
   const groupName = `pmd-translation-provider-${Math.random().toString(36).slice(2, 8)}`;
-  // Anthropic-dependent radios, greyed when AI features are off.
+  // Radios for the AI-provider backend (stored value 'anthropic'),
+  // greyed when AI features are off.
   const anthropicRadios: HTMLInputElement[] = [];
   const fieldLabel = (txt: string): HTMLElement => {
     const l = document.createElement('div');
@@ -4803,17 +4807,17 @@ function buildTranslationEditor(): HTMLElement {
     wrap.appendChild(row);
   }
 
-  // Note shown when AI features are off and Anthropic is greyed.
+  // Note shown when AI features are off and the AI backend is greyed.
   const aiNote = document.createElement('div');
   aiNote.className = 'pmd-settings-row-desc pmd-translation-ai-note';
-  aiNote.textContent = 'Anthropic translation is unavailable until you enable AI features under Comments & AI.';
+  aiNote.textContent = 'AI translation is unavailable until you enable AI features under Comments & AI.';
   wrap.appendChild(aiNote);
 
-  // Determinism / evidence-ethics caveat for the Anthropic backend.
+  // Determinism / evidence-ethics caveat for the AI backend.
   const caveat = document.createElement('div');
   caveat.className = 'pmd-settings-row-desc pmd-translation-caveat';
   caveat.textContent =
-    'Note: The Anthropic translation system prompt directs the model to preserve the original meaning above all else. However, the translation may not be deterministic — re-running can produce slightly different wording. Keep this in mind if you are debating in a league or circuit where translated evidence requires a paper trail or reproducibility.';
+    'Note: The AI translation prompt directs the model to preserve the original meaning above all else. However, the translation may not be deterministic — re-running can produce slightly different wording. Keep this in mind if you are debating in a league or circuit where translated evidence requires a paper trail or reproducibility.';
   wrap.appendChild(caveat);
 
   const langRow = document.createElement('div');
@@ -4889,7 +4893,7 @@ function buildTranslationEditor(): HTMLElement {
   keyWrap.appendChild(key);
   wrap.appendChild(keyWrap);
 
-  // Live-grey the Anthropic radio + note based on the AI master switch.
+  // Live-grey the AI-backend radio + note based on the AI master switch.
   const applyAiState = (): void => {
     const ready = settings.get('aiFeaturesEnabled');
     for (const r of anthropicRadios) {

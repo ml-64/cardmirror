@@ -1171,9 +1171,10 @@ export interface Settings {
    *  full textarea makes more sense than an inline input. Empty
    *  string falls back to `DEFAULT_AI_CITE_PROMPT`. */
   aiCitePrompt: string;
-  /** Translator backend. `'auto'` uses Anthropic when AI features are
-   *  ready, otherwise MyMemory. `'mymemory'` (no key, works with AI off),
-   *  `'anthropic'` (needs AI features), `'google'` (needs an API key). */
+  /** Translator backend. `'auto'` uses the AI provider when AI features
+   *  are ready, otherwise MyMemory. `'mymemory'` (no key, works with AI
+   *  off), `'anthropic'` (the AI-provider backend — follows the Comments
+   *  & AI provider, needs AI features), `'google'` (needs an API key). */
   translationProvider: 'auto' | 'mymemory' | 'anthropic' | 'google';
   /** Target language for translation (ISO 639-1). Default `'en'`. */
   translationTargetLang: string;

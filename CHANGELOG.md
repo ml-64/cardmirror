@@ -13,7 +13,9 @@ see `DETAILED_CHANGELOG.md`.
   the Anthropic API. Pick the provider under **Settings → Comments & AI → AI
   provider**. OpenRouter needs its own API key and a model id (for example
   `anthropic/claude-sonnet-4.6`); there is no built-in default, so set the
-  model before using AI features. (PR #13, thanks to
+  model before using AI features. The translation backend formerly labeled
+  *Anthropic* is now *AI provider* — it translates through whichever
+  provider you picked. (PR #13, thanks to
   [Shreeram Modi](https://github.com/shreerammodi).)
 
 - **Custom autocorrect** (Settings → Editing → Typing, off by default).

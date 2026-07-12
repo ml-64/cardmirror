@@ -10,12 +10,15 @@
  *     language; MyMemory's own auto-detect is unreliable, so when the
  *     source is "auto" we detect locally with `tinyld` first. Per-request
  *     `q` is capped (~500 chars), so longer text is chunked and rejoined.
- *   - **Anthropic** — high quality, used when AI features are enabled
- *     (reuses the reference Translator system prompt). Auto-detects source.
+ *   - **AI provider** (stored value `'anthropic'`) — high quality, used
+ *     when AI features are enabled; goes through `callLlm`, so it follows
+ *     the Comments & AI provider (Anthropic or OpenRouter) and reuses the
+ *     reference Translator system prompt. Auto-detects source.
  *   - **Google Cloud Translation** — optional paid backend (500k chars/mo
  *     free, then per-character). Auto-detects source.
  *
- * `'auto'` resolves to Anthropic when AI features are ready, else MyMemory.
+ * `'auto'` resolves to the AI provider when AI features are ready, else
+ * MyMemory.
  */
 
 import type { EditorView } from 'prosemirror-view';
@@ -204,7 +207,7 @@ Important guidelines:
 - Return only the translated text without explanations`;
 }
 
-/** Output ceiling for Anthropic translations. A translation is roughly
+/** Output ceiling for AI translations. A translation is roughly
  *  input-sized, and the client's 1024-token default would silently cut
  *  off anything past a few paragraphs. 16K tokens (~40K+ characters) covers
  *  any realistic selection while staying within non-streaming HTTP
@@ -217,7 +220,7 @@ async function translateAnthropic(
   target: string,
 ): Promise<{ text: string; truncated: boolean }> {
   if (!anthropicReady()) {
-    throw new Error('Anthropic translation needs AI features — enable them under Comments & AI.');
+    throw new Error('AI translation needs AI features — enable them under Comments & AI.');
   }
   const reply = await callLlm({
     apiKey: activeApiKey(),

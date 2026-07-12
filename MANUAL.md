@@ -1471,20 +1471,19 @@ to the clipboard (your document isn't changed — paste the translation
 where you want it). Configure it under Settings → Editing → **Translation**:
 
 - **Backend** — **MyMemory** (free, needs no key, and works even with AI
-  features off; add your email to raise its daily limit), **Anthropic**
-  (used when AI features are on; highest quality — this backend follows
-  your **AI provider** setting, so with OpenRouter selected it translates
-  through OpenRouter), or **Google Cloud Translation** (paste a Google
-  API key). The default, *Automatic*, uses the AI backend when AI is on
-  and MyMemory otherwise.
+  features off; add your email to raise its daily limit), **AI provider**
+  (used when AI features are on; highest quality — it translates through
+  whichever provider you picked under Comments & AI, Anthropic or
+  OpenRouter), or **Google Cloud Translation** (paste a Google API key).
+  The default, *Automatic*, uses the AI backend when AI is on and
+  MyMemory otherwise.
 - **Languages** — the source auto-detects; the target defaults to English
   and is configurable.
 - **Marker** — by default a `[TRANSLATION BY …]` line is placed above the
-  translation on the clipboard, naming the engine (the model for
+  translation on the clipboard, naming the engine (the Claude model for
   Anthropic, OPENROUTER, MYMEMORY, or GOOGLE TRANSLATE). It uses the same
-  delimiter as
-  "Condense with warning" and is protected from Shrink. Turn it off in the
-  same settings group.
+  delimiter as "Condense with warning" and is protected from Shrink. Turn
+  it off in the same settings group.
 
 A note on AI translation (either provider): the prompt directs the model
 to preserve the original meaning above all, but its output isn't

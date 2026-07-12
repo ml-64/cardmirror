@@ -2075,12 +2075,21 @@ function buildPairingAccountEditor(row: HTMLElement): HTMLElement {
   status.className = 'pmd-pairing-account-status';
   wrap.appendChild(status);
 
+  // Real link (external browser on desktop) — nobody should have to
+  // retype a URL out of the description text.
+  const linkRow = document.createElement('div');
+  linkRow.className = 'pmd-pairing-account-link';
+  linkRow.appendChild(
+    buildDocLink('Open the connect page', 'https://debate-decoded.ghost.io/cardmirror-connect/'),
+  );
+  wrap.appendChild(linkRow);
+
   const controls = document.createElement('div');
   controls.className = 'pmd-pairing-account-controls';
   const input = document.createElement('input');
   input.type = 'text';
   input.className = 'pmd-settings-text';
-  input.placeholder = 'code from debate-decoded.ghost.io/cardmirror-connect';
+  input.placeholder = 'paste the connect code here';
   input.spellcheck = false;
   controls.appendChild(input);
   const connectBtn = document.createElement('button');
@@ -2099,17 +2108,28 @@ function buildPairingAccountEditor(row: HTMLElement): HTMLElement {
   message.className = 'pmd-pairing-account-message';
   wrap.appendChild(message);
 
-  function renderStatus(connected: boolean, expiresAt: number, email = ''): void {
-    if (connected) {
-      const who = email ? ` as ${email}` : '';
-      status.textContent =
-        `Connected${who} — renews automatically (current authorization good ` +
-        `through ${new Date(expiresAt).toLocaleDateString()})`;
+  function renderStatus(st: {
+    connected: boolean;
+    expiresAt: number;
+    email?: string;
+    lapsed?: boolean;
+  }): void {
+    // The link is durable — the short-lived credential behind it rotates
+    // itself, so no expiry date here: it reads like a disconnection
+    // deadline when it's an implementation detail.
+    if (st.connected) {
+      const who = st.email ? ` as ${st.email}` : '';
+      status.textContent = `Connected${who} — stays linked; the app re-authorizes itself automatically.`;
       disconnectBtn.hidden = false;
     } else {
       status.textContent =
         'Not linked — and nothing requires it during the beta; every feature works without an account.';
       disconnectBtn.hidden = true;
+    }
+    if (st.lapsed) {
+      status.textContent +=
+        ' ⚠ Debate Decoded reports this membership inactive, so the link will pause soon. ' +
+        '(Features are unaffected during the beta.)';
     }
   }
 
@@ -2133,7 +2153,7 @@ function buildPairingAccountEditor(row: HTMLElement): HTMLElement {
       if (res.ok) {
         message.textContent = '';
         input.value = '';
-        renderStatus(true, res.expiresAt ?? 0, res.email ?? '');
+        renderStatus({ connected: true, expiresAt: res.expiresAt ?? 0, email: res.email ?? '' });
         settings.set('pairingConnectedUntil', res.expiresAt ?? 0);
         showToast('Connected to Debate Decoded');
         return;
@@ -2171,7 +2191,7 @@ function buildPairingAccountEditor(row: HTMLElement): HTMLElement {
     const electron = getElectronHost();
     if (!electron?.pairingDisconnectAccount) return;
     void electron.pairingDisconnectAccount().then((st) => {
-      renderStatus(false, 0);
+      renderStatus({ connected: false, expiresAt: 0 });
       settings.set('pairingConnectedUntil', 0);
       message.textContent = '';
       void st;
@@ -2185,10 +2205,10 @@ function buildPairingAccountEditor(row: HTMLElement): HTMLElement {
     void electron.pairingAccountStatus().then((st) => {
       if (!st.enabled) return;
       row.style.display = '';
-      renderStatus(st.connected, st.expiresAt, st.email);
+      renderStatus(st);
     });
     const off = electron.onPairingEntitlementChanged?.((st) => {
-      renderStatus(st.connected, st.expiresAt, st.email);
+      renderStatus(st);
       if (st.evicted) message.textContent = ERROR_TEXT['evicted']!;
     });
     registerRowCleanup(row, () => off?.());

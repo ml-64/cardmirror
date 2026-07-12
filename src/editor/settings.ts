@@ -3140,7 +3140,7 @@ export const SETTING_METADATA: SettingMeta[] = [
   },
   {
     key: 'pairingConnectedUntil',
-    label: 'Debate Decoded account (optional)',
+    label: 'Debate Decoded account (optional in beta)',
     description:
       'Optional while CardMirror is in beta: no feature requires it — card sharing and ' +
       'co-editing work exactly the same whether or not this machine is linked. Linking just ' +

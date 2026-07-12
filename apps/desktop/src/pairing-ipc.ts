@@ -43,6 +43,7 @@ import { RelayStream } from './relay-stream.js';
 import {
   entitlementIfValid,
   interpretConnectResponse,
+  nextLapsedFlag,
   parseStoredEntitlement,
   renewalDue,
   type ConnectOutcome,
@@ -186,6 +187,10 @@ let entitlementState: EntitlementState | null = null;
 let entitlementLoaded = false;
 /** Guards against overlapping renewal calls. */
 let renewing = false;
+/** The relay 403'd a renewal — the linked membership is inactive. Kept
+ *  in memory only: a restart re-discovers it within minutes via the
+ *  renewal cadence, and the settings row reads it from accountStatus. */
+let membershipLapsed = false;
 
 function entitlementPath(): string {
   return path.join(app.getPath('userData'), 'pairing-entitlement.json');
@@ -226,6 +231,7 @@ function accountStatus(): {
   connected: boolean;
   expiresAt: number;
   email: string;
+  lapsed: boolean;
 } {
   return {
     // Always available on desktop. The renderer's settings row keys its
@@ -235,6 +241,7 @@ function accountStatus(): {
     connected: validEntitlement() !== null,
     expiresAt: entitlementState?.expiresAt ?? 0,
     email: entitlementState?.email ?? '',
+    lapsed: membershipLapsed,
   };
 }
 
@@ -272,10 +279,16 @@ async function connectAccount(connectCode: string, confirmEvict: boolean): Promi
   }
   const body = (await res.json().catch(() => ({}))) as ConnectResponseBody;
   const { outcome, next, evicted } = interpretConnectResponse(res.status, body, entitlementState);
+  const wasLapsed = membershipLapsed;
+  membershipLapsed = nextLapsedFlag(membershipLapsed, outcome, evicted);
   if (next !== undefined) {
     entitlementState = next;
     await persistEntitlement();
     broadcastEntitlement(evicted ? { evicted: true } : undefined);
+  } else if (membershipLapsed !== wasLapsed) {
+    // No state change to announce, but the lapse flag moved — an open
+    // settings dialog should show it without waiting for a reopen.
+    broadcastEntitlement();
   }
   return outcome;
 }
@@ -296,7 +309,8 @@ async function maybeRenewEntitlement(): Promise<void> {
     } else if (outcome.error === 'evicted') {
       console.warn('[pairing] this machine was unlinked from the blog account');
     } else if (outcome.error === 'subscription') {
-      broadcastEntitlement({ lapsed: true });
+      // connectAccount already flipped + broadcast the lapse flag.
+      console.warn('[pairing] renewal refused: membership inactive');
     }
   } finally {
     renewing = false;
@@ -666,8 +680,9 @@ export function registerPairingIpc(): void {
     consumed.clear();
     // The entitlement is bound to the OLD routing code — a new keypair
     // needs a fresh connect from the blog page.
-    if (entitlementState !== null) {
+    if (entitlementState !== null || membershipLapsed) {
       entitlementState = null;
+      membershipLapsed = false;
       void persistEntitlement();
       broadcastEntitlement();
     }
@@ -692,8 +707,9 @@ export function registerPairingIpc(): void {
   });
   ipcMain.handle('host:pairing-disconnect-account', async () => {
     await ensureEntitlementLoaded();
-    if (entitlementState !== null) {
+    if (entitlementState !== null || membershipLapsed) {
       entitlementState = null;
+      membershipLapsed = false;
       await persistEntitlement();
       broadcastEntitlement();
     }

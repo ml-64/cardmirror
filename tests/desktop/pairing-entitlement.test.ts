@@ -12,6 +12,7 @@ import {
   entitlementIfValid,
   renewalDue,
   interpretConnectResponse,
+  nextLapsedFlag,
   type EntitlementState,
 } from '../../apps/desktop/src/pairing-entitlement.js';
 
@@ -143,5 +144,20 @@ describe('interpretConnectResponse', () => {
       ok: false,
       error: 'http 500',
     });
+  });
+});
+
+describe('nextLapsedFlag', () => {
+  it('a 403 marks the membership lapsed; success or eviction clears it', () => {
+    expect(nextLapsedFlag(false, { ok: false, error: 'subscription' }, false)).toBe(true);
+    expect(nextLapsedFlag(true, { ok: true }, false)).toBe(false);
+    expect(nextLapsedFlag(true, { ok: false, error: 'evicted' }, true)).toBe(false);
+  });
+
+  it('failures that say nothing about the membership leave the flag alone', () => {
+    for (const error of ['network', 'badCode', 'seatLimit', 'http 500']) {
+      expect(nextLapsedFlag(true, { ok: false, error }, false), error).toBe(true);
+      expect(nextLapsedFlag(false, { ok: false, error }, false), error).toBe(false);
+    }
   });
 });

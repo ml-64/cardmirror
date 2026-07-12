@@ -6555,6 +6555,10 @@ body.pmd-steady-cursor .pmd-italic-caret,
   color: var(--pmd-c-text-muted);
 }
 
+.pmd-pairing-account-link {
+  font-size: 0.82rem;
+}
+
 .pmd-pairing-account-controls {
   display: flex;
   gap: 0.4rem;

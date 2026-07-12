@@ -47,6 +47,9 @@ export interface PairingAccountStatusIpc {
   expiresAt: number;
   /** Member email the relay reported ('' when unknown). */
   email: string;
+  /** The relay reported the linked membership inactive at the last
+   *  renewal (optional: absent from older mains). */
+  lapsed?: boolean;
 }
 
 export interface PairingConnectResultIpc {

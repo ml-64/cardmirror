@@ -85,6 +85,21 @@ export interface ConnectInterpretation {
   evicted: boolean;
 }
 
+/** Membership-lapse flag transition after a connect/renewal outcome:
+ *  a 403 ("subscription") marks the membership lapsed; any successful
+ *  bind/renewal — or an eviction, which ends the link entirely — clears
+ *  it; every other failure (network, bad code, seat confirm) says
+ *  nothing about the membership and leaves the flag alone. */
+export function nextLapsedFlag(
+  prev: boolean,
+  outcome: ConnectOutcome,
+  evicted: boolean,
+): boolean {
+  if (outcome.ok || evicted) return false;
+  if (outcome.error === 'subscription') return true;
+  return prev;
+}
+
 /** Map a /relay/connect response onto the outcome + state transition.
  *  Mirrors the relay's verified contract: 200 binds/renews (keeping the
  *  last-known email when the fail-open lookup blanked it), 409 is either

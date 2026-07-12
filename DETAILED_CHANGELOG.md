@@ -44,6 +44,18 @@ in each release, see `CHANGELOG.md`.
   co-editing session-start/mid-session 401s) now states that linking is
   OPTIONAL during the beta and gates nothing. Future gating flip is
   server-config only (webhooks + `RELAY_GATING`), per the runbook.
+  Field-test follow-ups (first real pairing, 2026-07-12): the connected
+  status line no longer shows the entitlement's expiry date — it read as
+  a disconnection deadline when the credential auto-rotates (now "stays
+  linked; the app re-authorizes itself automatically"); the row carries
+  a real **Open the connect page** link (`buildDocLink` → external
+  browser) instead of a retype-me URL; the label is "Debate Decoded
+  account (optional in beta)"; and a lapsed membership is now visible —
+  main tracks a `membershipLapsed` flag (pure transition `nextLapsedFlag`
+  in pairing-entitlement.ts: 403 sets, success/eviction clears, other
+  failures leave it), reports it through `accountStatus()`/entitlement
+  broadcasts, and the settings row appends an inactive-membership notice
+  (previously the `lapsed` broadcast existed but nothing displayed it).
 
 - **LLM client hardening** (`llm.ts`; 24 tests in
   `tests/editor/llm-errors.test.ts`). Both providers now share a failure

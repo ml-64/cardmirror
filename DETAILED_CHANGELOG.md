@@ -7,6 +7,32 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Error-surfacing hardening: no invisible failures** (new
+  `error-surface.ts`; `index.ts`, `multi-pane-shell.ts`). Field bug
+  2026-07-12: a user's Save, Save As, AND autosave all did literally
+  nothing — no dialog, no pulse, no error. Recording analysis showed the
+  app's architecture made that possible: (1) save entries are
+  fire-and-forget (`void runSaveFlow()`) and the renderer had NO
+  unhandledrejection/error hooks, so an exception thrown before the flows'
+  internal try blocks vanished without UI; (2) the debounce chains
+  (`autosaveChain`/`journalWriteChain` + the per-record multi-pane
+  equivalents) link with bare `.then()`, and each runner's guard lines
+  (`settings.get`/`activeFile`/`getHost`) execute BEFORE its internal try —
+  one throw rejected the chain and every later `.then` silently skipped:
+  autosave/journaling dead for the session while the button stayed lit;
+  (3) the close prompt's `await runSaveFlow()` rethrow silently aborted
+  the close. Fixes: `runSaveFlow`/`runSaveAsFlow` wrapped in never-reject
+  outer try/catch (crash → explicit alertDialog + `false`, covering every
+  call site: buttons, keybindings, close/quit prompts, both layouts); all
+  four debounce chains get `.catch` links (autosave crashes route into
+  `reportAutosaveFailure`, journal crashes to console) so chains stay
+  FULFILLED and self-heal next attempt; `installGlobalErrorSurface()`
+  installed before any boot wiring — console.error with full details plus
+  a 10s-throttled toast for unhandled rejections/uncaught errors.
+  Diagnosis note: fresh-per-click manual saves failing repeatedly implies
+  a DETERMINISTIC thrower in the user's session (awaiting her console
+  output); the poisoned-chain fix addresses the one-off case.
+
 - **Stale-path save rescue + loud autosave failures** (`index.ts`,
   `multi-pane-shell.ts`, `style.css`). Field bugs 2026-07-11 (two reports,
   same root cause — a shared Dropbox folder rename left open docs with

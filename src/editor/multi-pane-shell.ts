@@ -154,7 +154,12 @@ function scheduleJournalForRecord(record: DocRecord): void {
   record.journalTimer = window.setTimeout(() => {
     record.journalTimer = null;
     const prev = recordJournalChains.get(record) ?? Promise.resolve();
-    recordJournalChains.set(record, prev.then(() => runJournalForRecord(record)));
+    recordJournalChains.set(
+      record,
+      prev
+        .then(() => runJournalForRecord(record))
+        .catch((err) => console.warn('Journal (record) write crashed:', err)),
+    );
   }, RECORD_JOURNAL_DELAY_MS);
 }
 
@@ -244,7 +249,14 @@ function scheduleAutosaveForRecord(record: DocRecord): void {
   record.autosaveTimer = window.setTimeout(() => {
     record.autosaveTimer = null;
     const prev = recordAutosaveChains.get(record) ?? Promise.resolve();
-    recordAutosaveChains.set(record, prev.then(() => runAutosaveForRecord(record)));
+    // .catch keeps the chain fulfilled — one guard-line throw must not kill
+    // this record's autosave for the session (same fix as the single-doc chain).
+    recordAutosaveChains.set(
+      record,
+      prev
+        .then(() => runAutosaveForRecord(record))
+        .catch((err) => reportAutosaveFailure(record.filename, err)),
+    );
   }, AUTOSAVE_DELAY_MS);
 }
 

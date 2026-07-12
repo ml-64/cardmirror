@@ -258,6 +258,11 @@ import { openWordCount } from './word-count-ui.js';
 import { wireColorPanel } from './color-panel.js';
 import { countReadAloudWords, formatReadTime, formatNumber } from './word-count.js';
 import { getHost, getElectronHost, isWindowsHost, isSameOpenHandle, type OpenedFile, type JournalEntry } from './host/index.js';
+import { installGlobalErrorSurface } from './error-surface.js';
+
+// Install the last-resort error hooks before ANY app wiring — an exception
+// during boot or in a fire-and-forget flow must never be invisible again.
+installGlobalErrorSurface();
 
 // Tag the body with the host kind so CSS can gate platform-specific chrome
 // (e.g. the Paste Text button appears only in the browser edition).
@@ -6422,7 +6427,24 @@ async function confirmDocxDropsLiveLinks(): Promise<boolean> {
   });
 }
 
+/** Hardened Save-As entry: the flow must NEVER reject — callers range from
+ *  fire-and-forget buttons (`void runSaveAsFlow()`) to close/quit handlers
+ *  where an escaped rejection silently aborts the close (field bug
+ *  2026-07-12: "click Save As → nothing happens"). A crash anywhere in the
+ *  flow now surfaces as an explicit dialog and reads as a failed save. */
 export async function runSaveAsFlow(): Promise<boolean> {
+  try {
+    return await runSaveAsFlowInner();
+  } catch (err) {
+    console.error('Save As flow crashed:', err);
+    void alertDialog(
+      `Save As failed unexpectedly: ${err instanceof Error ? err.message : err}`,
+    );
+    return false;
+  }
+}
+
+async function runSaveAsFlowInner(): Promise<boolean> {
   const file = activeFile();
   const suggestedName = basenameWithoutExt(file.filename ?? 'untitled');
   // Existing on-disk handle wins (preserves the file's current
@@ -6718,7 +6740,18 @@ function isFileGoneError(err: unknown): boolean {
  * when we have no handle (brand-new doc, host without in-place save
  * support, etc.). Returns the same boolean as Save-As.
  */
+/** Hardened Save entry — same never-reject contract as runSaveAsFlow. */
 export async function runSaveFlow(): Promise<boolean> {
+  try {
+    return await runSaveFlowInner();
+  } catch (err) {
+    console.error('Save flow crashed:', err);
+    void alertDialog(`Save failed unexpectedly: ${err instanceof Error ? err.message : err}`);
+    return false;
+  }
+}
+
+async function runSaveFlowInner(): Promise<boolean> {
   const file = activeFile();
   if (!file.handle || !file.format || !getHost().supportsInPlaceSave) {
     return runSaveAsFlow();
@@ -6877,7 +6910,13 @@ export function notifyEditForAutosave(): void {
   if (autosaveTimer !== null) window.clearTimeout(autosaveTimer);
   autosaveTimer = window.setTimeout(() => {
     autosaveTimer = null;
-    autosaveChain = autosaveChain.then(() => runAutosaveAttempt());
+    // .catch keeps the chain FULFILLED: runAutosaveAttempt handles its own
+    // write errors, but a throw from its guard lines (before its try) used
+    // to reject the chain — after which every later .then silently skipped
+    // and autosave was dead for the session while its button stayed lit.
+    autosaveChain = autosaveChain
+      .then(() => runAutosaveAttempt())
+      .catch((err) => reportAutosaveFailure(currentDocFilename ?? 'Untitled', err));
   }, AUTOSAVE_DELAY_MS);
 }
 
@@ -6891,7 +6930,11 @@ function scheduleJournalWrite(): void {
   if (journalTimer !== null) window.clearTimeout(journalTimer);
   journalTimer = window.setTimeout(() => {
     journalTimer = null;
-    journalWriteChain = journalWriteChain.then(() => runJournalWrite());
+    // .catch keeps the chain alive — a guard-line throw must not end
+    // crash-recovery journaling for the whole session.
+    journalWriteChain = journalWriteChain
+      .then(() => runJournalWrite())
+      .catch((err) => console.warn('Journal write crashed:', err));
   }, JOURNAL_DELAY_MS);
 }
 

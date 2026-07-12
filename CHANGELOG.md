@@ -17,6 +17,14 @@ see `DETAILED_CHANGELOG.md`.
   somewhere to go — including when the save was triggered from the
   close-document prompt.
 
+- **Errors can no longer fail invisibly.** An unexpected error in the Save or
+  Save As flow now shows an explicit message instead of doing nothing at all,
+  a background error can't silently kill autosave or crash-recovery journaling
+  for the rest of the session (they recover on the next attempt), and any
+  otherwise-unhandled error now surfaces as a notification with details in the
+  developer console — so "I clicked it and nothing happened" always comes with
+  an error message we can act on.
+
 - **Autosave failures are no longer silent.** When an autosave can't write
   (stale path, permissions, full disk), CardMirror now shows a toast the
   first time it happens, and the autosave button turns red with a solid

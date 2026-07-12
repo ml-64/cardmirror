@@ -7,6 +7,19 @@ see `DETAILED_CHANGELOG.md`.
 
 ## Unreleased
 
+### Added
+
+- **Auto-capitalization for tags and analytics** (Settings → Editing, off by
+  default). The first word of each sentence — and a standalone `i` — is
+  capitalized the moment you finish the word with a space or punctuation, in
+  **tags and analytics only**: card bodies, cites, and everything else are
+  quoted source text and are never altered. It won't fire after
+  abbreviations (`etc.`, `vs.`, `pp.`, months), initials, or an ellipsis,
+  and it leaves `(i)`-style enumeration markers alone. Press Backspace right
+  after a capitalization to revert it, same as smart quotes and the custom
+  dash.
+
+
 ### Changed
 
 - **Structural commands are dramatically faster on large documents.** Finding

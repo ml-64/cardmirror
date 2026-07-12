@@ -382,6 +382,13 @@ default and reversible with a single **Backspace** right after they fire:
   an en or em dash, with or without surrounding spaces (your choice), the moment
   you type the third hyphen.
 
+- **Auto-capitalize tags and analytics** (Settings → Editing) capitalizes the
+  first word of each sentence — and a standalone `i` — in **tags and analytics
+  only**, the moment you finish the word with a space or punctuation. Card
+  bodies, cites, and everything else are quoted source text and are never
+  touched. It knows not to fire after abbreviations (`etc.`, `vs.`, `pp.`),
+  initials, or an ellipsis, and skips `(i)`-style enumeration markers.
+
 - **Flip Quote Direction** (a command, unbound by default) flips every curly
   quote in your selection to its opposite direction, keeping the formatting.
   It's the manual fix for the cases smart quotes — like Word — guess wrong, such
@@ -1917,6 +1924,9 @@ Typing helpers and the behavior of the cutting and condense commands
 - **Custom dash** — turn a typed `---` (or `--`, your choice) into an en
   or em dash (spaced or unspaced) on the trigger's last hyphen;
   Backspace right after reverts to the literal hyphens. Off by default.
+- **Auto-capitalize tags and analytics** — sentence starts (and a
+  standalone `i`) capitalize as you finish each word, in tags and
+  analytics only; Backspace right after reverts. Off by default.
 
 **New paragraph on Enter**
 

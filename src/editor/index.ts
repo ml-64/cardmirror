@@ -213,6 +213,7 @@ import { wordSelectionPlugin } from './word-selection-plugin.js';
 import { typeOverBoundaryPlugin } from './type-over-boundary.js';
 import { smartQuotesPlugin } from './smart-quotes-plugin.js';
 import { customDashPlugin } from './custom-dash-plugin.js';
+import { autoCapitalizePlugin } from './auto-capitalize-plugin.js';
 import { footnotePopoverPlugin } from './footnote-popover.js';
 import { wordSelectionKeymap } from './word-selection-keymap.js';
 import { highlightFrequencyPlugin } from './highlight-frequency-plugin.js';
@@ -4812,6 +4813,9 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
   // Custom dash autoformat — converts a typed `---` when the customDash settings
   // are on (inert otherwise; the plugin checks per keystroke).
   plugins.push(customDashPlugin());
+  // Auto-capitalization in tags/analytics — sentence starts + standalone `i`,
+  // gated on `autoCapitalizeSentences` (inert otherwise).
+  plugins.push(autoCapitalizePlugin());
   plugins.push(footnotePopoverPlugin());
   // Editor spellcheck — viewport-scoped custom checker, gated internally
   // on the `editorSpellcheck` setting (does nothing when off).

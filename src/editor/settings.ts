@@ -654,6 +654,10 @@ export interface Settings {
   /** Word-style smart quotes: as you type a straight ' or ", curl it to the
    *  right direction based on the preceding character. Off by default. */
   smartQuotes: boolean;
+  /** Auto-capitalize sentence starts (and standalone `i`) in TAGS and
+   *  ANALYTICS only — the user's own prose. Card bodies / cites are source
+   *  excerpts whose casing must be preserved verbatim. Off by default. */
+  autoCapitalizeSentences: boolean;
   /** Custom dash autoformat — when you type `---`, replace it (on the third
    *  hyphen) with a chosen dash output (en/em dash, with or without surrounding
    *  spaces). Backspace right after reverts to the literal `---`. Off by
@@ -1414,6 +1418,7 @@ const DEFAULTS: Settings = {
   flashcardDueDot: true,
   editorSpellcheck: false,
   smartQuotes: false,
+  autoCapitalizeSentences: false,
   customDashEnabled: false,
   enterAfterPocket: 'normal',
   enterAfterHat: 'normal',
@@ -2525,6 +2530,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     aliases: ['dash', 'em dash', 'en dash', 'triple dash', 'autocorrect dash'],
   },
   {
+    key: 'autoCapitalizeSentences',
+    label: 'Auto-capitalize tags and analytics',
+    description:
+      'Capitalize the first word of each sentence (and a standalone "i") in tags and analytics as you type — the fix happens when you finish the word with a space or punctuation, and Backspace right after reverts it. Only applies to tags and analytics: card bodies and cites are quoted source text, which is never altered. Off by default.',
+    kind: 'toggle',
+    category: 'editing',
+    section: 'Typing',
+    aliases: ['autocapitalize', 'capitalize sentences', 'auto capitalization', 'capitalise'],
+  },
+  {
     key: 'enterAfterPocket',
     label: 'Enter at the end of a structural style creates',
     description:
@@ -3587,6 +3602,7 @@ function sanitize(s: Settings): Settings {
     flashcardDueDot: s.flashcardDueDot === false ? false : true,
     editorSpellcheck: !!s.editorSpellcheck,
     smartQuotes: !!s.smartQuotes,
+    autoCapitalizeSentences: !!s.autoCapitalizeSentences,
     customDashEnabled: !!s.customDashEnabled,
     enterAfterPocket: sanitizeEnterAfter(s.enterAfterPocket),
     enterAfterHat: sanitizeEnterAfter(s.enterAfterHat),

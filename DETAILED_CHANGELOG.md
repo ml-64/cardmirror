@@ -7,6 +7,35 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Auto-capitalization for tags/analytics** (new
+  `auto-capitalize-plugin.ts` — the third rule on the shared autocorrect
+  engine; `settings.ts`, registration in `index.ts`, MANUAL typing-aids +
+  settings sections; 39 tests in `tests/editor/auto-capitalize.test.ts`).
+  Word-style commit-time capitalization: fires on the delimiter (space or
+  `. , ; : ! ?`) that finishes a word, never while typing it. SCOPE is
+  tags/analytics ONLY (user decision: card bodies/cites/paragraphs are
+  source excerpts whose casing must be preserved verbatim — the inverse of
+  Word's apply-everywhere). Decision logic is a pure exported function
+  (`capitalizationFor`, the curlFor pattern) over the textblock's
+  before-caret text with atoms encoded as U+FFFC: sentence start = block
+  start or `.!?` terminator, with closers (`)]}"'"`) allowed between
+  terminator and gap; a `.` is NOT a terminator after a single letter
+  (initials, `e.g.`/`U.S.` middles), a known abbreviation (~40-entry
+  built-in set incl. cite vocabulary and months), or another `.`
+  (ellipses); no-whitespace-after-`.` (URLs/decimals) never fires;
+  standalone `i` → `I` anywhere except after `(` (enumeration markers);
+  atoms are opaque non-context. Words with NON-uniform marks are skipped —
+  the whole-word replacement inherits marksAcross, which would collapse a
+  partially-marked word's marking (uniformly-marked words round-trip, with
+  the delimiter inheriting the word's marks exactly like default typing).
+  Engine gives Backspace-revert (restores lowercase word + delimiter) and
+  the noise-immune revert window for free. Deliberate v1 limits: Enter
+  doesn't commit a word (keydown, not text input); quote characters aren't
+  delimiters (smart-quotes owns them; rule composition is a future engine
+  feature); pasted text untouched. The abbreviation list is built-in for
+  now — user-editable exceptions belong to the planned custom-autocorrects
+  settings table.
+
 - **Shared autocorrect engine** (new `autocorrect.ts`;
   `smart-quotes-plugin.ts` and `custom-dash-plugin.ts` rebuilt on it; tests
   in `tests/editor/autocorrect.test.ts`). Review finding (2026-07-13): the

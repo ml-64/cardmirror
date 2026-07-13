@@ -37,8 +37,10 @@ see `DETAILED_CHANGELOG.md`.
   immediately.
 
 - **New numbering option: Bold substructure letters** (Settings →
-  Appearance → Card numbering). On by default (today's look); turn it
-  off to render substructure letters at normal weight while numbers
+  Appearance → Card numbering). On by default: substructure letters now
+  render truly bold, matching the numbers and surrounding bold tag text
+  (they previously came out normal-weight and slightly faded in common
+  document fonts). Turn it off for normal-weight letters while numbers
   stay bold. Display-only, like the capitalization toggle.
 
 - **Dragging in the navigation pane no longer shifts the outline.**

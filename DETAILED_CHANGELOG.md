@@ -75,6 +75,14 @@ in each release, see `CHANGELOG.md`.
   reuses the old DOM. Registry `kind: 'toggle'` → the settings row and
   the command-bar Toggle command derive automatically.
 
+  The ON state also FIXES the letters' weight: `.pmd-card-number-sub`
+  carried `font-weight: 500` + `opacity: 0.85`, and CSS resolves an
+  unavailable 500 DOWNWARD — body fonts with only 400/700 faces (Times
+  New Roman) rendered "bold" letters as normal-weight faded text, while
+  the number glyph's 600 resolves UP to 700 and looked right (field
+  report 2026-07-13). Sub glyphs now carry no weight/opacity overrides
+  of their own, inheriting the number glyph's styling exactly.
+
 - **Card numbers in the nav pane** (`nav-panel.ts`; tests in
   `tests/editor/nav-panel-card-numbers.test.ts`). The outline now runs
   the same `computeNumbering` pass as the editor's decoration plugin

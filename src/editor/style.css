@@ -2453,14 +2453,15 @@ code {
   cursor: pointer;
   user-select: none;
 }
-.pmd-card-number-sub {
-  /* No left margin: indentation is governed solely by the (per-level) indent
-     settings, exactly like the number glyph. A baked-in offset here indented
-     just the tag's first line even with indent off — inconsistent with the
-     number toggle. Weight + opacity still distinguish a substructure letter. */
-  font-weight: 500;
-  opacity: 0.85;
-}
+/* Substructure letters carry NO weight/opacity overrides of their own: with
+   "Bold substructure letters" ON (default) they read exactly like the number
+   glyph and the surrounding bold tag text. (The old `font-weight: 500` was a
+   trap — body fonts with only 400/700 faces, like Times New Roman, resolve
+   500 DOWN to 400, so "bold" letters rendered normal-weight and the 0.85
+   opacity faded them further. Field report 2026-07-13.)
+   No left margin either: indentation is governed solely by the (per-level)
+   indent settings, exactly like the number glyph. */
+
 /* "Bold substructure letters" OFF (`cardNumberingSubBold`): letters at
    normal weight; numbers keep theirs regardless. */
 .pmd-card-number-sub-plain {

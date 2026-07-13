@@ -3,7 +3,7 @@
  * a role command turns the in-scope card set ON if any lacks the role, else OFF;
  * number/sub are mutually exclusive; restart flips the cursor's block or card.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { EditorState, TextSelection, type Command } from 'prosemirror-state';
 import { type Node as PMNode } from 'prosemirror-model';
 import { schema, newHeadingId } from '../../src/schema/index.js';
@@ -11,6 +11,7 @@ import {
   toggleNumberRole,
   toggleSubRole,
   toggleNumRestart,
+  registerNavNumberingScope,
 } from '../../src/editor/numbering-commands.js';
 
 function card(tag: string): PMNode {
@@ -110,5 +111,57 @@ describe('toggleNumRestart — flips the cursor unit', () => {
     expect(s.doc.child(0).attrs['numRestart']).toBe(true);
     s = run(s, toggleNumRestart);
     expect(s.doc.child(0).attrs['numRestart']).toBe(false);
+  });
+});
+
+describe('nav-pane selection scope (registerNavNumberingScope)', () => {
+  // Reset so no case leaks a provider into its neighbors (module-global).
+  afterEach(() => registerNavNumberingScope(() => null));
+
+  /** Positions of the i-th top-level children (all cards here). */
+  function childPositions(doc: PMNode, ...indices: number[]): number[] {
+    const at: number[] = [];
+    doc.forEach((_n, off, i) => {
+      if (indices.includes(i)) at.push(off);
+    });
+    return at;
+  }
+
+  it('a nav multi-selection scopes the toggle to THOSE cards, not the caret card', () => {
+    let s = stateWith([card('A'), card('B'), card('C')]);
+    // Caret sits in C; the nav selection covers A and B.
+    s = s.apply(s.tr.setSelection(TextSelection.create(s.doc, posInText(s.doc, 'C'))));
+    const navPositions = childPositions(s.doc, 0, 1);
+    registerNavNumberingScope(() => navPositions);
+    s = run(s, toggleNumberRole);
+    expect(roles(s.doc)).toEqual(['number', 'number', 'none']);
+  });
+
+  it('whole-set semantics apply to the nav scope: all-on toggles all off', () => {
+    let s = stateWith([card('A'), card('B')]);
+    for (const pos of childPositions(s.doc, 0, 1)) {
+      s = s.apply(s.tr.setNodeAttribute(pos, 'numRole', 'sub'));
+    }
+    s = s.apply(s.tr.setSelection(TextSelection.create(s.doc, posInText(s.doc, 'A'))));
+    registerNavNumberingScope(() => childPositions(s.doc, 0, 1));
+    s = run(s, toggleSubRole);
+    expect(roles(s.doc)).toEqual(['none', 'none']);
+  });
+
+  it('stale positions that no longer resolve to a card drop out; all-stale falls back to the caret', () => {
+    let s = stateWith([card('A'), card('B')]);
+    s = s.apply(s.tr.setSelection(TextSelection.create(s.doc, posInText(s.doc, 'B'))));
+    // A position pointing INSIDE a card (its tag) is not a card unit.
+    registerNavNumberingScope(() => [childPositions(s.doc, 0)[0]! + 1]);
+    s = run(s, toggleNumberRole);
+    expect(roles(s.doc)).toEqual(['none', 'number']); // caret card, not tag-pos garbage
+  });
+
+  it('a null / empty provider leaves the editor-selection scope untouched', () => {
+    let s = stateWith([card('A'), card('B')]);
+    s = s.apply(s.tr.setSelection(TextSelection.create(s.doc, posInText(s.doc, 'A'))));
+    registerNavNumberingScope(() => null);
+    s = run(s, toggleNumberRole);
+    expect(roles(s.doc)).toEqual(['number', 'none']);
   });
 });

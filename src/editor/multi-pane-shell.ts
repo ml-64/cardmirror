@@ -1238,6 +1238,7 @@ function flushHeavyUpdateNow(record: DocRecord): void {
   record.navPanel.setCaretHeading(
     record.view.state.selection.from,
     selfRefSelectionPos(record.view.state),
+    { preserveMultiSelect: true }, // positional resync, not a caret move
   );
   record.owner.refreshWordCount();
 }
@@ -2925,10 +2926,11 @@ function buildDocRecord(
             record.navPanel.update(view.state.doc);
             // Re-apply against the rebuilt entries (fresh positions) so a
             // structural edit doesn't leave the wrong heading lit (parity with
-            // single-doc, index.ts).
+            // single-doc, index.ts). Positional resync → nav multi-select survives.
             record.navPanel.setCaretHeading(
               view.state.selection.from,
               selfRefSelectionPos(view.state),
+              { preserveMultiSelect: true },
             );
           } catch (e) {
             console.error('[cardmirror] navPanel.update failed in multi-pane flush:', e);
@@ -2967,7 +2969,9 @@ function buildDocRecord(
       if (transclusionDivergenceKey.getState(next)?.diverged !== prevDiverged) {
         try {
           record.navPanel.update(next.doc);
-          record.navPanel.setCaretHeading(next.selection.from, selfRefSelectionPos(next));
+          record.navPanel.setCaretHeading(next.selection.from, selfRefSelectionPos(next), {
+            preserveMultiSelect: true, // positional resync, not a caret move
+          });
         } catch (e) {
           console.error('[cardmirror] navPanel divergence rebuild failed:', e);
         }

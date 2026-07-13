@@ -22,9 +22,36 @@ interface CardUnit {
   node: PMNode;
 }
 
-/** Card / analytic_unit units in scope: the cursor's enclosing one, or every one
- *  the selection touches. */
+/** Provider for the nav pane's explicit multi-selection (set at boot by
+ *  index.ts via the active-nav-panel resolver, so it follows the focused
+ *  pane in multi-pane mode). Returns the wrapping card/analytic_unit
+ *  positions of the selected tag/analytic rows, or null when there's no
+ *  such selection — see `NavigationPanel.selectedCardUnitPositions`. */
+let navScopeProvider: (() => number[] | null) | null = null;
+export function registerNavNumberingScope(provider: () => number[] | null): void {
+  navScopeProvider = provider;
+}
+
+/** Card / analytic_unit units in scope: the nav pane's explicit
+ *  multi-selection when one is active (Shift/Ctrl-click on tag rows —
+ *  the toggles then act on those cards "as if selected"), else the
+ *  cursor's enclosing unit, or every unit the selection touches. */
 function inScopeCardUnits(state: EditorState): CardUnit[] {
+  // Nav-pane scope first. Positions come from the SAME view the command
+  // runs against (the active-panel resolver tracks focus), but re-check
+  // each one resolves to a card/analytic_unit in THIS state anyway —
+  // a stale position must drop out, never mis-target a random node.
+  const navPositions = navScopeProvider?.();
+  if (navPositions && navPositions.length > 0) {
+    const units: CardUnit[] = [];
+    for (const pos of navPositions) {
+      const node = state.doc.nodeAt(pos);
+      if (node && (node.type.name === 'card' || node.type.name === 'analytic_unit')) {
+        units.push({ pos, node });
+      }
+    }
+    if (units.length > 0) return units;
+  }
   const { doc, selection } = state;
   const units: CardUnit[] = [];
   if (selection.empty) {

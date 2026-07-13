@@ -93,3 +93,47 @@ describe('NavigationPanel — card number glyphs', () => {
     view.destroy();
   });
 });
+
+describe('NavigationPanel — selectedCardUnitPositions (numbering toggle scope)', () => {
+  /** Force the panel's selection internals (private) to the given rows. */
+  function forceSelection(nav: NavigationPanel, ids: string[], level: number): void {
+    const p = nav as unknown as { selectedIds: Set<string>; selectionLevel: number | null };
+    p.selectedIds = new Set(ids);
+    p.selectionLevel = level;
+  }
+  /** Heading ids + wrapping positions of every top-level card/unit. */
+  function cardsOf(view: EditorView): Array<{ id: string; pos: number }> {
+    const out: Array<{ id: string; pos: number }> = [];
+    view.state.doc.forEach((n, off) => {
+      const id = n.firstChild?.attrs['id'];
+      if (typeof id === 'string') out.push({ id, pos: off });
+    });
+    return out;
+  }
+
+  it('a multi-selection of tag/analytic rows maps to the wrapping card positions', () => {
+    const { view, nav } = setup(card('A'), card('B'), analytic('C'));
+    const all = cardsOf(view);
+    forceSelection(nav, [all[0]!.id, all[2]!.id], 4);
+    expect(nav.selectedCardUnitPositions()?.sort((a, b) => a - b)).toEqual([
+      all[0]!.pos,
+      all[2]!.pos,
+    ]);
+    view.destroy();
+  });
+
+  it('a single selection defers to the editor caret (null)', () => {
+    const { view, nav } = setup(card('A'), card('B'));
+    forceSelection(nav, [cardsOf(view)[0]!.id], 4);
+    expect(nav.selectedCardUnitPositions()).toBeNull();
+    view.destroy();
+  });
+
+  it('a non-level-4 selection (blocks etc.) is not a numbering scope', () => {
+    const { view, nav } = setup(card('A'), card('B'));
+    const all = cardsOf(view);
+    forceSelection(nav, [all[0]!.id, all[1]!.id], 3);
+    expect(nav.selectedCardUnitPositions()).toBeNull();
+    view.destroy();
+  });
+});

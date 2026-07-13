@@ -181,7 +181,7 @@ import { citeClassifierPlugin } from './cite-classifier-plugin.js';
 import { namedStyleNormalizerPlugin } from './named-style-normalizer-plugin.js';
 import { fontSizeClassPlugin } from './font-size-class-plugin.js';
 import { cardNumberingPlugin, NUMBERING_REFRESH, numberingSampleGlyph, numberingDisplaySig } from './numbering-plugin.js';
-import { numberingSelectionState } from './numbering-commands.js';
+import { numberingSelectionState, registerNavNumberingScope } from './numbering-commands.js';
 import {
   buildSimilarSelectionPlugin,
   selectAllOfStyle,
@@ -3859,6 +3859,13 @@ const numRoleBtn = document.getElementById('num-role-btn') as HTMLButtonElement 
 const numSubRoleBtn = document.getElementById('num-sub-role-btn') as HTMLButtonElement | null;
 const numRestartBtn = document.getElementById('num-restart-btn') as HTMLButtonElement | null;
 const numVisibilityBtn = document.getElementById('num-visibility-btn') as HTMLButtonElement | null;
+// A nav-pane multi-selection of tag/analytic rows scopes the number/sub
+// toggles to THOSE cards, as if they were selected in the editor. Routed
+// through the active-panel resolver so it follows the focused pane in
+// multi-pane mode; single selections return null (the editor caret wins).
+registerNavNumberingScope(
+  () => activeNavPanelResolver()?.selectedCardUnitPositions() ?? null,
+);
 for (const [btn, cmd] of [
   [numRoleBtn, 'toggleNumberRole'],
   [numSubRoleBtn, 'toggleSubRole'],
@@ -5176,8 +5183,12 @@ function scheduleHeavyUpdate(): void {
     // before this debounced rebuild) — fine for small edits, but a
     // structural change like a drag-move leaves the wrong heading
     // highlighted until the next caret movement. Re-running here against
-    // the rebuilt positions corrects it.
-    navPanel.setCaretHeading(view.state.selection.from, selfRefSelectionPos(view.state));
+    // the rebuilt positions corrects it. Positional resync, not a caret
+    // move → an explicit nav multi-select survives (the numbering
+    // toggles edit the selected cards, which lands here).
+    navPanel.setCaretHeading(view.state.selection.from, selfRefSelectionPos(view.state), {
+      preserveMultiSelect: true,
+    });
     refreshWordCount();
     if (needsCommentsGC) {
       needsCommentsGC = false;

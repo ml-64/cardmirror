@@ -91,3 +91,94 @@ describe('NavigationPanel caret-tracking (remapPositions)', () => {
     view.destroy();
   });
 });
+
+describe('setCaretHeading — preserveMultiSelect (positional resyncs)', () => {
+  function multiSelect(panel: NavigationPanel, ids: string[]): void {
+    const p = panel as unknown as {
+      selectedIds: Set<string>;
+      selectionLevel: number | null;
+      selectionAnchorId: string | null;
+    };
+    p.selectedIds = new Set(ids);
+    p.selectionLevel = 4;
+    p.selectionAnchorId = ids[0] ?? null;
+  }
+  function selectedCount(panel: NavigationPanel): number {
+    return ((panel as unknown as Record<string, unknown>)['selectedIds'] as Set<string>).size;
+  }
+  /** Caret position inside the FIRST card's tag text. */
+  function caretInFirstTag(view: EditorView): number {
+    let p = -1;
+    view.state.doc.descendants((n, pos) => {
+      if (p < 0 && n.type.name === 'tag') p = pos + 1;
+      return p < 0;
+    });
+    return p;
+  }
+
+  it('a resync keeps an explicit multi-select whose member holds the caret', () => {
+    const { view, t1, t2 } = makeDocAndView();
+    const panel = new NavigationPanel(document.createElement('div'));
+    panel.attach(view);
+    panel.update(view.state.doc);
+    multiSelect(panel, [t1, t2]);
+    // The post-rebuild resync (e.g. after a numbering toggle edited these
+    // very cards) must not collapse the group the user is toggling.
+    panel.setCaretHeading(caretInFirstTag(view), null, { preserveMultiSelect: true });
+    expect(selectedCount(panel)).toBe(2);
+    panel.destroy();
+    view.destroy();
+  });
+
+  it('a REAL caret move (no flag) still collapses to a single selection', () => {
+    const { view, t1, t2 } = makeDocAndView();
+    const panel = new NavigationPanel(document.createElement('div'));
+    panel.attach(view);
+    panel.update(view.state.doc);
+    multiSelect(panel, [t1, t2]);
+    panel.setCaretHeading(caretInFirstTag(view));
+    expect(selectedCount(panel)).toBe(1);
+    expect(selectedId(panel)).toBe(t1);
+    panel.destroy();
+    view.destroy();
+  });
+
+  it('a resync whose caret heading is OUTSIDE the group collapses (reflects reality)', () => {
+    // Three cards: the group covers Second + Third, the caret sits in First.
+    const ids = [newHeadingId(), newHeadingId(), newHeadingId()];
+    const doc = schema.nodes['doc']!.create(
+      null,
+      ['First', 'Second', 'Third'].map((t, i) =>
+        schema.nodes['card']!.create(null, [
+          schema.nodes['tag']!.create({ id: ids[i] }, schema.text(t)),
+          schema.nodes['card_body']!.create(null, schema.text('body')),
+        ]),
+      ),
+    );
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const view = new EditorView(container, { state: EditorState.create({ doc }) });
+    const panel = new NavigationPanel(document.createElement('div'));
+    panel.attach(view);
+    panel.update(view.state.doc);
+    multiSelect(panel, [ids[1]!, ids[2]!]);
+    panel.setCaretHeading(caretInFirstTag(view), null, { preserveMultiSelect: true });
+    expect(selectedCount(panel)).toBe(1);
+    expect(selectedId(panel)).toBe(ids[0]!);
+    panel.destroy();
+    view.destroy();
+  });
+
+  it('preserve flag + a SINGLE selection behaves exactly like today (caret mirror)', () => {
+    const { view, t1 } = makeDocAndView();
+    const panel = new NavigationPanel(document.createElement('div'));
+    panel.attach(view);
+    panel.update(view.state.doc);
+    multiSelect(panel, [t1]); // size 1 — not an explicit multi-select
+    panel.setCaretHeading(caretInFirstTag(view), null, { preserveMultiSelect: true });
+    expect(selectedCount(panel)).toBe(1);
+    expect(selectedId(panel)).toBe(t1);
+    panel.destroy();
+    view.destroy();
+  });
+});

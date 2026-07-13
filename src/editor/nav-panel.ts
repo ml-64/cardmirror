@@ -1127,8 +1127,21 @@ export class NavigationPanel {
    * Doesn't auto-scroll the nav pane to bring the highlight into
    * view — that'd dominate scroll behavior for users who scroll the
    * editor freely. Add later if it turns out to be desired.
+   *
+   * `opts.preserveMultiSelect`: set by the POSITIONAL RESYNC callers
+   * (post-rebuild / divergence refresh), where the caret didn't move —
+   * the doc changed under it. An explicit Shift/Ctrl-click multi-select
+   * survives those as long as the caret's heading is still one of its
+   * members: the numbering toggles edit the very cards the group
+   * covers, and users run them repeatedly on one selection. Real caret
+   * movement (the gated dispatchTransaction path) omits the flag and
+   * collapses as documented above.
    */
-  setCaretHeading(pos: number, selfRefPos: number | null = null): void {
+  setCaretHeading(
+    pos: number,
+    selfRefPos: number | null = null,
+    opts?: { preserveMultiSelect?: boolean },
+  ): void {
     // A node-selected live view carries the caret onto ITS window row(s) rather
     // than the heading above it. The projected rows share the `self_ref`'s
     // position and have `id: null`, so track the window by position and light
@@ -1152,6 +1165,16 @@ export class NavigationPanel {
     }
     if (best === null) {
       this.clearSelection();
+      if (hadWindow) this.applySelectionClasses();
+      return;
+    }
+    if (
+      opts?.preserveMultiSelect === true &&
+      this.selectedIds.size > 1 &&
+      best.id != null &&
+      this.selectedIds.has(best.id)
+    ) {
+      // Resync with the caret still inside the group — keep it.
       if (hadWindow) this.applySelectionClasses();
       return;
     }
@@ -1221,6 +1244,35 @@ export class NavigationPanel {
       this.selectionLevel = entry.level;
     }
     this.applySelectionClasses();
+  }
+
+  /** Wrapping card/analytic_unit positions of the current EXPLICIT
+   *  multi-selection of tag/analytic rows — the numbering toggles'
+   *  nav-selection scope ("apply to these cards as if selected").
+   *
+   *  Null unless ≥2 level-4 rows are selected: a single selection is
+   *  just the caret-tracking mirror (the highlight follows the editor
+   *  caret), so the editor's own selection scope must win there. A
+   *  moved caret collapses multi-selects (`setCaretHeading`), so a
+   *  surviving multi-select is always a deliberate Shift/Ctrl-click.
+   *
+   *  Resolved against the live doc via `collectHeadings` (NOT the
+   *  rendered rows — a shift-click range includes rows hidden under
+   *  collapsed parents). Deduped: a card's tag and its in-card
+   *  analytic both map to the same wrapper. */
+  selectedCardUnitPositions(): number[] | null {
+    if (!this.view) return null;
+    if (this.selectedIds.size < 2 || this.selectionLevel !== 4) return null;
+    const doc = this.view.state.doc;
+    const out = new Set<number>();
+    for (const e of collectHeadings(doc, { skipCite: true })) {
+      if (e.id == null || !this.selectedIds.has(e.id)) continue;
+      if (e.type !== 'tag' && e.type !== 'analytic') continue;
+      const $pos = doc.resolve(e.pos);
+      if ($pos.depth === 0) continue; // malformed — a bare heading has no wrapper
+      out.add($pos.before());
+    }
+    return out.size > 0 ? [...out] : null;
   }
 
   private applySelectionClasses(): void {

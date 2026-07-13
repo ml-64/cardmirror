@@ -1726,10 +1726,18 @@ and headings instead of importing flat text.
   is `.docx`, or hasn't been saved once yet); a **red button with a solid
   outline** means the last autosave FAILED and your latest changes are not
   on disk — hover over it for the reason. **(Desktop only.)**
-- **If a file's folder gets renamed or moved** while the document is open
-  (say, someone reorganizes a shared Dropbox), the next save can't find the
-  old location. CardMirror will tell you what happened and offer
-  **Save As…** so you can put the document somewhere new — nothing is lost.
+- **If a file (or its folder) gets renamed, moved, or deleted** while the
+  document is open (say, someone reorganizes a shared Dropbox), the next
+  save can't find the old location. CardMirror will tell you what happened
+  and offer **Save As…** so you can put the document somewhere new —
+  nothing is lost, and the app never silently recreates a file at the old
+  location.
+- **If the file changes on disk while it's open** — edited on another
+  device, by another program, or replaced by a sync service — Save asks
+  before replacing it: **Overwrite** (keep this window's version),
+  **Save As…** (keep both), or cancel. Autosave never overwrites a file
+  that changed underneath it; it pauses and tells you to use Save to
+  review. **(Desktop only.)**
 
 ### Save As presets
 

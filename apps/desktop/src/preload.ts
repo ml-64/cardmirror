@@ -212,8 +212,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     opts: { filters: FileFilter[] },
   ) => ipcRenderer.invoke('host:save-as', suggestedName, bytes, opts),
 
-  saveExisting: (handle: string, bytes: Uint8Array) =>
-    ipcRenderer.invoke('host:save-existing', handle, bytes),
+  saveExisting: (handle: string, bytes: Uint8Array, opts?: { force?: boolean }) =>
+    ipcRenderer.invoke('host:save-existing', handle, bytes, opts),
 
   /** Silent "Save Send Doc" write to a renderer-resolved folder.
    *  Resolves to the written file's name + path, the string

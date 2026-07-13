@@ -260,7 +260,12 @@ import { openWordCount } from './word-count-ui.js';
 import { wireColorPanel } from './color-panel.js';
 import { countReadAloudWords, formatReadTime, formatNumber } from './word-count.js';
 import { getHost, getElectronHost, isWindowsHost, isSameOpenHandle, type OpenedFile, type JournalEntry } from './host/index.js';
-import { installGlobalErrorSurface, isFileGoneError } from './error-surface.js';
+import {
+  installGlobalErrorSurface,
+  isFileGoneError,
+  isFileChangedOnDiskError,
+} from './error-surface.js';
+import { captureCleanToken } from './save-clean-token.js';
 import { computeSelectionChrome, type SelectionChrome } from './selection-chrome.js';
 
 // Install the last-resort error hooks before ANY app wiring — an exception
@@ -606,10 +611,14 @@ async function runNewSpeechDocumentSingleDoc(): Promise<void> {
   // automatic save).
   let handle: string | null = null;
   const defaultFolder = settings.get('defaultSpeechDocFolder').trim();
-  if (defaultFolder) {
+  const electronForSpeechSave = getElectronHost();
+  if (defaultFolder && electronForSpeechSave) {
     const targetPath = joinSpeechDocPath(defaultFolder, filename);
     try {
-      await host.saveExisting(targetPath, docBytes);
+      // A brand-new file — use the at-path writer (which also creates
+      // the folder if needed); `saveExisting` refuses paths that don't
+      // exist on disk. Electron-only, like the folder setting itself.
+      await electronForSpeechSave.writeFileAtPath(targetPath, docBytes);
       handle = targetPath;
     } catch (err) {
       console.warn('Auto-save of new speech doc to default folder failed:', err);
@@ -833,8 +842,7 @@ let multiDocSetFocusedDocId: ((docId: string) => void) | null = null;
 /** Crash-recovery hook: clear the focused pane's journal after a
  *  successful save in multi-doc mode. The shell knows the
  *  DocRecord's uid; the editor only knows it has a focused doc. */
-let multiDocClearFocusedJournal: (() => Promise<void>) | null = null;
-let multiDocNotifyFocusedSaved: (() => void) | null = null;
+let multiDocCaptureFocusedCleanToken: (() => (() => boolean) | null) | null = null;
 /** Mode-switch hook: journal every open DocRecord across every
  *  slot's stack so the auto-recover-on-reload flow can rebuild
  *  the workspace in the new layout. Returns each doc's uid +
@@ -921,11 +929,12 @@ export function enableMultiDocMode(opts: {
   /** App-quit path: prompt to save every unsaved doc across all panes (without
    *  closing them). Returns false if the user cancels — the quit aborts. */
   promptSaveAllForQuit?: () => Promise<boolean>;
-  clearFocusedJournal?: () => Promise<void>;
-  /** Called from single-doc save flows after a successful save so
-   *  the multi-pane shell can clear the focused DocRecord's dirty
-   *  flag (used by the per-pane close-confirm prompt). */
-  notifyFocusedSaved?: () => void;
+  /** Called from single-doc save flows RIGHT BEFORE serializing so a
+   *  successful save can mark the focused DocRecord clean + drop its
+   *  journal — but only if no edits landed while the write was in
+   *  flight (see save-clean-token.ts). Returns null when no pane is
+   *  focused. */
+  captureFocusedCleanToken?: () => (() => boolean) | null;
   onRecoveredDoc?: (entry: {
     uid: string;
     filename: string;
@@ -966,8 +975,7 @@ export function enableMultiDocMode(opts: {
   multiDocCreateSessionDoc = opts.createSessionDoc ?? null;
   multiDocSetFilenameForUid = opts.setFilenameForUid ?? null;
   multiDocPromptSaveAllForQuit = opts.promptSaveAllForQuit ?? null;
-  multiDocClearFocusedJournal = opts.clearFocusedJournal ?? null;
-  multiDocNotifyFocusedSaved = opts.notifyFocusedSaved ?? null;
+  multiDocCaptureFocusedCleanToken = opts.captureFocusedCleanToken ?? null;
   multiDocOnRecoveredDoc = opts.onRecoveredDoc ?? null;
   multiDocJournalAll = opts.journalAll ?? null;
   multiDocReduceToFocused = opts.reduceToFocusedForModeSwitch ?? null;
@@ -5329,11 +5337,22 @@ function markNonPristineStarter(): void {
  *  recovery). Drives the close-confirm prompt: a clean window
  *  closes without prompting. */
 let currentDocDirty = false;
+/** Edit generation for the single-doc view — bumped on every doc-
+ *  changing edit AND on every explicit clean (doc swaps: Open / New /
+ *  recovery). Saves capture it right before serializing so a save that
+ *  completes after further edits (or after the doc was replaced) can't
+ *  wrongly mark the CURRENT content clean (see save-clean-token.ts). */
+let currentDocEditGen = 0;
 function markCurrentDocDirty(): void {
   currentDocDirty = true;
+  currentDocEditGen++;
 }
 function markCurrentDocClean(): void {
   currentDocDirty = false;
+  // Invalidate any in-flight save's clean token: this path runs on doc
+  // swaps, and a save of the PREVIOUS doc must not mark the new one
+  // clean (save completions commit via their token, not this fn).
+  currentDocEditGen++;
 }
 
 /** Generate a fresh session-scoped doc UID. Used by the single-doc
@@ -6555,6 +6574,9 @@ async function runSaveAsFlowInner(): Promise<boolean> {
     // original file keeps its own). Derived/lossy exports get no docId
     // (clean copies). Works in both layouts via the focused-doc identity.
     const forkDocId = isFullSave ? crypto.randomUUID() : undefined;
+    // Before serializing, same as runSaveFlowInner — mid-write edits
+    // must keep the doc dirty. Only consumed on the full-save path.
+    const commitClean = captureActiveDocCleanToken();
     const bytes = await serializeForSave(
       choice.format,
       {
@@ -6606,11 +6628,9 @@ async function runSaveAsFlowInner(): Promise<boolean> {
           format: choice.format,
         });
       }
-      markCurrentDocClean();
-      multiDocNotifyFocusedSaved?.();
-      // Successful save — the on-disk file IS the latest version, the
-      // journal is redundant. Best-effort delete.
-      void clearJournalForActiveDoc();
+      // Successful save — mark clean + drop the now-redundant journal,
+      // unless edits landed while the write was in flight.
+      commitClean();
     } else {
       // Derived export: still surface the new file in recents so it's
       // reachable, but don't touch the working doc's identity / state.
@@ -6831,6 +6851,9 @@ async function runSaveFlowInner(): Promise<boolean> {
     // Ensure a stable docId (minting + rekeying pre-save annotations on
     // first save), keyed to the focused doc in either layout.
     const docId = ensureActiveDocId();
+    // Capture the clean token BEFORE serializing: edits that land from
+    // here on are not in the written bytes and must keep the doc dirty.
+    const commitClean = captureActiveDocCleanToken();
     const bytes = await serializeForSave(
       file.format,
       {
@@ -6843,7 +6866,37 @@ async function runSaveFlowInner(): Promise<boolean> {
       },
       docId,
     );
-    await getHost().saveExisting(file.handle, bytes);
+    try {
+      await getHost().saveExisting(file.handle, bytes);
+    } catch (err) {
+      // The file changed on disk since we last read/wrote it — another
+      // program, device, or sync service (Dropbox syncing down another
+      // machine's edit is the field case) wrote the path while this doc
+      // was open. Blindly writing would destroy that version WITHOUT
+      // even producing a Dropbox conflicted copy, so ask first.
+      if (!isFileChangedOnDiskError(err)) throw err;
+      const choice = await promptForRouteChoice<'overwrite' | 'saveAs'>({
+        message:
+          `"${file.filename ?? 'This document'}" has changed on disk since it was ` +
+          `opened — it may have been edited by another program, on another ` +
+          `device, or through a sync service. Replace the on-disk version?`,
+        choices: [
+          {
+            value: 'overwrite',
+            label: 'Overwrite',
+            description: "Replace the on-disk file with this window's version.",
+          },
+          {
+            value: 'saveAs',
+            label: 'Save As…',
+            description: "Keep both: save this window's version to a new location.",
+          },
+        ],
+      });
+      if (choice === 'saveAs') return runSaveAsFlow();
+      if (choice !== 'overwrite') return false;
+      await getHost().saveExisting(file.handle, bytes, { force: true });
+    }
     if (docId) {
       learnStore.registerDoc({
         docId,
@@ -6854,10 +6907,11 @@ async function runSaveFlowInner(): Promise<boolean> {
     }
     flashSaveSuccess();
     markNonPristineStarter();
-    markCurrentDocClean();
+    // Marks clean + drops the journal ONLY if no edits landed while
+    // the serialize/write was in flight — later keystrokes are not in
+    // the written bytes, so they must keep the doc dirty.
+    commitClean();
     reportAutosaveSuccess();
-    multiDocNotifyFocusedSaved?.();
-    void clearJournalForActiveDoc();
     return true;
   } catch (err) {
     console.error('Save failed:', err);
@@ -7036,15 +7090,28 @@ async function clearCurrentJournal(): Promise<void> {
   }
 }
 
-/** Clear the journal for whatever doc is "active" — focused
- *  DocRecord in multi-doc, or the single-doc currentDocUid. The
- *  shell exposes the right uid through `multiDocClearFocusedJournal`. */
-async function clearJournalForActiveDoc(): Promise<void> {
-  if (multiDocActive && multiDocClearFocusedJournal) {
-    await multiDocClearFocusedJournal();
-    return;
+/** Layout-aware clean token for the active doc — capture it RIGHT
+ *  BEFORE serializing a save; call the returned fn after the write
+ *  lands to mark the doc clean + drop its crash-recovery journal,
+ *  which it only does when no edits arrived while the save was in
+ *  flight (see save-clean-token.ts). Multi-pane: the focused
+ *  DocRecord via the shell hook; single-doc: the module globals. */
+function captureActiveDocCleanToken(): () => boolean {
+  if (multiDocActive && multiDocCaptureFocusedCleanToken) {
+    const token = multiDocCaptureFocusedCleanToken();
+    if (token) return token;
   }
-  await clearCurrentJournal();
+  return captureCleanToken({
+    editGen: () => currentDocEditGen,
+    markClean: () => {
+      // Direct flag clear — markCurrentDocClean() would bump the
+      // generation and wrongly invalidate other in-flight tokens.
+      currentDocDirty = false;
+    },
+    clearJournal: () => {
+      void clearCurrentJournal();
+    },
+  });
 }
 
 async function runAutosaveAttempt(): Promise<void> {
@@ -7056,6 +7123,9 @@ async function runAutosaveAttempt(): Promise<void> {
   if (file.format !== 'cmir' || !file.handle) return;
   if (!getHost().supportsInPlaceSave) return;
   try {
+    // Capture before serializing — keystrokes during the write are not
+    // in the saved bytes and must keep the doc dirty + journaled.
+    const commitClean = captureActiveDocCleanToken();
     const bytes = await serializeForSave(
       'cmir',
       {
@@ -7070,9 +7140,8 @@ async function runAutosaveAttempt(): Promise<void> {
     );
     await getHost().saveExisting(file.handle, bytes);
     flashSaveSuccess();
-    markCurrentDocClean();
+    commitClean();
     reportAutosaveSuccess();
-    void clearJournalForActiveDoc();
   } catch (err) {
     reportAutosaveFailure(file.filename ?? 'Untitled', err);
   }
@@ -7100,7 +7169,9 @@ export function reportAutosaveFailure(filename: string, err: unknown): void {
   showToast(
     isFileGoneError(err)
       ? `Autosave failed — "${filename}" no longer exists at its saved location. Use Save As to pick a new one.`
-      : `Autosave failed for "${filename}" — your latest changes are not saved.`,
+      : isFileChangedOnDiskError(err)
+        ? `Autosave paused — "${filename}" changed on disk (edited by another program or device?). Use Save to review before overwriting.`
+        : `Autosave failed for "${filename}" — your latest changes are not saved.`,
   );
 }
 
@@ -8436,9 +8507,14 @@ async function saveRecoveryEntry(entry: JournalEntry): Promise<boolean> {
       });
       return true;
     } catch (err) {
-      console.error('Recovery save failed:', err);
-      void alertDialog(`Save failed: ${err instanceof Error ? err.message : err}`);
-      return false;
+      // Original file renamed/moved/deleted since the crash → fall
+      // through to the Save-As modal below so the draft still has an
+      // exit (saveExisting no longer recreates files at stale paths).
+      if (!isFileGoneError(err)) {
+        console.error('Recovery save failed:', err);
+        void alertDialog(`Save failed: ${err instanceof Error ? err.message : err}`);
+        return false;
+      }
     }
   }
   // No handle, or host can't save in place — open the Save-As

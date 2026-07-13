@@ -199,7 +199,7 @@ interface ElectronAPI {
     bytes: Uint8Array,
     opts: { filters: FileFilter[] },
   ): Promise<{ name: string; handle: string } | null>;
-  saveExisting(handle: string, bytes: Uint8Array): Promise<void>;
+  saveExisting(handle: string, bytes: Uint8Array, opts?: { force?: boolean }): Promise<void>;
   saveSendDoc(
     opts: { folder: string | null; siblingHandle: string | null; filename: string },
     bytes: Uint8Array,
@@ -586,13 +586,17 @@ export class ElectronHost implements Host {
     return { name: result.name, handle: result.handle };
   }
 
-  async saveExisting(handle: unknown, bytes: Uint8Array): Promise<void> {
+  async saveExisting(
+    handle: unknown,
+    bytes: Uint8Array,
+    opts?: { force?: boolean },
+  ): Promise<void> {
     if (typeof handle !== 'string') {
       throw new Error(
         'ElectronHost: saveExisting requires a string path handle.',
       );
     }
-    await api().saveExisting(handle, bytes);
+    await api().saveExisting(handle, bytes, opts);
   }
 
   /** Electron writes to absolute paths — always writable, no permission model. */

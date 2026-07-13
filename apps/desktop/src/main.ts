@@ -36,6 +36,7 @@ import {
 } from './accessibility-pref.js';
 import { installMacAccessibilitySuppression } from './ax-suppress-mac.js';
 import { resolveCmirCandidates, isWithin } from './transclusion-path.js';
+import { saveExistingDoc, saveNewDoc, recordDiskStateFromDisk } from './doc-writes.js';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { gzip as zlibGzip, gunzip as zlibGunzip } from 'node:zlib';
@@ -226,7 +227,12 @@ const cloudWaitDelay = (ms: number): Promise<void> => new Promise((r) => setTime
  */
 async function readDocumentBytes(filePath: string): Promise<Buffer> {
   let bytes = await fs.readFile(filePath);
-  if (bytes.length >= (await fs.stat(filePath)).size) return bytes;
+  if (bytes.length >= (await fs.stat(filePath)).size) {
+    // Baseline for the changed-on-disk save guard: remember what the
+    // file looked like when we read it (see doc-writes.ts).
+    await recordDiskStateFromDisk(filePath);
+    return bytes;
+  }
   const started = Date.now();
   while (Date.now() - started < CLOUD_WAIT_TIMEOUT_MS) {
     await cloudWaitDelay(CLOUD_WAIT_POLL_MS);
@@ -234,6 +240,7 @@ async function readDocumentBytes(filePath: string): Promise<Buffer> {
     bytes = await fs.readFile(filePath);
     if (bytes.length >= size) break;
   }
+  await recordDiskStateFromDisk(filePath);
   return bytes;
 }
 
@@ -845,6 +852,9 @@ ipcMain.handle(
         await fh.close();
       }
       await fs.rename(tmpPath, real);
+      // In-app write — refresh the changed-on-disk baseline so a doc
+      // that has this file open doesn't get a false conflict prompt.
+      await recordDiskStateFromDisk(real);
       return { ok: true, name: path.basename(real) };
     } catch {
       try {
@@ -994,6 +1004,10 @@ ipcMain.handle(
         }
         // Restore the original mtime so recency sorting isn't disturbed.
         await fs.utimes(file, st.atime, st.mtime).catch(() => {});
+        // In-app rewrite (mtime restored but SIZE changed) — refresh the
+        // changed-on-disk baseline so an open doc in this folder doesn't
+        // get a false conflict prompt on its next save.
+        await recordDiskStateFromDisk(file);
         summary.compressed++;
         summary.bytesAfter += gz.length;
       } catch (err) {
@@ -1146,10 +1160,9 @@ ipcMain.handle('host:list-cmir-files', async (_event, root: string): Promise<Cmi
 
 ipcMain.handle('host:write-file-at-path', async (_event, filePath: string, bytes: unknown) => {
   if (typeof filePath !== 'string' || !filePath) throw new Error('write-file-at-path: no path');
-  // Ensure the parent directory exists (bulk convert writes into a
-  // destination folder, preserving the input's subfolder structure).
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, bytesToBuffer(bytes));
+  // mkdir: bulk convert writes into a destination folder, preserving
+  // the input's subfolder structure.
+  await saveNewDoc(filePath, bytesToBuffer(bytes), { mkdir: true });
 });
 
 ipcMain.handle(
@@ -1166,7 +1179,7 @@ ipcMain.handle(
       filters: opts?.filters?.length ? opts.filters : [],
     });
     if (result.canceled || !result.filePath) return null;
-    await fs.writeFile(result.filePath, bytesToBuffer(bytes));
+    await saveNewDoc(result.filePath, bytesToBuffer(bytes));
     return {
       name: path.basename(result.filePath),
       handle: result.filePath,
@@ -1196,18 +1209,25 @@ ipcMain.handle(
     if (opts.siblingHandle && path.resolve(target) === path.resolve(opts.siblingHandle)) {
       return 'collision';
     }
-    await fs.mkdir(path.dirname(target), { recursive: true });
-    await fs.writeFile(target, bytesToBuffer(bytes));
+    await saveNewDoc(target, bytesToBuffer(bytes), { mkdir: true });
     return { name: path.basename(target), handle: target };
   },
 );
 
-ipcMain.handle('host:save-existing', async (_event, handle: string, bytes: unknown) => {
-  if (typeof handle !== 'string' || handle.length === 0) {
-    throw new Error('host:save-existing: handle must be a non-empty path string.');
-  }
-  await fs.writeFile(handle, bytesToBuffer(bytes));
-});
+ipcMain.handle(
+  'host:save-existing',
+  async (_event, handle: string, bytes: unknown, opts?: { force?: boolean }) => {
+    if (typeof handle !== 'string' || handle.length === 0) {
+      throw new Error('host:save-existing: handle must be a non-empty path string.');
+    }
+    // Throws ENOENT when the file was renamed/deleted out from under
+    // us (→ the renderer's Save-As rescue) and an EMODIFIED-marked
+    // error when it changed on disk since we last read/wrote it
+    // (→ the renderer's overwrite / Save As / cancel prompt, whose
+    // "Overwrite" choice retries with force). See doc-writes.ts.
+    await saveExistingDoc(handle, bytesToBuffer(bytes), { force: opts?.force === true });
+  },
+);
 
 // ─── Crash-recovery journals ───────────────────────────────────────
 // Each open doc gets one journal file at

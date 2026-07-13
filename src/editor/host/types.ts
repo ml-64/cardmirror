@@ -143,8 +143,16 @@ export interface Host {
    *  Throws when the handle is no longer writable (file deleted,
    *  moved, permissions revoked) or when the platform can't fulfil
    *  the contract — the caller can fall back to Save As in those
-   *  cases. */
-  saveExisting(handle: unknown, bytes: Uint8Array): Promise<void>;
+   *  cases. On Electron it also throws an EMODIFIED-marked error
+   *  (`isFileChangedOnDiskError`) when the file changed on disk
+   *  since it was last read or written; `opts.force` — the user's
+   *  explicit "Overwrite" choice — skips that guard. Hosts without
+   *  the guard ignore `opts`. */
+  saveExisting(
+    handle: unknown,
+    bytes: Uint8Array,
+    opts?: { force?: boolean },
+  ): Promise<void>;
 
   /** Ensure `handle` is writable, prompting for permission if needed, and
    *  resolve to whether write access is granted. Call this from a USER-GESTURE

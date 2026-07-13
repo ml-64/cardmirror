@@ -5,6 +5,70 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## Unreleased
+
+- **Save write pipeline hardened** (new `apps/desktop/src/doc-writes.ts`;
+  `main.ts`, `error-surface.ts`, `index.ts`; 15 tests in
+  `tests/desktop/doc-writes.test.ts`). Field reports showed documents
+  renamed or deleted in Finder while open were silently *forked*: the
+  old bare `fs.writeFile` recreated the file at the stale path, the ✓
+  flashed, and the user ended up with two quietly diverging copies (the
+  beta.12 ENOENT rescue only fired when the *folder* was gone). All four
+  document-writing IPC handlers now route through a shared pipeline:
+
+  - *Existence check* — in-place saves `stat` first, so a renamed or
+    deleted file surfaces as ENOENT and lands in the existing
+    "file location not found → Save As…" rescue flow (autosave shows its
+    failure toast). The recovery sidebar's in-place save falls through
+    to the Save-As modal on the same signal instead of dead-ending.
+  - *Changed-on-disk guard* — main records each document's on-disk
+    mtime+size after every read and write; an in-place save to a file
+    that no longer matches is refused with an `EMODIFIED`-marked error
+    (message-marked, like the ENOENT convention, because only the
+    message survives the IPC boundary). Save answers it with a
+    route-style **Overwrite / Save As… / Cancel** prompt — Overwrite
+    retries with `force`. Autosave never forces: it pauses with a
+    "changed on disk" toast until the user reviews via Save. This
+    closes the silent-clobber path where Dropbox syncs down another
+    machine's edit and the next save destroys it — a case where Dropbox
+    creates NO conflicted copy, because by write time the remote version
+    is just "the file on disk". Unknown paths (e.g. journal recovery
+    after a restart) skip the guard; in-app writers that bypass the
+    pipeline (`writeSourceAnchor`, bulk compress) refresh the baseline
+    so they don't trip false conflicts.
+  - *Atomic writes* — documents now stage into a hidden `.cmtmp`
+    sibling and rename into place (the crash-journal pattern), with the
+    original file's permission bits preserved, so a crash mid-save can't
+    tear the document. Previously the user's most valuable bytes were
+    the only write in the app WITHOUT this protection.
+  - *Per-path serialization* — writes to the same path chain onto each
+    other (the `journalWriteTails` pattern), so a manual ⌘S landing
+    while an autosave write is in flight can't interleave into a torn
+    file.
+
+  The new-speech-doc auto-save (which wrote a brand-new file through
+  `saveExisting`) moved to `writeFileAtPath`, since in-place saves now
+  require the file to exist.
+
+- **Edits made while a save is writing no longer marked clean** (new
+  `src/editor/save-clean-token.ts`; `index.ts`, `multi-pane-shell.ts`;
+  tests in `tests/editor/save-clean-token.test.ts`). Every save is
+  async — snapshot, serialize (toDocx can be slow), await the write —
+  and all completion paths in both layouts cleared the dirty flag
+  unconditionally. Keystrokes landing inside that window were therefore
+  marked saved without being in the written bytes: close within the
+  next autosave debounce and the save prompt was skipped AND the
+  explicit-close path dropped the recovery journal — silent loss. Saves
+  now capture the doc's edit generation immediately before serializing
+  and only mark clean / clear the journal if it hasn't moved; a moved
+  generation leaves the doc dirty for the already-armed autosave/journal
+  debounces. The token also pins the DocRecord in multi-pane (a save
+  that completes after focus moved can't clear the wrong pane's flag)
+  and single-doc swaps bump the generation, so a save of the previous
+  doc can't mark its replacement clean. Replaces the
+  `notifyFocusedSaved` / `clearFocusedJournal` shell hooks with one
+  `captureFocusedCleanToken`.
+
 ## 0.1.0-beta.13 — 2026-07-12
 
 - **Global error surface: benign ResizeObserver noise filtered**

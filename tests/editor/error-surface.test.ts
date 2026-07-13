@@ -7,7 +7,11 @@
  * exactly the renamed/moved/deleted-location failures that Save As can fix.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
-import { installGlobalErrorSurface, isFileGoneError } from '../../src/editor/error-surface.js';
+import {
+  installGlobalErrorSurface,
+  isFileGoneError,
+  isFileChangedOnDiskError,
+} from '../../src/editor/error-surface.js';
 
 describe('isFileGoneError', () => {
   it('classifies Electron ENOENT (raw and IPC-wrapped) as file-gone', () => {
@@ -34,6 +38,36 @@ describe('isFileGoneError', () => {
     expect(isFileGoneError(new DOMException('denied', 'NotAllowedError'))).toBe(false);
     expect(isFileGoneError('ENOENT-ish string')).toBe(false);
     expect(isFileGoneError(null)).toBe(false);
+  });
+});
+
+describe('isFileChangedOnDiskError', () => {
+  it('classifies the main-process EMODIFIED guard error (raw and IPC-wrapped)', () => {
+    expect(
+      isFileChangedOnDiskError(
+        new Error('EMODIFIED: "Aff.cmir" changed on disk after CardMirror last read or wrote it'),
+      ),
+    ).toBe(true);
+    expect(
+      isFileChangedOnDiskError(
+        new Error(
+          "Error invoking remote method 'host:save-existing': Error: EMODIFIED: \"Aff.cmir\" changed on disk",
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it('is disjoint from file-gone: each classifier rejects the other class', () => {
+    const changed = new Error('EMODIFIED: "x.cmir" changed on disk');
+    const gone = new Error('ENOENT: no such file or directory');
+    expect(isFileGoneError(changed)).toBe(false);
+    expect(isFileChangedOnDiskError(gone)).toBe(false);
+  });
+
+  it('rejects unrelated errors and non-Errors', () => {
+    expect(isFileChangedOnDiskError(new Error('EACCES: permission denied'))).toBe(false);
+    expect(isFileChangedOnDiskError('EMODIFIED-ish string')).toBe(false);
+    expect(isFileChangedOnDiskError(null)).toBe(false);
   });
 });
 

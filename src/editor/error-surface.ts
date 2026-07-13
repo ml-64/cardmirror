@@ -43,6 +43,20 @@ export function isFileGoneError(err: unknown): boolean {
   return (typeof message === 'string' && message.includes('ENOENT')) || name === 'NotFoundError';
 }
 
+/** Whether a save failure means the file CHANGED ON DISK since we last
+ *  read or wrote it — another program, device, or sync service wrote
+ *  the path while the doc was open. Raised by the Electron main
+ *  process's changed-on-disk guard (doc-writes.ts), which marks the
+ *  error message with 'EMODIFIED' because only the message survives
+ *  the IPC boundary (same convention as the ENOENT check above).
+ *  Distinct from `isFileGoneError`: the file is still there, so the
+ *  remedy is overwrite / Save As / cancel, not a forced relocation. */
+export function isFileChangedOnDiskError(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) return false;
+  const { message } = err as { message?: unknown };
+  return typeof message === 'string' && message.includes('EMODIFIED');
+}
+
 /** Benign browser noise that arrives as a window `error` event without
  *  anything actually being broken: ResizeObserver fires this whenever
  *  layout observers need another tick (both wordings, per browser).

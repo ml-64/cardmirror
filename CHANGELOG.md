@@ -5,6 +5,34 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## Unreleased
+
+### Changed
+
+- **Saving is much safer when files move or change underneath the app**
+  (desktop).
+  - If you rename or delete a file in Finder/Explorer while it's open,
+    the next save no longer silently recreates a copy at the old
+    name — CardMirror tells you the file is gone and offers **Save As…**
+    so you choose where the document lives now. (Previously you could
+    end up with two quietly diverging copies.)
+  - If a file changes on disk while it's open — edited on another
+    device, by another program, or replaced by a sync service like
+    Dropbox — Save now asks before replacing it: **Overwrite**,
+    **Save As…** (keep both), or cancel. Autosave never overwrites a
+    file that changed underneath it; it pauses with a notice instead.
+  - Documents are now written atomically (staged then swapped into
+    place), so a crash or power loss mid-save can no longer leave a
+    half-written file, and rapid overlapping saves of the same file
+    can no longer collide.
+
+### Fixed
+
+- Keystrokes typed in the moment a save was still writing to disk are no
+  longer marked as saved — the document correctly stays "unsaved" until
+  they actually reach the file, so closing right after a save can't skip
+  the save prompt for them.
+
 ## 0.1.0-beta.13 — 2026-07-12
 
 ### Added

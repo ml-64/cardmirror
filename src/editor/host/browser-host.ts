@@ -411,7 +411,10 @@ export class BrowserHost implements Host {
     return { name: suggestedName };
   }
 
-  async saveExisting(handle: unknown, bytes: Uint8Array): Promise<void> {
+  // `_opts` (the Electron changed-on-disk force flag) is accepted for
+  // interface parity and ignored — the FS Access API has no cheap
+  // stat, so this host has no changed-on-disk guard to override.
+  async saveExisting(handle: unknown, bytes: Uint8Array, _opts?: { force?: boolean }): Promise<void> {
     if (!handle || typeof (handle as FileSystemFileHandle).createWritable !== 'function') {
       throw new Error('BrowserHost: saveExisting requires a File System Access handle.');
     }

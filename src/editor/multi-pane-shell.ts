@@ -61,6 +61,7 @@ import { isBenchmarkActive } from './benchmark-state.js';
 import { countReadAloudWords, formatReadTime, formatNumber } from './word-count.js';
 import { openWordCount } from './word-count-ui.js';
 import { isAutosaveOnForPath, setAutosaveForPath } from './autosave-prefs-store.js';
+import { captureCleanToken } from './save-clean-token.js';
 import { scheduleIdle, cancelIdle, type IdleHandle } from './idle-scheduler.js';
 import { getSpeechDocResolver } from './speech-doc-registry.js';
 import { sendToSpeech as runSendToSpeech } from './speech-doc-send.js';
@@ -219,6 +220,20 @@ async function runAutosaveForRecord(record: DocRecord): Promise<void> {
   const host = getHost();
   if (!host.supportsInPlaceSave) return;
   try {
+    // Capture before serializing — keystrokes during the write are not
+    // in the saved bytes and must keep the record dirty + journaled.
+    const commitClean = captureCleanToken({
+      editGen: () => record.editGen,
+      markClean: () => {
+        record.dirty = false;
+      },
+      // Successful save → drop the journal. Mirrors the single-doc
+      // post-save journal cleanup so a re-crash doesn't surface a
+      // recovery offer for a doc that's already on disk.
+      clearJournal: () => {
+        void clearJournalForRecord(record);
+      },
+    });
     const state = record.view.state;
     const threads = Array.from(getCommentsState(state).threads.values());
     const bytes = await serializeNativeAsync(state.doc, {
@@ -226,16 +241,8 @@ async function runAutosaveForRecord(record: DocRecord): Promise<void> {
       ...(record.docId ? { docId: record.docId } : {}),
     });
     await host.saveExisting(record.handle, bytes);
-    record.dirty = false;
+    commitClean();
     reportAutosaveSuccess();
-    // Successful save → drop the journal. Mirrors the single-doc
-    // post-save journal cleanup so a re-crash doesn't surface a
-    // recovery offer for a doc that's already on disk.
-    try {
-      await host.deleteJournal(record.uid);
-    } catch {
-      /* best-effort */
-    }
   } catch (err) {
     reportAutosaveFailure(record.filename, err);
   }
@@ -337,6 +344,11 @@ interface DocRecord {
    *  (manual or autosave). Drives the per-pane close-confirm
    *  prompt: a clean pane closes without prompting. */
   dirty: boolean;
+  /** Edit generation — bumped on every doc-changing transaction. Saves
+   *  capture it right before serializing so a save that completes after
+   *  further edits can't wrongly mark those edits clean (see
+   *  save-clean-token.ts). */
+  editGen: number;
 }
 
 /**
@@ -2045,13 +2057,23 @@ class MultiPaneShell {
     setActiveView(rec.view);
   }
 
-  /** Clear the focused pane's `dirty` flag. Called from single-doc
-   *  save flows after a successful save so the per-pane close-X
-   *  prompt knows the doc no longer has unsaved changes. */
-  markFocusedSaved(): void {
+  /** Clean token for the focused pane — captured by the single-doc
+   *  save flows right before they serialize, committed after the write
+   *  lands. Pins the RECORD as well as the generation, so a save that
+   *  completes after focus moved to another pane can't clear the wrong
+   *  doc's dirty flag. Null when no pane is focused. */
+  captureFocusedCleanToken(): (() => boolean) | null {
     const rec = this.focusedSlot?.visible;
-    if (!rec) return;
-    rec.dirty = false;
+    if (!rec) return null;
+    return captureCleanToken({
+      editGen: () => rec.editGen,
+      markClean: () => {
+        rec.dirty = false;
+      },
+      clearJournal: () => {
+        void clearJournalForRecord(rec);
+      },
+    });
   }
 
   /** The filename currently shown in the focused pane's chip, or
@@ -2151,16 +2173,6 @@ class MultiPaneShell {
     rec.format = file.format;
     slot.refreshChipFilename();
     pushPaneDocInfo(rec.uid, rec.filename);
-  }
-
-  /** Clear the journal entry for the focused pane's visible doc.
-   *  Called from the editor's save flow after a successful save —
-   *  the on-disk file is now the latest version, the journal is
-   *  redundant. */
-  async clearFocusedJournal(): Promise<void> {
-    const rec = this.focusedSlot?.visible;
-    if (!rec) return;
-    await clearJournalForRecord(rec);
   }
 
   /** Journal every DocRecord across every slot's stack. Called by
@@ -2876,6 +2888,7 @@ function buildDocRecord(
       // snapshot — must never reach disk or mark the record dirty).
       if (tx.docChanged && !isBenchmarkActive()) {
         record.dirty = true;
+        record.editGen++;
         scheduleAutosaveForRecord(record);
         scheduleJournalForRecord(record);
       }
@@ -3030,8 +3043,9 @@ function buildDocRecord(
     docId: opts.docId ?? null,
     // Fresh doc: clean. Flipped on first doc-changing transaction;
     // cleared on a successful save (per-record autosave OR the
-    // single-doc save flow firing through the focused-saved hook).
+    // single-doc save flow firing through the clean-token hook).
     dirty: false,
+    editGen: 0,
   };
   // Publish (uid, view) so the speech-doc resolver can resolve uids
   // back to live views and (on Electron) so main learns which
@@ -3094,7 +3108,7 @@ export function mountMultiPaneShell(): void {
     toggleAutosave: () => shell!.toggleFocusedAutosave(),
     zoomFocusedBy: (delta) => shell!.zoomFocusedBy(delta),
     zoomFocusedReset: () => shell!.zoomFocusedReset(),
-    notifyFocusedSaved: () => shell!.markFocusedSaved(),
+    captureFocusedCleanToken: () => shell!.captureFocusedCleanToken(),
     newSpeechDocument: () => { void shell!.createNewSpeechDocument(); },
     markActiveAsSpeech: () => shell!.markFocusedAsSpeech(),
     sendToSpeechAtCursor: () => shell!.sendToSpeech(false),
@@ -3111,7 +3125,6 @@ export function mountMultiPaneShell(): void {
     createSessionDoc: () => shell!.createSessionDocIntoSlot(),
     setFilenameForUid: (uid, name) => shell!.setFilenameForUid(uid, name),
     promptSaveAllForQuit: () => shell!.promptSaveAllForQuit(),
-    clearFocusedJournal: () => shell!.clearFocusedJournal(),
     onRecoveredDoc: (entry) => shell!.onRecoveredDoc(entry),
     journalAll: () => shell!.journalAll(),
     reduceToFocusedForModeSwitch: () => shell!.reduceToFocusedForModeSwitch(),

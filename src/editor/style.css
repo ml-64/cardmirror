@@ -6557,26 +6557,27 @@ body.pmd-steady-cursor .pmd-italic-caret,
 
 /* Linked confirmation — occupies the input's spot on the left of the
    controls row and fills it, so Disconnect lands at the right edge
-   where Connect was. An affirmative state, not muted helper text. */
+   where Connect was. Sized to match the setting's description blurb
+   (.pmd-settings-row-desc): muted grey, regular weight. */
 .pmd-pairing-account-connected {
   flex: 1 1 auto;
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  color: var(--pmd-c-text);
-  font-weight: 600;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--pmd-c-text-muted);
 }
 
 .pmd-pairing-account-check {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.15rem;
-  height: 1.15rem;
+  width: 0.95rem;
+  height: 0.95rem;
   border-radius: 999px;
   background: var(--pmd-c-success);
   color: #fff;
-  font-size: 0.72rem;
+  font-size: 0.6rem;
   font-weight: 700;
   line-height: 1;
   flex: 0 0 auto;

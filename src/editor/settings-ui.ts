@@ -2071,9 +2071,15 @@ function buildPairingAccountEditor(row: HTMLElement): HTMLElement {
   wrap.className = 'pmd-pairing-account';
   row.style.display = 'none'; // shown only once main confirms the flow is available
 
-  const status = document.createElement('div');
-  status.className = 'pmd-pairing-account-status';
-  wrap.appendChild(status);
+  // Disconnected-only helper line (the affirmative "Connected as …"
+  // confirmation lives INSIDE the controls row instead — see below —
+  // so the connected state follows the app's left-status / right-button
+  // layout rather than stacking a line above a lone button).
+  const helper = document.createElement('div');
+  helper.className = 'pmd-pairing-account-status';
+  helper.textContent =
+    'Not linked — and nothing requires it during the beta; every feature works without an account.';
+  wrap.appendChild(helper);
 
   // Real link (external browser on desktop) — nobody should have to
   // retype a URL out of the description text.
@@ -2084,6 +2090,10 @@ function buildPairingAccountEditor(row: HTMLElement): HTMLElement {
   );
   wrap.appendChild(linkRow);
 
+  // One row, left field + right button in both states: the code input /
+  // Connect when disconnected, the "Connected as …" confirmation /
+  // Disconnect when connected. The left member fills the row so the
+  // button sits at the right edge either way.
   const controls = document.createElement('div');
   controls.className = 'pmd-pairing-account-controls';
   const input = document.createElement('input');
@@ -2092,6 +2102,10 @@ function buildPairingAccountEditor(row: HTMLElement): HTMLElement {
   input.placeholder = 'paste the connect code here';
   input.spellcheck = false;
   controls.appendChild(input);
+  const connectedInfo = document.createElement('div');
+  connectedInfo.className = 'pmd-pairing-account-connected';
+  connectedInfo.hidden = true; // shown only in the connected state
+  controls.appendChild(connectedInfo);
   const connectBtn = document.createElement('button');
   connectBtn.type = 'button';
   connectBtn.className = 'pmd-settings-btn';
@@ -2109,50 +2123,46 @@ function buildPairingAccountEditor(row: HTMLElement): HTMLElement {
   message.className = 'pmd-pairing-account-message';
   wrap.appendChild(message);
 
+  // Inactive-membership notice — its own line below the row, so it shows
+  // in either state without disturbing the left/right layout.
+  const lapseNotice = document.createElement('div');
+  lapseNotice.className = 'pmd-pairing-account-lapsed';
+  lapseNotice.hidden = true;
+  lapseNotice.textContent =
+    '⚠ Debate Decoded reports this membership inactive, so the link will pause soon. ' +
+    '(Features are unaffected during the beta.)';
+  wrap.appendChild(lapseNotice);
+
   function renderStatus(st: {
     connected: boolean;
     expiresAt: number;
     email?: string;
     lapsed?: boolean;
   }): void {
-    // Connected: this machine is already linked, so the connect-page
-    // link, the code box, and Connect are all dead weight — hide them
-    // and show a confirmation + Disconnect only. Disconnected: the
-    // reverse. (The link is durable and self-renewing, so no expiry
-    // date — it reads like a deadline when it's an implementation
-    // detail.)
+    // Connected: this machine is already linked, so the helper line, the
+    // connect-page link, the code box, and Connect are all dead weight.
+    // The link is durable and self-renewing, so no expiry date — it
+    // reads like a deadline when it's an implementation detail.
     const connected = st.connected;
+    helper.hidden = connected;
     linkRow.hidden = connected;
     input.hidden = connected;
     connectBtn.hidden = connected;
+    connectedInfo.hidden = !connected;
     disconnectBtn.hidden = !connected;
-    status.classList.toggle('pmd-pairing-account-status-connected', connected);
 
-    status.replaceChildren();
     if (connected) {
+      connectedInfo.replaceChildren();
       const check = document.createElement('span');
       check.className = 'pmd-pairing-account-check';
       check.setAttribute('aria-hidden', 'true');
       check.textContent = '✓';
-      status.appendChild(check);
-      status.appendChild(
+      connectedInfo.appendChild(check);
+      connectedInfo.appendChild(
         document.createTextNode(st.email ? `Connected as ${st.email}` : 'Connected'),
       );
-    } else {
-      status.appendChild(
-        document.createTextNode(
-          'Not linked — and nothing requires it during the beta; every feature works without an account.',
-        ),
-      );
     }
-    if (st.lapsed) {
-      const warn = document.createElement('div');
-      warn.className = 'pmd-pairing-account-lapsed';
-      warn.textContent =
-        '⚠ Debate Decoded reports this membership inactive, so the link will pause soon. ' +
-        '(Features are unaffected during the beta.)';
-      status.appendChild(warn);
-    }
+    lapseNotice.hidden = !st.lapsed;
   }
 
   const ERROR_TEXT: Record<string, string> = {

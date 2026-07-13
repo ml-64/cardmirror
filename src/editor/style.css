@@ -6555,12 +6555,13 @@ body.pmd-steady-cursor .pmd-italic-caret,
   color: var(--pmd-c-text-muted);
 }
 
-/* Linked: the confirmation reads as an affirmative state, not muted
-   helper text, and leads with a green check. */
-.pmd-pairing-account-status-connected {
+/* Linked confirmation — occupies the input's spot on the left of the
+   controls row and fills it, so Disconnect lands at the right edge
+   where Connect was. An affirmative state, not muted helper text. */
+.pmd-pairing-account-connected {
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 0.4rem;
   color: var(--pmd-c-text);
   font-weight: 600;
@@ -6582,8 +6583,7 @@ body.pmd-steady-cursor .pmd-italic-caret,
 }
 
 .pmd-pairing-account-lapsed {
-  flex-basis: 100%;
-  font-weight: 400;
+  font-size: 0.78rem;
   color: var(--pmd-c-warning);
 }
 

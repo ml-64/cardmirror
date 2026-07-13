@@ -9,6 +9,14 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Changed
 
+- **The web app moved to [cardmirror.app](https://cardmirror.app).** The
+  old GitHub Pages address now redirects there automatically. Because
+  browsers keep site data per-address, web settings, recents, pins, and
+  quick cards don't carry over — your document files themselves are
+  untouched (they live on your disk). Re-install the app from the new
+  address if you had it installed, and use Settings → Export/Import to
+  carry your settings across. The desktop app is unaffected.
+
 - **Saving is much safer when files move or change underneath the app**
   (desktop).
   - If you rename or delete a file in Finder/Explorer while it's open,

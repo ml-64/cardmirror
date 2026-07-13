@@ -1,8 +1,16 @@
-name: Deploy to GitHub Pages
+name: Deploy redirect stub to GitHub Pages
+
+# The web app moved to https://cardmirror.app (Cloudflare Workers static
+# assets, deployed by Cloudflare's Git integration on every push to main).
+# GitHub Pages now serves only `web-redirect/`: a redirect page plus a
+# self-destructing service worker that frees previously-installed PWAs
+# from their old offline cache. Keep this deployed indefinitely — it's
+# what old links and installed apps land on.
 
 on:
   push:
     branches: [main]
+    paths: ['web-redirect/**', '.github/workflows/deploy-pages.yml']
   # Allow a manual re-deploy from the Actions tab.
   workflow_dispatch:
 
@@ -18,38 +26,21 @@ permissions:
   id-token: write
 
 jobs:
-  build:
-    name: Build static site
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
   deploy:
-    name: Deploy to Pages
-    needs: build
+    name: Deploy redirect stub
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web-redirect
+
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4

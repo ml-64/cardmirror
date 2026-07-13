@@ -7,6 +7,21 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Web app rehosted: GitHub Pages → Cloudflare Workers static assets at
+  `cardmirror.app`** (new `wrangler.jsonc` + `.node-version`;
+  `vite.config.ts` base default now `/`; `web-redirect/`;
+  `deploy-pages.yml` repurposed). Cloudflare's Git integration builds
+  (`VITE_BASE=/ npm run build`) and deploys (`npx wrangler deploy`) on
+  every push to main; assets-only Worker (no script), SPA not-found
+  handling, requests free. The old Pages URL serves a redirect stub that
+  preserves deep paths, PLUS a self-destructing service worker — the old
+  PWA's autoUpdate fetches sw.js on launch, and without a cache-clearing
+  replacement, installed apps would serve the stale offline copy forever
+  and never see the redirect. Per-origin storage (settings/recents/pins/
+  quick cards/learn data) does not transfer between origins; documents
+  are on-disk files and are unaffected. Relay features are desktop-only
+  (web build is inert) so no relay CORS changes were needed.
+
 - **Save write pipeline hardened** (new `apps/desktop/src/doc-writes.ts`;
   `main.ts`, `error-surface.ts`, `index.ts`; 15 tests in
   `tests/desktop/doc-writes.test.ts`). Field reports showed documents

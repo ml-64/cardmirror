@@ -3,11 +3,12 @@ import { VitePWA } from 'vite-plugin-pwa';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
-// The dev server (`npm run dev`) serves from `/`. Production builds
-// default to `/cardmirror/` so the bundle works when hosted at
-// `https://ant981228.github.io/cardmirror/` (the GitHub Pages URL
-// derived from the repo name). Override with `VITE_BASE=/foo/` if
-// deploying somewhere else.
+// The dev server (`npm run dev`) serves from `/`, and production builds
+// now default to `/` too — the web app lives at the domain root
+// (`https://cardmirror.app`, Cloudflare Workers static assets; the old
+// GitHub Pages `/cardmirror/` subpath serves only a redirect stub, see
+// web-redirect/). Override with `VITE_BASE=/foo/` if deploying under a
+// subpath somewhere else.
 //
 // `@cardcutter/browser` resolves to the separately-versioned, NOT-
 // shipped card-cutter package when it's checked out alongside this
@@ -44,9 +45,7 @@ export default defineConfig(({ command }) => {
     command === 'build' && !isElectronRenderer && !process.env['NO_PWA'];
 
   return {
-    base:
-      process.env['VITE_BASE'] ??
-      (command === 'build' ? '/cardmirror/' : '/'),
+    base: process.env['VITE_BASE'] ?? '/',
     resolve: { alias: { '@cardcutter/browser': cardCutterTarget } },
     plugins: [
       // Dev-only: loro-crdt's loader statically imports its .wasm as an

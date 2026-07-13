@@ -18,7 +18,7 @@ Run it as a **desktop app** for tournament-day work, or as a **web
 preview** in any browser for trying it out or working from a Chromebook
 or locked-down school machine.
 
-**▶ Try the live web preview: <https://ant981228.github.io/cardmirror/>**
+**▶ Try the live web preview: <https://cardmirror.app/>**
 
 > **🚧 Beta preview.** Expect rough edges, missing features, and the
 > occasional bug. Keep a Verbatim copy of anything important — not
@@ -100,7 +100,7 @@ Two options for installation, depending upon distribution:
 ### Web app (Chromebook & browser)
 
 No download needed — open the
-[live web app](https://ant981228.github.io/cardmirror/) in a Chromium browser
+[live web app](https://cardmirror.app/) in a Chromium browser
 (Chrome, Edge, or ChromeOS) and click the **Install** button in the address bar
 to run CardMirror in its own window, offline, updating itself on relaunch. On a
 Chromebook this is the way to run it — no desktop build required.

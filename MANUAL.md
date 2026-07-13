@@ -48,7 +48,7 @@ for the parts that aren't.
 
 Download the desktop app for your operating system from the
 [Releases page](https://github.com/ant981228/cardmirror/releases), or try
-the [live web preview](https://ant981228.github.io/cardmirror/) in a
+the [live web preview](https://cardmirror.app/) in a
 browser. Full install instructions — including the one-time "unsigned
 app" prompts on Windows and macOS — are in the project README.
 

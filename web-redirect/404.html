@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CardMirror has moved</title>
+    <meta name="robots" content="noindex" />
+    <!-- JS preserves any deep path/query/hash; the meta refresh is the
+         no-JS fallback and just lands on the root. -->
+    <meta http-equiv="refresh" content="2; url=https://cardmirror.app/" />
+    <script>
+      // Map https://ant981228.github.io/cardmirror/<rest> → https://cardmirror.app/<rest>
+      var rest = location.pathname.replace(/^\/cardmirror\/?/, '');
+      location.replace('https://cardmirror.app/' + rest + location.search + location.hash);
+    </script>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        display: grid;
+        place-items: center;
+        min-height: 100vh;
+        margin: 0;
+      }
+      main { text-align: center; padding: 2rem; }
+      a { color: #2563eb; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>CardMirror has moved</h1>
+      <p>
+        The web app now lives at
+        <a href="https://cardmirror.app/">cardmirror.app</a>. Taking you
+        there&hellip;
+      </p>
+      <p style="color: #666; font-size: 0.9em">
+        Heads up: settings, recents, and pins don&rsquo;t transfer between
+        addresses — your document files themselves are untouched. Re-install
+        the app from the new address if you had it installed.
+      </p>
+    </main>
+  </body>
+</html>

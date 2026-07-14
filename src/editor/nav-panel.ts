@@ -261,9 +261,12 @@ export class NavigationPanel {
   private panPointer: { id: number; startX: number; startY: number } | null = null;
   private manualPan: { lastY: number } | null = null;
 
-  /** When set (multi-pane sections), the outline-level filter is
-   *  per-instance instead of shared via the `navMaxLevel` setting. */
-  private localMaxLevel: number | null = null;
+  /** The outline-level filter for THIS panel. Always per-instance and
+   *  TRANSIENT: the 1–4 buttons adjust the open doc's view only, and
+   *  every `attach()` (new doc) resets it to the `navMaxLevel` setting
+   *  ("Default navigation depth", Settings → General). The buttons
+   *  never write the setting. */
+  private localMaxLevel: number = settings.get('navMaxLevel');
   /** Heading IDs seen at the last render. Used by
    *  `applyMaxLevelToNewHeadings` (called after cross-view drops in
    *  multi-pane mode) to identify headings that were dropped /
@@ -272,21 +275,15 @@ export class NavigationPanel {
    *  parents stay expanded. */
   private lastSeenIds: Set<string> = new Set();
   private get maxLevel(): number {
-    if (this.localMaxLevel != null) return this.localMaxLevel;
-    return settings.get('navMaxLevel');
+    return this.localMaxLevel;
   }
 
   constructor(
     parent: HTMLElement,
     opts?: {
-      localMaxLevel?: boolean;
-      initialMaxLevel?: number;
       onClose?: () => void;
     },
   ) {
-    if (opts?.localMaxLevel) {
-      this.localMaxLevel = opts.initialMaxLevel ?? settings.get('navMaxLevel');
-    }
     this.onClose = opts?.onClose ?? null;
     this.root = document.createElement('aside');
     this.root.className = 'pmd-nav-panel';
@@ -355,12 +352,12 @@ export class NavigationPanel {
     this.installResizeHandle();
 
     // Re-render only when a setting the outline depends on changes —
-    // the level filter (`navMaxLevel`) or the cite preview
-    // (`showCitePreview`). An unconditional re-render would rebuild the
-    // whole outline (one DOM node per heading — O(doc)) on every
-    // unrelated settings toggle. (Multi-pane level changes go through
-    // `localMaxLevel` + a direct render, not this subscriber.)
-    let lastNavMaxLevel = settings.get('navMaxLevel');
+    // the cite preview (`showCitePreview`) or the numbering display.
+    // An unconditional re-render would rebuild the whole outline (one
+    // DOM node per heading — O(doc)) on every unrelated settings
+    // toggle. `navMaxLevel` is deliberately NOT in this list: it is
+    // the default depth for NEW documents; level changes on the open
+    // doc go through `setMaxLevel` (transient, per-panel).
     let lastShowCitePreview = settings.get('showCitePreview');
     // Card numbering bakes into the rows, so any display-affecting
     // numbering setting re-renders too — same signature the editor's
@@ -368,15 +365,11 @@ export class NavigationPanel {
     let lastNumberingSig = numberingDisplaySig();
     this.unsubscribeSettings = settings.subscribe((s) => {
       applyNavWidthCss(s.navWidth);
-      this.updateLevelButtonsActive();
       const numberingSig = numberingDisplaySig();
       if (
         this.currentDoc &&
-        (s.navMaxLevel !== lastNavMaxLevel ||
-          s.showCitePreview !== lastShowCitePreview ||
-          numberingSig !== lastNumberingSig)
+        (s.showCitePreview !== lastShowCitePreview || numberingSig !== lastNumberingSig)
       ) {
-        lastNavMaxLevel = s.navMaxLevel;
         lastShowCitePreview = s.showCitePreview;
         lastNumberingSig = numberingSig;
         this.render(this.currentDoc);
@@ -397,6 +390,10 @@ export class NavigationPanel {
   attach(view: EditorView): void {
     this.view = view;
     this.currentDoc = view.state.doc;
+    // A new doc opens at the user's configured DEFAULT depth — level
+    // clicks on the previous doc were a transient, per-doc view choice.
+    this.localMaxLevel = settings.get('navMaxLevel');
+    this.updateLevelButtonsActive();
     // On every attach (fresh mount or new doc loaded), establish the
     // initial collapse state from maxLevel. This guarantees the default
     // view is the one promised by maxLevel — heading IDs are doc-specific
@@ -1842,33 +1839,16 @@ export class NavigationPanel {
    * still selectively expand/collapse individual entries via the
    * chevrons afterwards.
    */
+  /** Level buttons: a TRANSIENT, per-panel view change — never written
+   *  to settings. The "Default navigation depth" setting (General tab)
+   *  governs what NEW documents open at; clicking the already-active
+   *  level re-collapses any manual chevron expansions. */
   private setMaxLevel(level: number): void {
     if (level < 1 || level > 4) return;
-    const isAlreadyAtLevel = level === this.maxLevel;
-    // Order matters: update the collapsed state for the NEW level before
-    // writing to the settings store. The settings subscriber fires
-    // synchronously and triggers render — so collapsed needs to be
-    // up-to-date before that render happens.
     this.applyMaxLevelToCollapseState(level);
-    if (this.localMaxLevel != null) {
-      // Multi-pane: per-instance max level. Update locally; the
-      // settings subscriber doesn't drive us (each pane's filter
-      // is independent).
-      this.localMaxLevel = level;
-      this.updateLevelButtonsActive();
-      if (this.currentDoc) this.render(this.currentDoc);
-      return;
-    }
-    if (isAlreadyAtLevel) {
-      // Settings.set short-circuits when the value is unchanged, so no
-      // subscriber would fire and the freshly-reset collapse state
-      // wouldn't reach the UI. Render directly. This is also the path
-      // that lets clicking the active level button "reset" any manual
-      // chevron expansions/collapses.
-      if (this.currentDoc) this.render(this.currentDoc);
-    } else {
-      settings.set('navMaxLevel', level);
-    }
+    this.localMaxLevel = level;
+    this.updateLevelButtonsActive();
+    if (this.currentDoc) this.render(this.currentDoc);
   }
 
   private updateLevelButtonsActive(): void {

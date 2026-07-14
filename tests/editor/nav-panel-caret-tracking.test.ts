@@ -62,7 +62,7 @@ describe('NavigationPanel caret-tracking (remapPositions)', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
     const { view, t1, t2 } = makeDocAndView();
-    const panel = new NavigationPanel(parent, { localMaxLevel: true });
+    const panel = new NavigationPanel(parent);
     panel.attach(view);
 
     const endBody1 = endOfFirstBody(view.state.doc);

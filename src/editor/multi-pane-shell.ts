@@ -2994,13 +2994,13 @@ function buildDocRecord(
   // may flow. (Construction-time plugin dispatches were dropped above.)
   mounted = true;
 
-  // Per-pane nav panel with an INDEPENDENT outline-level filter
-  // (`localMaxLevel`). Each section's 1/2/3/4 buttons act locally.
+  // Per-pane nav panel. The outline-level filter is per-panel and
+  // transient by construction (each section's 1/2/3/4 buttons act
+  // locally; new docs open at the "Default navigation depth" setting).
   // Its × closes just THIS document's outline section (via the slot
   // the record currently lives in — records can move between slots, so
   // resolve `owner` lazily at click time, not build time).
   const navPanel = new NavigationPanel(navEl, {
-    localMaxLevel: true,
     onClose: () => record.owner.shell.setSlotNavHidden(record.owner, true),
   });
   navPanel.attach(view);

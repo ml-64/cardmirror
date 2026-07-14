@@ -5,6 +5,22 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## Unreleased
+
+- **Nav depth: default-for-new-docs setting; level buttons transient**
+  (`nav-panel.ts`, `settings.ts`, `settings-ui.ts`; tests in
+  `tests/editor/nav-panel-depth.test.ts`). `navMaxLevel` is reframed as
+  "Default navigation depth" (Settings → General, registry kind
+  `navDefaultDepth`, rendered by the Pocket/Hat/Block/Tag picker shared
+  with the file-search depth). Every NavigationPanel now keeps a
+  per-instance `localMaxLevel` — the single-pane special case where the
+  1–4 buttons wrote through to settings (silently making the last click
+  the default for future docs) is gone, unifying with the multi-pane
+  behavior. `attach()` resets the panel to the setting, so new docs
+  open at the configured depth; changing the setting deliberately does
+  NOT re-filter already-open docs. Existing users' persisted
+  `navMaxLevel` value carries over as their default (no migration).
+
 ## 0.1.0-beta.14 — 2026-07-13
 
 - **Web-edition download + GitHub header buttons** (new

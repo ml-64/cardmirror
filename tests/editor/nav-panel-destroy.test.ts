@@ -32,7 +32,7 @@ describe('NavigationPanel.destroy', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
     const view = makeView();
-    const panel = new NavigationPanel(parent, { localMaxLevel: true });
+    const panel = new NavigationPanel(parent);
     panel.attach(view);
 
     const internals = panel as unknown as Record<string, unknown>;
@@ -59,7 +59,7 @@ describe('NavigationPanel.destroy', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
     const view = makeView();
-    const panel = new NavigationPanel(parent, { localMaxLevel: true });
+    const panel = new NavigationPanel(parent);
     panel.attach(view);
     panel.destroy();
 

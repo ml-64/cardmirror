@@ -908,7 +908,11 @@ class SettingsModal {
       return row;
     } else if (meta.kind === 'fileSearchOutlineDepth') {
       row.appendChild(text);
-      row.appendChild(buildFileSearchOutlineDepthEditor());
+      row.appendChild(buildOutlineDepthEditor('fileSearchOutlineDepth'));
+      return row;
+    } else if (meta.kind === 'navDefaultDepth') {
+      row.appendChild(text);
+      row.appendChild(buildOutlineDepthEditor('navMaxLevel'));
       return row;
     } else if (meta.kind === 'fileSearchTiebreak') {
       row.appendChild(text);
@@ -5248,7 +5252,9 @@ function buildCondenseWarningDelimiterEditor(): HTMLElement {
 
 /** Four-button segmented control for `fileSearchOutlineDepth` — the
  *  deepest level the file-search outline expands to by default. */
-function buildFileSearchOutlineDepthEditor(): HTMLElement {
+/** Pocket/Hat/Block/Tag depth picker, shared by the file-search
+ *  outline depth and the nav pane's default depth. */
+function buildOutlineDepthEditor(key: 'fileSearchOutlineDepth' | 'navMaxLevel'): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-theme-editor';
   const options: { value: number; label: string }[] = [
@@ -5263,11 +5269,11 @@ function buildFileSearchOutlineDepthEditor(): HTMLElement {
     btn.className = 'pmd-theme-editor-btn';
     btn.textContent = o.label;
     btn.dataset['value'] = String(o.value);
-    btn.addEventListener('click', () => settings.set('fileSearchOutlineDepth', o.value));
+    btn.addEventListener('click', () => settings.set(key, o.value));
     wrap.appendChild(btn);
   }
   function refresh(): void {
-    const cur = String(settings.get('fileSearchOutlineDepth'));
+    const cur = String(settings.get(key));
     for (const btn of wrap.querySelectorAll<HTMLButtonElement>('.pmd-theme-editor-btn')) {
       btn.setAttribute('aria-pressed', btn.dataset['value'] === cur ? 'true' : 'false');
     }

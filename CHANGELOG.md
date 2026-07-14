@@ -5,6 +5,16 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## Unreleased
+
+### Changed
+
+- **New setting: Default navigation depth** (Settings → General). Sets
+  how deep the navigation pane opens for newly opened documents
+  (Pocket / Hat / Block / Tag; default Block). The pane's 1–4 buttons
+  now change the current document only — previously a level click
+  quietly became the default for every future document.
+
 ## 0.1.0-beta.14 — 2026-07-13
 
 ### Added

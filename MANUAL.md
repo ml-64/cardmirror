@@ -255,7 +255,11 @@ mirrors Word's Navigation Pane, but does more:
   (this only changes the outline view, not the document).
 - **Level filter** — the **1 · 2 · 3 · 4** buttons at the top set how
   deep the outline shows. Click **2** to see only Pockets and Hats; **4**
-  to see everything down through Tags.
+  to see everything down through Tags. This is a per-document view
+  change; what depth a **newly opened** document starts at is the
+  **Default navigation depth** setting (Settings → General), Block by
+  default. Clicking the already-active level re-collapses any manual
+  expansions.
 - **Multi-select** — Mod-click adds an entry to the selection,
   Shift-click selects a contiguous range.
 - **Reorder** — drag an entry (or a multi-selection) up or down. It

@@ -307,7 +307,10 @@ export const NUMBERING_SEPARATORS: readonly NumberingSeparator[] = [
 export interface Settings {
   /** Width of the navigation pane in pixels. */
   navWidth: number;
-  /** Default depth shown in the navigation pane (1–4). */
+  /** Default navigation-pane depth for NEWLY OPENED documents (1
+   *  Pocket … 4 Tag). The nav pane's 1–4 buttons adjust the open
+   *  doc's view only (transient, per-pane); this setting is what
+   *  every new doc starts at. */
   navMaxLevel: number;
   /** When true (default), `New document` mounts the CardMirror
    *  welcome / onboarding doc. When false, it mounts a blank
@@ -1693,6 +1696,7 @@ export interface SettingMeta {
     | 'fileSearchFormats'
     | 'fileSearchObjectTypes'
     | 'fileSearchOutlineDepth'
+    | 'navDefaultDepth'
     | 'fileSearchTiebreak'
     | 'speechDocFormat'
     | 'saveFormat'
@@ -1793,6 +1797,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'general',
     section: 'Workspace',
     dependsOn: 'multiDocWorkspace',
+  },
+  {
+    key: 'navMaxLevel',
+    label: 'Default navigation depth',
+    description:
+      'How deep the navigation pane opens for a newly opened document: Pocket shows only top-level headings; Tag expands everything. The 1–4 buttons in the pane itself change the current document only — this sets what the next document starts at.',
+    kind: 'navDefaultDepth',
+    category: 'general',
+    section: 'Workspace',
+    aliases: ['nav depth', 'outline depth', 'navigation level', 'nav pane depth'],
   },
   {
     key: 'mobileLayout',

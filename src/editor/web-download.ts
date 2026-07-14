@@ -171,15 +171,24 @@ async function startInstallerDownload(): Promise<void> {
   }
 }
 
-/** Reveal + wire the web-only header buttons. No-op on the desktop app
- *  (Electron host present) — the buttons stay hidden and the grid stays
- *  2×2. Call once at boot. */
+/** Reveal + wire the web-only header buttons; on the desktop app
+ *  (Electron host present) REMOVE them from the DOM instead. Removal,
+ *  not just `hidden`: the `hidden` attribute is fragile under the
+ *  ribbon's own `display` rules (author CSS beats the UA sheet's
+ *  `[hidden]{display:none}` — the 0.1.0-beta.14 field bug shipped
+ *  these buttons visible in the desktop build exactly that way), and
+ *  a node that isn't there can't be resurrected by any styling.
+ *  Call once at boot. */
 export function wireWebEditionHeaderButtons(): void {
-  if (getElectronHost()) return;
   const grid = document.querySelector('.ribbon-right-grid');
   const downloadBtn = document.getElementById('download-app-btn');
   const githubBtn = document.getElementById('github-btn');
   if (!grid || !downloadBtn || !githubBtn) return;
+  if (getElectronHost()) {
+    downloadBtn.remove();
+    githubBtn.remove();
+    return;
+  }
   grid.classList.add('pmd-web-buttons');
   downloadBtn.hidden = false;
   githubBtn.hidden = false;

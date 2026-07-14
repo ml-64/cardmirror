@@ -1234,6 +1234,15 @@ html:has(body.pmd-speech-banner-visible) {
 /* All ribbon buttons share the same icon-button look: square, centered
    glyph, no padding-driven asymmetry. Flexbox centering avoids
    line-height alignment quirks that leave glyphs sitting off-center. */
+/* The `display: inline-flex` below OVERRIDES the UA stylesheet's
+   `[hidden] { display: none }` — the classic hidden-attribute trap
+   (field bug 2026-07-13: the web-only download/GitHub buttons shipped
+   visible in the DESKTOP build because their `hidden` attr did
+   nothing). Restore hidden semantics for every ribbon button, with
+   !important so no later display declaration re-trips this. */
+#ribbon button[hidden] {
+  display: none !important;
+}
 #ribbon button {
   font-family: inherit;
   background: var(--pmd-c-bg);

@@ -9,10 +9,11 @@
  * the right place (between tag and first `card_body`).
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, afterEach } from 'vitest';
 import { EditorState, TextSelection, Selection } from 'prosemirror-state';
 import { schema, newHeadingId } from '../../src/schema/index.js';
 import { copyPreviousCite } from '../../src/editor/ribbon-commands.js';
+import { settings } from '../../src/editor/settings.js';
 
 // Doc builders.
 function paragraph(text: string) {
@@ -199,5 +200,76 @@ describe('Copy Last Cite — placement when cursor is in the destination tag', (
         "card[tag("DEST TAG"), card_body("first paragraph"), card_body("second paragraph"), cite_paragraph("Source Author 2025, "The Source," Publisher.")]",
       ]
     `);
+  });
+});
+
+describe('Copy Previous Cite — nearest-only setting', () => {
+  afterEach(() => settings.set('copyPreviousCiteNearestOnly', false));
+
+  /** Source card with TWO cites, destination card with none. */
+  function twoCiteDocAndSelect(): EditorState {
+    const doc = makeDoc([
+      cardWith(
+        tag('SRC TAG'),
+        citePara('First Author 2024.'),
+        citePara('Second Author 2025.'),
+        cardBody('source body'),
+      ),
+      cardWith(tag('DEST TAG'), cardBody('dest body')),
+    ]);
+    let pos = -1;
+    doc.descendants((node, p) => {
+      if (pos !== -1) return false;
+      if (node.isText && node.text === 'DEST TAG') {
+        pos = p + 8; // end of the tag text
+        return false;
+      }
+      return true;
+    });
+    const state = EditorState.create({ doc });
+    return state.apply(state.tr.setSelection(TextSelection.create(state.doc, pos)));
+  }
+
+  it('OFF (default): copies the whole cite group of the source', () => {
+    const after = runCmd(twoCiteDocAndSelect());
+    expect(structure(after.doc)[1]).toBe(
+      'card[tag("DEST TAG"), cite_paragraph("First Author 2024."), cite_paragraph("Second Author 2025."), card_body("dest body")]',
+    );
+  });
+
+  it('ON: copies only the nearest (last) cite of the group', () => {
+    settings.set('copyPreviousCiteNearestOnly', true);
+    const after = runCmd(twoCiteDocAndSelect());
+    expect(structure(after.doc)[1]).toBe(
+      'card[tag("DEST TAG"), cite_paragraph("Second Author 2025."), card_body("dest body")]',
+    );
+  });
+
+  it('ON, phase 1 (cites in the cursor\'s OWN card): nearest preceding wins', () => {
+    settings.set('copyPreviousCiteNearestOnly', true);
+    const doc = makeDoc([
+      cardWith(
+        tag('TAG'),
+        citePara('Old Cite.'),
+        citePara('New Cite.'),
+        cardBody('body text here'),
+      ),
+    ]);
+    let pos = -1;
+    doc.descendants((node, p) => {
+      if (pos !== -1) return false;
+      if (node.isText && node.text === 'body text here') {
+        pos = p + 14; // end of the body
+        return false;
+      }
+      return true;
+    });
+    const state0 = EditorState.create({ doc });
+    const state = state0.apply(state0.tr.setSelection(TextSelection.create(state0.doc, pos)));
+    const after = runCmd(state);
+    // The inserted copy (after the body) is "New Cite." — the nearest one.
+    expect(structure(after.doc)[0]).toBe(
+      'card[tag("TAG"), cite_paragraph("Old Cite."), cite_paragraph("New Cite."), card_body("body text here"), cite_paragraph("New Cite.")]',
+    );
   });
 });

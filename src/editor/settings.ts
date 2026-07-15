@@ -677,6 +677,10 @@ export interface Settings {
    *  spaces). Backspace right after reverts to the literal `---`. Off by
    *  default. */
   customDashEnabled: boolean;
+  /** Copy Previous Cite (Alt-F8): when true, copy only the single
+   *  nearest preceding cite paragraph instead of every cite under the
+   *  source card / run. Off by default (the Verbatim-style behavior). */
+  copyPreviousCiteNearestOnly: boolean;
   /** "New paragraph on Enter": what pressing Enter at the END of each
    *  structural textblock creates. 'normal' keeps the default
    *  behavior (a plain paragraph — or, for tag/analytic, the
@@ -1384,6 +1388,7 @@ export const CUSTOM_DASH_STYLES: ReadonlyArray<Settings['customDashStyle']> = [
 const DEFAULTS: Settings = {
   navWidth: 300,
   navMaxLevel: 3,
+  copyPreviousCiteNearestOnly: false,
   showOnboardingStarter: true,
   defaultSpeechDocFolder: '',
   defaultSpeechDocFormat: 'docx',
@@ -2632,6 +2637,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     aliases: ['autocorrect', 'text replacement', 'replace as you type', 'custom autocorrect', 'expansion', 'abbreviation'],
   },
   {
+    key: 'copyPreviousCiteNearestOnly',
+    label: 'Copy Previous Cite: nearest cite only',
+    description:
+      'Copy Previous Cite (Alt-F8) normally copies every cite paragraph under the most recent source (card or free-floating run). Turn this on to copy only the single nearest preceding cite.',
+    kind: 'toggle',
+    category: 'editing',
+    section: 'Cites',
+    aliases: ['copy last cite', 'previous cite', 'nearest cite', 'single cite'],
+  },
+  {
     key: 'enterAfterPocket',
     label: 'Enter at the end of a structural style creates',
     description:
@@ -3773,6 +3788,7 @@ function sanitize(s: Settings): Settings {
     cardNumberingMatchHeadingColor: !!s.cardNumberingMatchHeadingColor,
     flashcardDueDot: s.flashcardDueDot === false ? false : true,
     editorSpellcheck: !!s.editorSpellcheck,
+    copyPreviousCiteNearestOnly: !!s.copyPreviousCiteNearestOnly,
     smartQuotes: !!s.smartQuotes,
     autoCapitalizeSentences: !!s.autoCapitalizeSentences,
     customAutocorrectEnabled: !!s.customAutocorrectEnabled,

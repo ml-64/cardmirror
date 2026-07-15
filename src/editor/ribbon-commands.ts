@@ -3506,8 +3506,14 @@ export function copyPreviousCite(): Command {
     // Collapse a non-empty selection to its start position.
     const $from = state.doc.resolve(state.selection.from);
 
-    const cites = findPreviousCites(state.doc, $from);
+    let cites = findPreviousCites(state.doc, $from);
     if (cites.length === 0) return false;
+    // Optional narrowing (Settings → Editing): only the single nearest
+    // preceding cite, not the source's whole cite group. The group's
+    // last member is the one closest to the cursor in document order.
+    if (settings.get('copyPreviousCiteNearestOnly') && cites.length > 1) {
+      cites = [cites[cites.length - 1]!];
+    }
     if (!dispatch) return true;
 
     const dest = computeCitePasteLocation($from);

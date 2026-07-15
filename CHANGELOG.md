@@ -9,6 +9,11 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Changed
 
+- **New setting: Copy Previous Cite — nearest cite only** (Settings →
+  Editing → Cites). By default, Copy Previous Cite (Alt-F8) copies
+  every cite paragraph under the most recent source. Turn this on to
+  copy only the single nearest preceding cite instead.
+
 - **Nav pane width is now per-window.** Dragging the outline's edge
   resizes only the window you're in; other open windows keep their
   widths. The width you set still becomes the default for windows you

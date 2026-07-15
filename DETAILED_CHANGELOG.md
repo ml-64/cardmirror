@@ -7,6 +7,16 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Copy Previous Cite: nearest-only mode** (`ribbon-commands.ts`,
+  `settings.ts`; tests in `copy-last-cite-bug.test.ts`).
+  `copyPreviousCiteNearestOnly` (toggle, default off) narrows the
+  copied set to the last member of whatever cite group
+  `findPreviousCites` resolves — the cite closest to the cursor in
+  document order. All source-selection semantics (own-card phase,
+  previous-card / free-floating-run phase) are unchanged; only the
+  slice copied differs, so the two modes can never disagree about
+  WHICH source wins.
+
 - **Nav width per-window** (`nav-panel.ts`; tests in
   `tests/editor/nav-width.test.ts`). `--nav-width` was applied from the
   `navWidth` setting in every panel's settings subscriber — and since

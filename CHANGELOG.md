@@ -7,6 +7,12 @@ see `DETAILED_CHANGELOG.md`.
 
 ## Unreleased
 
+### Added
+
+- **Hat underline style** (Settings → Appearance → Document typography):
+  choose between the classic double underline (default) and a single
+  underline for hat headings. Display-only — exports are unchanged.
+
 ### Changed
 
 - **Copy Previous Cite now copies only the nearest cite.** Copy

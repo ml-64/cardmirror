@@ -1998,6 +1998,9 @@ html.pmd-numbering-hidden #numbering-panel {
   text-decoration: underline double;
   text-underline-offset: 2px;
 }
+:root.pmd-hat-underline-single #ribbon .ribbon-formatting-panel.style-preview .formatting-panel-hat {
+  text-decoration: underline;
+}
 
 #ribbon .ribbon-formatting-panel.style-preview .formatting-panel-block {
   text-decoration: underline;
@@ -2296,7 +2299,8 @@ code {
   page-break-before: always;
 }
 
-/* Hat = Heading 2, centered, double underline. */
+/* Hat = Heading 2, centered, double underline (single under the
+   `hatUnderlineDouble` display-typography flag's off state). */
 .pmd-hat {
   font-size: var(--pmd-size-hat);
   line-height: var(--pmd-line-height-heading);
@@ -2304,6 +2308,9 @@ code {
   text-align: center;
   text-decoration: underline double;
   margin: var(--pmd-para-hat-before, 1.25rem) 0 var(--pmd-para-hat-after, 0.5rem) 0;
+}
+.pmd-hat-underline-single .pmd-hat {
+  text-decoration: underline;
 }
 
 /* Block = Heading 3, centered, single underline. */

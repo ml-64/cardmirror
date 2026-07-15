@@ -2885,6 +2885,8 @@ function applyDisplaySizes(sizes: DisplaySizes): void {
 function applyDisplayTypography(t: DisplayTypography): void {
   editorEl.classList.toggle('pmd-cite-underlined', t.citeUnderlined);
   editorEl.classList.toggle('pmd-underline-bold', t.underlineBold);
+  // Predicate class for the NON-default state; base CSS keeps double.
+  editorEl.classList.toggle('pmd-hat-underline-single', !t.hatUnderlineDouble);
   editorEl.classList.toggle('pmd-emphasis-bold', t.emphasisBold);
   editorEl.classList.toggle('pmd-emphasis-italic', t.emphasisItalic);
   editorEl.classList.toggle('pmd-emphasis-box', t.emphasisBox);
@@ -2899,6 +2901,7 @@ function applyDisplayTypography(t: DisplayTypography): void {
   document.documentElement.classList.toggle('pmd-undertag-bold', t.undertagBold);
   document.documentElement.classList.toggle('pmd-cite-underlined', t.citeUnderlined);
   document.documentElement.classList.toggle('pmd-underline-bold', t.underlineBold);
+  document.documentElement.classList.toggle('pmd-hat-underline-single', !t.hatUnderlineDouble);
   document.documentElement.classList.toggle('pmd-emphasis-bold', t.emphasisBold);
   document.documentElement.classList.toggle('pmd-emphasis-italic', t.emphasisItalic);
   document.documentElement.classList.toggle('pmd-emphasis-box', t.emphasisBox);

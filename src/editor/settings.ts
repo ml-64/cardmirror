@@ -187,6 +187,9 @@ export { DEFAULT_PARAGRAPH_SPACING };
 export interface DisplayTypography {
   citeUnderlined: boolean;
   underlineBold: boolean;
+  /** Hat headings: double underline (default, the Verbatim look) or
+   *  single. Display-only — export styling is unchanged. */
+  hatUnderlineDouble: boolean;
   emphasisBold: boolean;
   emphasisItalic: boolean;
   emphasisBox: boolean;
@@ -198,6 +201,7 @@ export interface DisplayTypography {
 const DEFAULT_DISPLAY_TYPOGRAPHY: DisplayTypography = {
   citeUnderlined: false,
   underlineBold: false,
+  hatUnderlineDouble: true,
   emphasisBold: true,
   emphasisItalic: false,
   emphasisBox: true,
@@ -4604,6 +4608,8 @@ function sanitizeDisplayTypography(raw: unknown): DisplayTypography {
   const r = raw as Partial<Record<keyof DisplayTypography, unknown>>;
   out.citeUnderlined = !!r.citeUnderlined;
   out.underlineBold = !!r.underlineBold;
+  out.hatUnderlineDouble = r.hatUnderlineDouble === undefined
+    ? DEFAULT_DISPLAY_TYPOGRAPHY.hatUnderlineDouble : !!r.hatUnderlineDouble;
   out.emphasisBold = r.emphasisBold === undefined
     ? DEFAULT_DISPLAY_TYPOGRAPHY.emphasisBold : !!r.emphasisBold;
   out.emphasisItalic = !!r.emphasisItalic;

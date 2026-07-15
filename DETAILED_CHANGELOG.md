@@ -7,6 +7,16 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Hat underline single/double flag** (`hatUnderlineDouble` in
+  `DisplayTypography`, default true; `settings.ts`, `index.ts`,
+  `settings-ui.ts`, `style.css`). Follows the established typography-
+  flag pattern: a checkbox row in the Document typography editor, a
+  predicate class (`pmd-hat-underline-single`, the NON-default state)
+  toggled on `#editor` + `:root` by `applyDisplayTypography`, and CSS
+  overrides for the editor hat and the ribbon formatting-panel preview.
+  Missing-key sanitize resolves true, so existing configs keep the
+  double underline. Display-only; docx export unchanged.
+
 - **Copy Previous Cite: nearest-only mode** (`ribbon-commands.ts`,
   `settings.ts`; tests in `copy-last-cite-bug.test.ts`).
   `copyPreviousCiteNearestOnly` (toggle, default ON — a behavior

@@ -1189,6 +1189,7 @@ function buildTypographyEditor(): HTMLElement {
 
   wrap.appendChild(flagRow('citeUnderlined', 'Cite: underlined'));
   wrap.appendChild(flagRow('underlineBold', 'Underline: bold'));
+  wrap.appendChild(flagRow('hatUnderlineDouble', 'Hat: double underline'));
   wrap.appendChild(flagRow('undertagItalic', 'Undertag: italic'));
   wrap.appendChild(flagRow('undertagBold', 'Undertag: bold'));
   wrap.appendChild(flagRow('emphasisBold', 'Emphasis: bold'));
@@ -1257,7 +1258,7 @@ function buildTypographyEditor(): HTMLElement {
     // matches flagKeys), the last is the hide-emphasis-borders toggle.
     const checkboxes = wrap.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
     const flagKeys: (keyof DisplayTypography)[] = [
-      'citeUnderlined', 'underlineBold',
+      'citeUnderlined', 'underlineBold', 'hatUnderlineDouble',
       'undertagItalic', 'undertagBold',
       'emphasisBold', 'emphasisItalic', 'emphasisBox',
     ];

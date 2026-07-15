@@ -184,6 +184,30 @@ export { DEFAULT_PARAGRAPH_SPACING };
  * class enable the typography. Defaults match Verbatim's, except
  * `emphasisBox` (true — CardMirror renders emphasis boxed by default).
  */
+/** Per-style text alignment (Accessibility → Text alignment).
+ *  'default' = the style's normal start-aligned rendering; 'center' /
+ *  'justify' override it display-wide. Tags and body-level paragraph
+ *  styles only — pockets/hats/blocks are deliberately not covered
+ *  (their alignment is part of the document look, not readability).
+ *  A paragraph's own alignment attr (inline style) still wins. */
+export type StyleAlignment = 'default' | 'center' | 'justify';
+export interface StyleAlignments {
+  tag: StyleAlignment;
+  paragraph: StyleAlignment;
+  cardBody: StyleAlignment;
+  analyticBody: StyleAlignment;
+  analytic: StyleAlignment;
+  undertag: StyleAlignment;
+}
+const DEFAULT_STYLE_ALIGNMENTS: StyleAlignments = {
+  tag: 'default',
+  paragraph: 'default',
+  cardBody: 'default',
+  analyticBody: 'default',
+  analytic: 'default',
+  undertag: 'default',
+};
+
 export interface DisplayTypography {
   citeUnderlined: boolean;
   underlineBold: boolean;
@@ -788,6 +812,9 @@ export interface Settings {
    * DisplayTypography. Each becomes a class toggle on `#editor`.
    */
   displayTypography: DisplayTypography;
+  /** Per-style center/justify alignment overrides (accessibility).
+   *  Applied as CSS custom properties; see StyleAlignments. */
+  styleAlignments: StyleAlignments;
   /**
    * Per-style display colors. See DisplayColors. Each becomes a CSS
    * custom property on `:root`.
@@ -1495,6 +1522,7 @@ const DEFAULTS: Settings = {
   displaySizes: { ...DEFAULT_DISPLAY_SIZES },
   displayParagraphSpacing: { ...DEFAULT_PARAGRAPH_SPACING },
   displayTypography: { ...DEFAULT_DISPLAY_TYPOGRAPHY },
+  styleAlignments: { ...DEFAULT_STYLE_ALIGNMENTS },
   displayColors: { ...DEFAULT_DISPLAY_COLORS },
   bodyFont: 'Times New Roman',
   uiFont: '',
@@ -1706,6 +1734,7 @@ export interface SettingMeta {
     | 'fileSearchObjectTypes'
     | 'fileSearchOutlineDepth'
     | 'navDefaultDepth'
+    | 'styleAlignments'
     | 'fileSearchTiebreak'
     | 'speechDocFormat'
     | 'saveFormat'
@@ -2127,6 +2156,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     kind: 'defaultZoomPct',
     category: 'accessibility',
     aliases: ['zoom', 'default zoom', 'text size', 'document zoom'],
+  },
+  {
+    key: 'styleAlignments',
+    label: 'Text alignment',
+    description:
+      'Center or fully justify text per structural style — tags, plain paragraphs, card bodies, analytic bodies, analytics, and undertags. Default keeps the normal left-aligned rendering. Headings above tags (pockets, hats, blocks) are not affected, and a paragraph you have aligned yourself keeps its own alignment.',
+    kind: 'styleAlignments',
+    category: 'accessibility',
+    section: 'Text alignment',
+    aliases: ['justify', 'justified text', 'center text', 'alignment', 'flush margins'],
   },
   {
     key: 'colorVisionFriendly',
@@ -3831,6 +3870,7 @@ function sanitize(s: Settings): Settings {
     displaySizes: sanitizeDisplaySizes(s.displaySizes),
     displayParagraphSpacing: sanitizeParagraphSpacing(s.displayParagraphSpacing),
     displayTypography: sanitizeDisplayTypography(s.displayTypography),
+    styleAlignments: sanitizeStyleAlignments(s.styleAlignments),
     displayColors: sanitizeDisplayColors(s.displayColors, s.customColorOverrides),
     bodyFont: sanitizeBodyFont(s.bodyFont),
     uiFont: sanitizeUiFont(s.uiFont),
@@ -4600,6 +4640,17 @@ function sanitizeRibbonTooltipMode(
     return raw;
   }
   return DEFAULTS.ribbonTooltipMode;
+}
+
+function sanitizeStyleAlignments(raw: unknown): StyleAlignments {
+  const out = { ...DEFAULT_STYLE_ALIGNMENTS };
+  if (!raw || typeof raw !== 'object') return out;
+  const r = raw as Partial<Record<keyof StyleAlignments, unknown>>;
+  for (const key of Object.keys(out) as (keyof StyleAlignments)[]) {
+    const v = r[key];
+    if (v === 'center' || v === 'justify') out[key] = v;
+  }
+  return out;
 }
 
 function sanitizeDisplayTypography(raw: unknown): DisplayTypography {

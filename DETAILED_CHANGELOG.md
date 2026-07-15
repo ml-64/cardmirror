@@ -7,6 +7,20 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Per-style text alignment (accessibility)** (`styleAlignments` in
+  `settings.ts`; `index.ts`, `settings-ui.ts`, `style.css`). Six
+  structural styles (tag, doc-level paragraph, card body, analytic
+  body, analytic, undertag) each get a Default/Center/Justify picker
+  under Settings → Accessibility. Deliberately filed under
+  accessibility despite being formatting — there is no non-
+  accessibility reason to justify debate evidence. Applied as
+  `--pmd-align-*` custom properties (set only for non-default states;
+  every hooked rule falls back to `start`), so the everyday rendering
+  is byte-identical CSS. Card bodies split by context (`.pmd-card` vs
+  `.pmd-analytic-unit` ancestors); pockets/hats/blocks are not
+  covered; a paragraph's own `alignment` attr renders as an inline
+  style and beats all of it. Display-only — exports unchanged.
+
 - **Hat underline single/double flag** (`hatUnderlineDouble` in
   `DisplayTypography`, default true; `settings.ts`, `index.ts`,
   `settings-ui.ts`, `style.css`). Follows the established typography-

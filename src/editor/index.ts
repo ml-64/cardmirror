@@ -116,6 +116,7 @@ import {
   PARAGRAPH_SPACING_KEYS,
   type DisplaySizes,
   type DisplayTypography,
+  type StyleAlignments,
   type DisplayColors,
   type FormattingPanelMode,
   ZOOM_MIN_PCT,
@@ -2882,6 +2883,28 @@ function applyDisplaySizes(sizes: DisplaySizes): void {
  * adds or removes a class; CSS rules selector-gated on those classes
  * apply the corresponding decoration.
  */
+/** Push the per-style alignment overrides as CSS custom properties on
+ *  `#editor` + `:root` (the vars are only SET for non-default states;
+ *  each style's CSS falls back to `start`). A paragraph's own
+ *  alignment attr renders as an inline style and keeps winning. */
+function applyStyleAlignments(a: StyleAlignments): void {
+  const vars: Record<keyof StyleAlignments, string> = {
+    tag: '--pmd-align-tag',
+    paragraph: '--pmd-align-paragraph',
+    cardBody: '--pmd-align-card-body',
+    analyticBody: '--pmd-align-analytic-body',
+    analytic: '--pmd-align-analytic',
+    undertag: '--pmd-align-undertag',
+  };
+  for (const key of Object.keys(vars) as (keyof StyleAlignments)[]) {
+    const value = a[key];
+    for (const el of [editorEl, document.documentElement]) {
+      if (value === 'default') el.style.removeProperty(vars[key]);
+      else el.style.setProperty(vars[key], value);
+    }
+  }
+}
+
 function applyDisplayTypography(t: DisplayTypography): void {
   editorEl.classList.toggle('pmd-cite-underlined', t.citeUnderlined);
   editorEl.classList.toggle('pmd-underline-bold', t.underlineBold);
@@ -3273,6 +3296,7 @@ settings.subscribe((s) => {
   applyChromeScale(s.chromeScalePct);
   applyDisplaySizes(s.displaySizes);
   applyDisplayTypography(s.displayTypography);
+  applyStyleAlignments(s.styleAlignments);
   applyDisplayColors(s.displayColors);
   applyHighlightShadingOverride(
     s.overrideHighlightColor,
@@ -3607,6 +3631,7 @@ applyZoom(liveZoomPct);
 applyChromeScale(settings.get('chromeScalePct'));
 applyDisplaySizes(settings.get('displaySizes'));
 applyDisplayTypography(settings.get('displayTypography'));
+applyStyleAlignments(settings.get('styleAlignments'));
 applyDisplayColors(settings.get('displayColors'));
 applyHighlightShadingOverride(
   settings.get('overrideHighlightColor'),

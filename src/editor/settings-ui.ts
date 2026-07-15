@@ -42,6 +42,8 @@ import {
   type NumberingSeparator,
   ZOOM_MIN_PCT,
   ZOOM_MAX_PCT,
+  type StyleAlignments,
+  type StyleAlignment,
 } from './settings.js';
 import { CATEGORY_TABS, visibleCategoryTabs, type SettingsTarget } from './settings-categories.js';
 import { generateGroupId, normalizePairingCode } from './pairing/pairing-ids.js';
@@ -913,6 +915,10 @@ class SettingsModal {
     } else if (meta.kind === 'navDefaultDepth') {
       row.appendChild(text);
       row.appendChild(buildOutlineDepthEditor('navMaxLevel'));
+      return row;
+    } else if (meta.kind === 'styleAlignments') {
+      row.appendChild(text);
+      row.appendChild(buildStyleAlignmentsEditor());
       return row;
     } else if (meta.kind === 'fileSearchTiebreak') {
       row.appendChild(text);
@@ -5253,6 +5259,64 @@ function buildCondenseWarningDelimiterEditor(): HTMLElement {
 
 /** Four-button segmented control for `fileSearchOutlineDepth` — the
  *  deepest level the file-search outline expands to by default. */
+/** Per-style alignment rows (Accessibility → Text alignment): one
+ *  Default / Center / Justify picker per structural style. */
+function buildStyleAlignmentsEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-style-alignments-editor';
+  const styles: { key: keyof StyleAlignments; label: string }[] = [
+    { key: 'tag', label: 'Tags' },
+    { key: 'paragraph', label: 'Paragraphs' },
+    { key: 'cardBody', label: 'Card bodies' },
+    { key: 'analyticBody', label: 'Analytic bodies' },
+    { key: 'analytic', label: 'Analytics' },
+    { key: 'undertag', label: 'Undertags' },
+  ];
+  const options: { value: StyleAlignment; label: string }[] = [
+    { value: 'default', label: 'Default' },
+    { value: 'center', label: 'Center' },
+    { value: 'justify', label: 'Justify' },
+  ];
+  for (const style of styles) {
+    const row = document.createElement('div');
+    row.className = 'pmd-style-alignments-row';
+    const lbl = document.createElement('span');
+    lbl.className = 'pmd-style-alignments-label';
+    lbl.textContent = style.label;
+    row.appendChild(lbl);
+    const group = document.createElement('div');
+    group.className = 'pmd-theme-editor';
+    for (const o of options) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pmd-theme-editor-btn';
+      btn.textContent = o.label;
+      btn.dataset['styleKey'] = style.key;
+      btn.dataset['value'] = o.value;
+      btn.addEventListener('click', () => {
+        settings.set('styleAlignments', {
+          ...settings.get('styleAlignments'),
+          [style.key]: o.value,
+        });
+      });
+      group.appendChild(btn);
+    }
+    row.appendChild(group);
+    wrap.appendChild(row);
+  }
+  function refresh(): void {
+    const cur = settings.get('styleAlignments');
+    for (const btn of wrap.querySelectorAll<HTMLButtonElement>('.pmd-theme-editor-btn')) {
+      const key = btn.dataset['styleKey'] as keyof StyleAlignments;
+      btn.setAttribute('aria-pressed', cur[key] === btn.dataset['value'] ? 'true' : 'false');
+    }
+  }
+  refresh();
+  const unsub = settings.subscribe(refresh);
+  registerRowCleanup(wrap, () => unsub());
+  return wrap;
+}
+
 /** Pocket/Hat/Block/Tag depth picker, shared by the file-search
  *  outline depth and the nav pane's default depth. */
 function buildOutlineDepthEditor(key: 'fileSearchOutlineDepth' | 'navMaxLevel'): HTMLElement {

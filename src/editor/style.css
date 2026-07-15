@@ -2491,6 +2491,40 @@ code {
   font-weight: 400;
 }
 
+/* Accessibility → Text alignment rows: style label left, the
+   Default/Center/Justify button group right. */
+.pmd-style-alignments-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.pmd-style-alignments-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.pmd-style-alignments-label {
+  flex: 0 0 8rem;
+  font-size: 0.85rem;
+}
+
+/* Accessibility → Text alignment rows: style label left, the
+   Default/Center/Justify button group right. */
+.pmd-style-alignments-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.pmd-style-alignments-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.pmd-style-alignments-label {
+  flex: 0 0 8rem;
+  font-size: 0.85rem;
+}
+
 /* Compact color control used in the Card numbering settings section. Shares the
    customColorOverrides['pmd-c-card-number'] value with Accessibility → Color
    overrides, so the two swatches stay linked. (Reset reuses
@@ -2565,6 +2599,32 @@ code {
 }
 :is(#editor, .pmd-pane-editor) .pmd-undertag {
   margin: var(--pmd-para-undertag-before, 0) 0 var(--pmd-para-undertag-after, 0) 0;
+}
+
+/* Accessibility → Text alignment: per-style center/justify overrides.
+   The --pmd-align-* vars are set (on #editor/:root) only when the
+   setting is non-default, so `start` is the everyday value — and a
+   paragraph's own alignment attr renders as an inline style, which
+   beats all of these. Card bodies split by context: inside a card vs
+   inside an analytic unit ("analytic body"). Pockets/hats/blocks are
+   deliberately not covered. */
+:is(#editor, .pmd-pane-editor) .pmd-tag {
+  text-align: var(--pmd-align-tag, start);
+}
+:is(#editor, .pmd-pane-editor) .ProseMirror > p {
+  text-align: var(--pmd-align-paragraph, start);
+}
+:is(#editor, .pmd-pane-editor) .pmd-card .pmd-card-body {
+  text-align: var(--pmd-align-card-body, start);
+}
+:is(#editor, .pmd-pane-editor) .pmd-analytic-unit .pmd-card-body {
+  text-align: var(--pmd-align-analytic-body, start);
+}
+:is(#editor, .pmd-pane-editor) .pmd-analytic {
+  text-align: var(--pmd-align-analytic, start);
+}
+:is(#editor, .pmd-pane-editor) .pmd-undertag {
+  text-align: var(--pmd-align-undertag, start);
 }
 
 /* Cite paragraphs render their bold-13pt cite text at single line

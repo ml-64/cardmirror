@@ -198,6 +198,7 @@ export interface StyleAlignments {
   analyticBody: StyleAlignment;
   analytic: StyleAlignment;
   undertag: StyleAlignment;
+  citeParagraph: StyleAlignment;
 }
 const DEFAULT_STYLE_ALIGNMENTS: StyleAlignments = {
   tag: 'default',
@@ -206,6 +207,7 @@ const DEFAULT_STYLE_ALIGNMENTS: StyleAlignments = {
   analyticBody: 'default',
   analytic: 'default',
   undertag: 'default',
+  citeParagraph: 'default',
 };
 
 export interface DisplayTypography {
@@ -2161,7 +2163,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'styleAlignments',
     label: 'Text alignment',
     description:
-      'Center or fully justify text per structural style — tags, plain paragraphs, card bodies, analytic bodies, analytics, and undertags. Default keeps the normal left-aligned rendering. Headings above tags (pockets, hats, blocks) are not affected, and a paragraph you have aligned yourself keeps its own alignment.',
+      'Center or fully justify text per structural style — tags, plain paragraphs, card bodies, analytic bodies, analytics, undertags, and cite paragraphs. Default keeps the normal left-aligned rendering. Headings above tags (pockets, hats, blocks) are not affected, and a paragraph you have aligned yourself keeps its own alignment.',
     kind: 'styleAlignments',
     category: 'accessibility',
     section: 'Text alignment',

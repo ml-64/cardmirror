@@ -8,9 +8,9 @@ in each release, see `CHANGELOG.md`.
 ## Unreleased
 
 - **Per-style text alignment (accessibility)** (`styleAlignments` in
-  `settings.ts`; `index.ts`, `settings-ui.ts`, `style.css`). Six
+  `settings.ts`; `index.ts`, `settings-ui.ts`, `style.css`). Seven
   structural styles (tag, doc-level paragraph, card body, analytic
-  body, analytic, undertag) each get a Default/Center/Justify picker
+  body, analytic, undertag, cite paragraph) each get a Default/Center/Justify picker
   under Settings → Accessibility. Deliberately filed under
   accessibility despite being formatting — there is no non-
   accessibility reason to justify debate evidence. Applied as

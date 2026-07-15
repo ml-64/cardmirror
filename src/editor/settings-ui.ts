@@ -5271,6 +5271,7 @@ function buildStyleAlignmentsEditor(): HTMLElement {
     { key: 'analyticBody', label: 'Analytic bodies' },
     { key: 'analytic', label: 'Analytics' },
     { key: 'undertag', label: 'Undertags' },
+    { key: 'citeParagraph', label: 'Cite paragraphs' },
   ];
   const options: { value: StyleAlignment; label: string }[] = [
     { value: 'default', label: 'Default' },

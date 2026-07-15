@@ -2626,6 +2626,9 @@ code {
 :is(#editor, .pmd-pane-editor) .pmd-undertag {
   text-align: var(--pmd-align-undertag, start);
 }
+:is(#editor, .pmd-pane-editor) .pmd-cite-para {
+  text-align: var(--pmd-align-cite, start);
+}
 
 /* Cite paragraphs render their bold-13pt cite text at single line
    spacing rather than the editor's body 1.2 multiplier. Without this,

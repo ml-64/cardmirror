@@ -11,8 +11,8 @@ see `DETAILED_CHANGELOG.md`.
 
 - **Text alignment per style** (Settings → Accessibility → Text
   alignment). Center or fully justify text for tags, plain paragraphs,
-  card bodies, analytic bodies, analytics, and undertags — each style
-  independently. Pockets, hats, and blocks are unaffected, and any
+  card bodies, analytic bodies, analytics, undertags, and cite
+  paragraphs — each style independently. Pockets, hats, and blocks are unaffected, and any
   paragraph you've aligned yourself keeps its own alignment.
 
 - **Hat underline style** (Settings → Appearance → Document typography):

@@ -2895,6 +2895,7 @@ function applyStyleAlignments(a: StyleAlignments): void {
     analyticBody: '--pmd-align-analytic-body',
     analytic: '--pmd-align-analytic',
     undertag: '--pmd-align-undertag',
+    citeParagraph: '--pmd-align-cite',
   };
   for (const key of Object.keys(vars) as (keyof StyleAlignments)[]) {
     const value = a[key];

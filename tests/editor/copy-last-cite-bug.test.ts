@@ -204,7 +204,7 @@ describe('Copy Last Cite — placement when cursor is in the destination tag', (
 });
 
 describe('Copy Previous Cite — nearest-only setting', () => {
-  afterEach(() => settings.set('copyPreviousCiteNearestOnly', false));
+  afterEach(() => settings.set('copyPreviousCiteNearestOnly', true));
 
   /** Source card with TWO cites, destination card with none. */
   function twoCiteDocAndSelect(): EditorState {
@@ -230,15 +230,15 @@ describe('Copy Previous Cite — nearest-only setting', () => {
     return state.apply(state.tr.setSelection(TextSelection.create(state.doc, pos)));
   }
 
-  it('OFF (default): copies the whole cite group of the source', () => {
+  it('OFF: copies the whole cite group of the source', () => {
+    settings.set('copyPreviousCiteNearestOnly', false);
     const after = runCmd(twoCiteDocAndSelect());
     expect(structure(after.doc)[1]).toBe(
       'card[tag("DEST TAG"), cite_paragraph("First Author 2024."), cite_paragraph("Second Author 2025."), card_body("dest body")]',
     );
   });
 
-  it('ON: copies only the nearest (last) cite of the group', () => {
-    settings.set('copyPreviousCiteNearestOnly', true);
+  it('ON (the default): copies only the nearest (last) cite of the group', () => {
     const after = runCmd(twoCiteDocAndSelect());
     expect(structure(after.doc)[1]).toBe(
       'card[tag("DEST TAG"), cite_paragraph("Second Author 2025."), card_body("dest body")]',

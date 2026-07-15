@@ -9,7 +9,8 @@ in each release, see `CHANGELOG.md`.
 
 - **Copy Previous Cite: nearest-only mode** (`ribbon-commands.ts`,
   `settings.ts`; tests in `copy-last-cite-bug.test.ts`).
-  `copyPreviousCiteNearestOnly` (toggle, default off) narrows the
+  `copyPreviousCiteNearestOnly` (toggle, default ON — a behavior
+  change for existing users, called out in the changelog) narrows the
   copied set to the last member of whatever cite group
   `findPreviousCites` resolves — the cite closest to the cursor in
   document order. All source-selection semantics (own-card phase,

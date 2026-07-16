@@ -1260,10 +1260,44 @@ function buildTypographyEditor(): HTMLElement {
   hideBordersRow.appendChild(hideBordersText);
   wrap.appendChild(hideBordersRow);
 
+  // Pocket box thickness — mirrors the emphasis control above; placed
+  // after the emphasis-box cluster (thickness + its read-mode
+  // sub-option) so that cluster stays together.
+  const pocketSizeRow = document.createElement('label');
+  pocketSizeRow.className = 'pmd-typography-size-row';
+  const pocketSizeLbl = document.createElement('span');
+  pocketSizeLbl.textContent = 'Pocket box thickness:';
+  pocketSizeRow.appendChild(pocketSizeLbl);
+  const pocketSizeInput = document.createElement('input');
+  pocketSizeInput.type = 'number';
+  pocketSizeInput.className = 'pmd-typography-size-input';
+  pocketSizeInput.min = '0.25';
+  pocketSizeInput.max = '12';
+  pocketSizeInput.step = '0.25';
+  pocketSizeInput.value = String(settings.get('displayTypography').pocketBoxSize);
+  pocketSizeInput.addEventListener('change', () => {
+    const v = parseFloat(pocketSizeInput.value);
+    if (!Number.isFinite(v) || v <= 0) {
+      pocketSizeInput.value = String(settings.get('displayTypography').pocketBoxSize);
+      return;
+    }
+    settings.set('displayTypography', {
+      ...settings.get('displayTypography'),
+      pocketBoxSize: v,
+    });
+  });
+  pocketSizeRow.appendChild(pocketSizeInput);
+  const pocketUnit = document.createElement('span');
+  pocketUnit.className = 'pmd-typography-unit';
+  pocketUnit.textContent = 'pt';
+  pocketSizeRow.appendChild(pocketUnit);
+  wrap.appendChild(pocketSizeRow);
+
   // Re-render input values if settings change elsewhere.
   const unsubscribe = settings.subscribe(() => {
     const t = settings.get('displayTypography');
     sizeInput.value = String(t.emphasisBoxSize);
+    pocketSizeInput.value = String(t.pocketBoxSize);
     // Sync checkboxes — the first N are typography flags (column order
     // matches flagKeys), the last is the hide-emphasis-borders toggle.
     const checkboxes = wrap.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');

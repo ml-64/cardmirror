@@ -48,6 +48,11 @@ see `DETAILED_CHANGELOG.md`.
   choose between the classic double underline (default) and a single
   underline for hat headings. Display-only — exports are unchanged.
 
+- **Pocket box thickness** (Settings → Appearance → Document
+  typography, under Style typography): control the thickness of the
+  box drawn around pocket headings, mirroring the existing emphasis
+  box thickness control. Display-only — exports are unchanged.
+
 ### Changed
 
 - **Copy Previous Cite now copies only the nearest cite.** Copy

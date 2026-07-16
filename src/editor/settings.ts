@@ -220,6 +220,11 @@ export interface DisplayTypography {
   emphasisItalic: boolean;
   emphasisBox: boolean;
   emphasisBoxSize: number; // pt
+  /** Thickness of the box drawn around pocket headings, in pt.
+   *  Display-only (export borders are unchanged). Default 2.25pt =
+   *  the 3px the CSS hardcoded before this was a setting, so existing
+   *  documents look identical. */
+  pocketBoxSize: number; // pt
   undertagItalic: boolean;
   undertagBold: boolean;
 }
@@ -232,6 +237,7 @@ const DEFAULT_DISPLAY_TYPOGRAPHY: DisplayTypography = {
   emphasisItalic: false,
   emphasisBox: true,
   emphasisBoxSize: 1,
+  pocketBoxSize: 2.25,
   undertagItalic: true,
   undertagBold: false,
 };
@@ -4723,6 +4729,10 @@ function sanitizeDisplayTypography(raw: unknown): DisplayTypography {
   const bs = Number(r.emphasisBoxSize);
   if (Number.isFinite(bs) && bs > 0 && bs <= 12) {
     out.emphasisBoxSize = Math.round(bs * 4) / 4; // quarter-pt precision
+  }
+  const ps = Number(r.pocketBoxSize);
+  if (Number.isFinite(ps) && ps > 0 && ps <= 12) {
+    out.pocketBoxSize = Math.round(ps * 4) / 4; // quarter-pt precision
   }
   return out;
 }

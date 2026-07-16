@@ -2948,6 +2948,8 @@ function applyDisplayTypography(t: DisplayTypography): void {
   editorEl.classList.toggle('pmd-undertag-bold', t.undertagBold);
   editorEl.style.setProperty('--pmd-emphasis-box-size', `${t.emphasisBoxSize}pt`);
   document.documentElement.style.setProperty('--pmd-emphasis-box-size', `${t.emphasisBoxSize}pt`);
+  editorEl.style.setProperty('--pmd-pocket-box-size', `${t.pocketBoxSize}pt`);
+  document.documentElement.style.setProperty('--pmd-pocket-box-size', `${t.pocketBoxSize}pt`);
   // Mirror the undertag/cite/emphasis flags to documentElement so the
   // ribbon's formatting-panel preview (which lives outside #editor)
   // can react to the same settings.

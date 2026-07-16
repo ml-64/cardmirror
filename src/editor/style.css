@@ -2293,7 +2293,9 @@ code {
   line-height: var(--pmd-line-height-heading);
   font-weight: bold;
   text-align: center;
-  border: 3px solid var(--pmd-c-emphasis-box);
+  /* Thickness is settings-driven (Style typography -> pocket box);
+     3px = 2.25pt fallback matches the pre-setting hardcode. */
+  border: var(--pmd-pocket-box-size, 3px) solid var(--pmd-c-emphasis-box);
   padding: 0.5rem 1rem;
   margin: var(--pmd-para-pocket-before, 1.5rem) 0 var(--pmd-para-pocket-after, 0.75rem) 0;
   page-break-before: always;

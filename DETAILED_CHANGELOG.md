@@ -7,6 +7,19 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+- **Pocket box thickness setting** (`pocketBoxSize` in
+  `DisplayTypography`; UI row in the Style typography editor below the
+  emphasis-box cluster; test in
+  `tests/editor/display-typography-sanitize.test.ts`). The box around
+  pocket headings was a hardcoded `border: 3px` in `.pmd-pocket`; it's
+  now `var(--pmd-pocket-box-size, 3px)`, driven by a pt-valued setting
+  mirroring `emphasisBoxSize` (same quarter-pt sanitize, same (0, 12]
+  clamp, same number-input row). Default 2.25pt = exactly the old 3px,
+  so existing documents render identically. The CSS var is set on both
+  `#editor` and `documentElement` like the emphasis one, so multi-pane
+  editors and the formatting-panel previews inherit it. Display-only —
+  docx export borders are unchanged.
+
 - **Smart paste conversion: Word clipboard HTML → CardMirror structure**
   (`import/html-paste.ts`, new; wiring in `paste-plugin.ts`; setting
   `smartPasteConversion`, default on, Settings → Editing → Paste; tests

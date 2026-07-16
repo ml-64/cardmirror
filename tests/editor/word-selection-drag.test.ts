@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 /**
- * Single-click drag dynamic granularity — the head-trim escape hatch
- * (field request 2026-07-15): a word-snapped sweep un-snaps to
- * character precision when the pointer reverses into the furthest word
- * of the CURRENT advancing run, so a long excerpt can terminate
- * mid-word in one gesture. Retreating past that word resumes word
- * snapping, and turning forward again starts a fresh run — precision
- * follows where you stop now, not where the drag once reached.
+ * Single-click drag dynamic granularity — direction-based head
+ * (field request 2026-07-15, simplified after two feel-test rounds):
+ * moving AWAY from the anchor (the drag's extension direction) snaps
+ * word-by-word; moving back TOWARD the anchor is always character-
+ * precise. A long word-by-word sweep terminates mid-word by backing
+ * up to the exact endpoint, in one gesture. Stationary pointer
+ * re-reports are no-ops (the flicker source in round one).
  *
  * Drives `extendActiveEndTo` directly with synthetic doc positions
  * (the drag listeners only translate mouse coords into exactly these
@@ -23,7 +23,6 @@ import {
 } from '../../src/editor/word-selection-plugin.js';
 
 // One card body: "alpha bravo charlie delta echo"
-//                 ^1    ^7    ^13     ^21   ^27   (positions of word starts)
 const TEXT = 'alpha bravo charlie delta echo';
 
 function makeView(): EditorView {
@@ -61,102 +60,66 @@ const ALPHA = { from: 0, to: 5 };
 const CHARLIE = { from: 12, to: 19 };
 const DELTA = { from: 20, to: 25 };
 
-describe('head-trim during single-click word-snapped drags', () => {
-  it('advancing snaps; reversing inside the furthest word is character-precise', () => {
+describe('direction-based head during single-click drags', () => {
+  it('moving away from the anchor snaps word-by-word', () => {
     const view = makeView();
     const p = (o: number): number => bodyPos(view, o);
     const anchor = createPointAnchor(view, p(2)); // mid-"alpha"
-    extendActiveEndTo(view, anchor, p(15)); // mid-"charlie" → snap
+    extendActiveEndTo(view, anchor, p(15)); // mid-"charlie"
     expect(sel(view)).toEqual([p(ALPHA.from), p(CHARLIE.to)]);
-    extendActiveEndTo(view, anchor, p(14)); // one char BACK, still in charlie
-    expect(sel(view)).toEqual([p(ALPHA.from), p(14)]); // precise
-    extendActiveEndTo(view, anchor, p(15)); // micro forward, still below max
-    expect(sel(view)).toEqual([p(ALPHA.from), p(15)]); // still precise
-    view.destroy();
-  });
-
-  it('crossing the furthest point again resumes snapping', () => {
-    const view = makeView();
-    const p = (o: number): number => bodyPos(view, o);
-    const anchor = createPointAnchor(view, p(2));
-    extendActiveEndTo(view, anchor, p(15)); // snap in charlie
-    extendActiveEndTo(view, anchor, p(13)); // precise
-    extendActiveEndTo(view, anchor, p(22)); // past the max, into delta → snap
+    extendActiveEndTo(view, anchor, p(22)); // onward into delta
     expect(sel(view)).toEqual([p(ALPHA.from), p(DELTA.to)]);
     view.destroy();
   });
 
-  it('retreating past the furthest word snaps word-by-word', () => {
-    const view = makeView();
-    const p = (o: number): number => bodyPos(view, o);
-    const anchor = createPointAnchor(view, p(2));
-    extendActiveEndTo(view, anchor, p(22)); // sweep to delta
-    extendActiveEndTo(view, anchor, p(15)); // retreat PAST delta into charlie
-    expect(sel(view)).toEqual([p(ALPHA.from), p(CHARLIE.to)]); // snapped, not precise
-    view.destroy();
-  });
-
-  it("the user's scenario: forward, back, forward again but not as far — precision follows the NEW stop", () => {
+  it('any move back toward the anchor is character-precise — including multi-word retreats', () => {
     const view = makeView();
     const p = (o: number): number => bodyPos(view, o);
     const anchor = createPointAnchor(view, p(2));
     extendActiveEndTo(view, anchor, p(27)); // sweep out to echo
-    extendActiveEndTo(view, anchor, p(8)); // long retreat into bravo (snapped)
-    extendActiveEndTo(view, anchor, p(15)); // forward again, stop mid-charlie
-    expect(sel(view)).toEqual([p(ALPHA.from), p(CHARLIE.to)]); // snapped on arrival
-    extendActiveEndTo(view, anchor, p(14)); // nudge back inside charlie
-    expect(sel(view)).toEqual([p(ALPHA.from), p(14)]); // precise HERE, old echo max forgotten
+    extendActiveEndTo(view, anchor, p(26)); // one char back → precise
+    expect(sel(view)).toEqual([p(ALPHA.from), p(26)]);
+    extendActiveEndTo(view, anchor, p(15)); // long retreat into charlie → still precise
+    expect(sel(view)).toEqual([p(ALPHA.from), p(15)]);
     view.destroy();
   });
 
-  it('mirrors for leftward drags', () => {
+  it('turning away again resumes snapping immediately', () => {
+    const view = makeView();
+    const p = (o: number): number => bodyPos(view, o);
+    const anchor = createPointAnchor(view, p(2));
+    extendActiveEndTo(view, anchor, p(22)); // out to delta
+    extendActiveEndTo(view, anchor, p(14)); // back into charlie → precise
+    extendActiveEndTo(view, anchor, p(16)); // forward again → snap
+    expect(sel(view)).toEqual([p(ALPHA.from), p(CHARLIE.to)]);
+    view.destroy();
+  });
+
+  it('flicker regression: stationary pointer re-reports are no-ops', () => {
+    const view = makeView();
+    const p = (o: number): number => bodyPos(view, o);
+    const anchor = createPointAnchor(view, p(2));
+    extendActiveEndTo(view, anchor, p(15)); // snap
+    extendActiveEndTo(view, anchor, p(15)); // re-report — must not un-snap
+    extendActiveEndTo(view, anchor, p(15));
+    expect(sel(view)).toEqual([p(ALPHA.from), p(CHARLIE.to)]);
+    // …and after a precise step, re-reports keep the precise head.
+    extendActiveEndTo(view, anchor, p(14));
+    extendActiveEndTo(view, anchor, p(14));
+    expect(sel(view)).toEqual([p(ALPHA.from), p(14)]);
+    view.destroy();
+  });
+
+  it('mirrors for leftward drags (away = leftward, back = rightward)', () => {
     const view = makeView();
     const p = (o: number): number => bodyPos(view, o);
     const anchor = createPointAnchor(view, p(28)); // mid-"echo"
     extendActiveEndTo(view, anchor, p(14)); // sweep left into charlie → snap
-    expect(sel(view)).toEqual([p(CHARLIE.from), p(30)]); // echo fully in, head at charlie.from
-    extendActiveEndTo(view, anchor, p(16)); // reverse (rightward) inside charlie
-    expect(sel(view)).toEqual([p(16), p(30)]); // precise head
-    view.destroy();
-  });
-
-  it('flicker regression: stationary pointer re-reports do NOT un-snap', () => {
-    const view = makeView();
-    const p = (o: number): number => bodyPos(view, o);
-    const anchor = createPointAnchor(view, p(2));
-    extendActiveEndTo(view, anchor, p(15)); // advancing mid-charlie → snap
-    expect(sel(view)).toEqual([p(ALPHA.from), p(CHARLIE.to)]);
-    // The browser re-reports the same position (no movement) — this
-    // used to flip to character precision and oscillate.
-    extendActiveEndTo(view, anchor, p(15));
-    extendActiveEndTo(view, anchor, p(15));
-    expect(sel(view)).toEqual([p(ALPHA.from), p(CHARLIE.to)]); // still snapped
-    view.destroy();
-  });
-
-  it('flicker regression: forward jitter while advancing stays snapped', () => {
-    const view = makeView();
-    const p = (o: number): number => bodyPos(view, o);
-    const anchor = createPointAnchor(view, p(2));
-    extendActiveEndTo(view, anchor, p(13));
-    extendActiveEndTo(view, anchor, p(14));
-    extendActiveEndTo(view, anchor, p(14));
-    extendActiveEndTo(view, anchor, p(15)); // strictly-forward sequence with repeats
-    expect(sel(view)).toEqual([p(ALPHA.from), p(CHARLIE.to)]); // snapped throughout
-    view.destroy();
-  });
-
-  it('trim mode requires an observed backward step, then persists both directions', () => {
-    const view = makeView();
-    const p = (o: number): number => bodyPos(view, o);
-    const anchor = createPointAnchor(view, p(2));
-    extendActiveEndTo(view, anchor, p(16)); // snap
-    extendActiveEndTo(view, anchor, p(14)); // observed backward → trim
-    expect(sel(view)).toEqual([p(ALPHA.from), p(14)]);
-    extendActiveEndTo(view, anchor, p(16)); // forward to exactly the max: fine-tuning
-    expect(sel(view)).toEqual([p(ALPHA.from), p(16)]); // still precise
-    extendActiveEndTo(view, anchor, p(17)); // strictly beyond → snapping resumes
-    expect(sel(view)).toEqual([p(ALPHA.from), p(CHARLIE.to)]);
+    expect(sel(view)).toEqual([p(CHARLIE.from), p(30)]);
+    extendActiveEndTo(view, anchor, p(16)); // back toward anchor (rightward) → precise
+    expect(sel(view)).toEqual([p(16), p(30)]);
+    extendActiveEndTo(view, anchor, p(9)); // away again (leftward, into bravo) → snap
+    expect(sel(view)).toEqual([p(6), p(30)]);
     view.destroy();
   });
 

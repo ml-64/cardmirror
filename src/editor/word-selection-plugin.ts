@@ -8,13 +8,11 @@
  *     Dynamic — extending past the anchor's own unit upgrades to
  *     word granularity (and pulls the rest of the anchor unit in);
  *     reversing back inside the original unit downgrades to
- *     character. The HEAD has a matching escape hatch: reversing
- *     back into the furthest word of the current advancing run
- *     drops the head to character precision (terminate a long
- *     word-by-word sweep mid-word, in one gesture); retreating
- *     past that word resumes word-snapping, and turning forward
- *     again starts a FRESH run — precision follows where you stop
- *     now, not where the drag once reached.
+ *     character. The HEAD is direction-based: moving AWAY from the
+ *     anchor (the drag's extension direction) snaps word-by-word;
+ *     moving back TOWARD the anchor is always character-precise —
+ *     so a long word-by-word sweep terminates mid-word by simply
+ *     backing up to the exact endpoint, in one gesture.
  *   - Double click: anchor = the word unit (Layer 1 query with
  *     trailing-space absorption), granularity = word (fixed).
  *     Drag extends word-by-word; the anchor unit stays fully
@@ -84,20 +82,14 @@ interface SelectionAnchor {
   /** True for double-click anchors — granularity is fixed and the
    *  anchor unit is never shrunk below its initial extent. */
   fixed: boolean;
-  /** Head-trim tracking for dynamic (single-click) anchors: the
-   *  current advancing run's furthest active position, the previous
-   *  active position, and whether the head is in trim (character-
-   *  precise) mode — per selection side. Trim mode is entered only on
-   *  OBSERVED BACKWARD MOVEMENT inside the unit containing `max`
-   *  (position-vs-max alone can't distinguish "nudged back to the
-   *  max" from "stationary pointer re-reporting the max", which
-   *  caused snap↔precise flicker); it persists through fine-tuning in
-   *  both directions inside that unit, and exits when the pointer
-   *  goes strictly beyond `max` or retreats past the unit. Advancing
-   *  after a retreat RESTARTS the run at the turn point (the old max
-   *  is deliberately forgotten). Reset on side flips and on
-   *  re-entering W0. */
-  run?: { side: 1 | -1; max: number; prev: number; trimming: boolean } | null;
+  /** Head direction tracking for dynamic (single-click) anchors: the
+   *  selection side and the previous active position. The head's
+   *  granularity is purely direction-based — away from the anchor
+   *  snaps word-by-word, toward the anchor is character-precise —
+   *  and direction is judged against `prev` (an OBSERVED move, so a
+   *  stationary pointer re-reporting its position is a no-op, never a
+   *  mode flip). Reset on side flips and on re-entering W0. */
+  run?: { side: 1 | -1; prev: number } | null;
   /** Freshness counter. Bumped on every selection this plugin
    *  dispatches; set to -1 by the `apply` hook when an external
    *  transaction moves the selection, so `effectiveAnchor` re-derives
@@ -540,53 +532,24 @@ export function extendActiveEndTo(
     else dispatchSelection(view, W0.to, activeUnit.from, anchor);
   };
 
-  // Head-trim state machine (see the `run` field's doc comment).
+  // Direction-based head (see the `run` field's doc comment):
+  // away from the anchor → word snap; toward it → character-precise.
   if (!anchor.run || anchor.run.side !== side) {
-    // Fresh run (first move onto this side): snap.
-    anchor.run = { side, max: activePos, prev: activePos, trimming: false };
+    // First move onto this side is by definition away from the anchor.
+    anchor.run = { side, prev: activePos };
     wordSnap();
     return;
   }
   const run = anchor.run;
-  if (activePos === run.prev) {
-    // Stationary pointer re-reporting the same position: strictly a
-    // no-op. Re-deriving state from an unchanged position is what
-    // caused the snap↔precise flicker.
-    return;
-  }
-  const beyondMax = side === 1 ? activePos > run.max : activePos < run.max;
-  if (beyondMax) {
-    // Strictly past the run's furthest point → advancing: snap.
-    run.max = activePos;
-    run.trimming = false;
+  if (activePos === run.prev) return; // stationary re-report: no-op
+  const away = side === 1 ? activePos > run.prev : activePos < run.prev;
+  run.prev = activePos;
+  if (away) {
     wordSnap();
   } else {
-    const maxUnit = bareUnitAtDocPos(view, run.max) ?? { from: run.max, to: run.max };
-    const insideMaxUnit = activePos >= maxUnit.from && activePos <= maxUnit.to;
-    if (insideMaxUnit) {
-      // Inside the furthest word, at-or-behind the max. Enter trim
-      // mode only on an OBSERVED backward step; once trimming, both
-      // directions inside this word (including back to exactly the
-      // max) stay character-precise.
-      const movedBack = side === 1 ? activePos < run.prev : activePos > run.prev;
-      if (run.trimming || movedBack) {
-        run.trimming = true;
-        dispatchSelection(view, side === 1 ? W0.from : W0.to, activePos, anchor);
-      } else {
-        wordSnap();
-      }
-    } else {
-      // Retreated past the furthest word → snapped shrinking. The
-      // moment the pointer advances again, the run RESTARTS here —
-      // the old max is forgotten, so a later stop-and-nudge-back is
-      // precise wherever the user actually stops.
-      const advancing = side === 1 ? activePos > run.prev : activePos < run.prev;
-      if (advancing) run.max = activePos;
-      run.trimming = false;
-      wordSnap();
-    }
+    // Toward the anchor: exact head; the anchor side keeps the full W0 edge.
+    dispatchSelection(view, side === 1 ? W0.from : W0.to, activePos, anchor);
   }
-  run.prev = activePos;
 }
 
 function dispatchSelection(

@@ -7,27 +7,22 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
-- **Head-trim in dynamic drag selection** (`word-selection-plugin.ts`;
-  tests in `tests/editor/word-selection-drag.test.ts`). Single-click
-  drags tracked one escape hatch from word granularity: re-entering W0
-  (the origin word). The head now gets the symmetric one — a per-run
-  state machine (`anchor.run`: side + furthest position + previous
-  position) drops the head to character precision when the pointer
-  reverses inside the furthest word of the CURRENT advancing run.
-  Retreating past that word resumes word-snapped shrinking; advancing
-  after a retreat RESTARTS the run at the turn point, so the old max is
-  forgotten and precision follows wherever the user actually stops
-  (the confirmed refinement). Trim mode is an EXPLICIT state bit entered only on an observed
-  backward step — position-vs-max alone can't distinguish "nudged back
-  to the max" from "stationary pointer re-reporting the max", which
-  flickered snap↔precise mid-drag (first field test); stationary
-  re-reports are no-ops, and once trimming, both directions inside the
-  furthest word (including exactly the max) stay precise until the
-  pointer goes strictly beyond it.
+- **Direction-based head in dynamic drag selection**
+  (`word-selection-plugin.ts`; tests in
+  `tests/editor/word-selection-drag.test.ts`). Single-click drags had
+  one escape from word granularity: re-entering W0 (the origin word).
+  The head now follows a simple direction rule, settled over three
+  feel-test rounds: moving AWAY from the anchor snaps word-by-word;
+  moving back TOWARD the anchor is always character-precise (multi-word
+  retreats included); turning away again resumes snapping. Direction is
+  judged per observed move against the previous active position —
+  stationary pointer re-reports are no-ops, which killed the
+  snap↔precise flicker of the first iteration (position-vs-max rules
+  couldn't distinguish "nudged back" from "re-reported the same spot").
   Runs reset on side flips and on re-entering W0; double/triple-click
-  fixed granularities are untouched. `extendActiveEndTo` +
-  `createPointAnchor` are exported so the tests drive the state machine
-  with synthetic position sequences.
+  fixed granularities untouched. `extendActiveEndTo` +
+  `createPointAnchor` exported so tests drive the machine with
+  synthetic position sequences.
 
 - **XML-illegal characters stripped at export** (`ooxml/xml.ts`; tests
   in `tests/export/xml-illegal-chars.test.ts`). Field report (J.Li,

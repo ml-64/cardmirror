@@ -61,6 +61,18 @@ const pick = <T>(rnd: () => number, xs: T[]): T => xs[Math.floor(rnd() * xs.leng
 // never approach that; cap density to keep the fuzz doc bounded.
 const MAX_VIEWS = 15;
 const MAX_COPIES = 15;
+// Size caps. The density caps bound how many reference ATOMS exist, but the
+// copy and freeze ops splice MATERIALIZED content into the doc, and that
+// content is itself copied into later copies — compounding growth the atom
+// caps can't see. Seed 18 snowballed to 9.9M nodeSize this way and OOM'd the
+// vitest worker (~3.6 GB; and the test body is synchronous, so the timeout
+// never fires — the worker just dies). Healthy seeds top out well under 20k;
+// past MAX_DOC_NODESIZE the growth-by-materialization ops become no-ops
+// (edit / delete / detach / re-point ops still run, so the invariants keep
+// getting exercised), and a freeze never splices a projection bigger than
+// MAX_SPLICE_NODESIZE.
+const MAX_DOC_NODESIZE = 30_000;
+const MAX_SPLICE_NODESIZE = 10_000;
 
 function card(tag: string, body: string, role: NumRole = 'none', restart = false): PMNode {
   return schema.nodes['card']!.createChecked({ numRole: role, numRestart: restart }, [
@@ -182,6 +194,7 @@ function labelSeq(d: PMNode): string[] {
 
 function op(rnd: () => number, view: EditorView): void {
   const d = view.state.doc;
+  const full = d.nodeSize > MAX_DOC_NODESIZE;
   const roll = rnd();
   try {
     if (roll < 0.16) {
@@ -200,7 +213,7 @@ function op(rnd: () => number, view: EditorView): void {
       view.dispatch(view.state.tr.insert(pick(rnd, insertPositions(d)), createSelfRefNode(schema, pick(rnd, ids), '↳ src')));
     } else if (roll < 0.4) {
       const ids = blockIds(d);
-      if (!ids.length || countBy(d, isTransclusionNode) >= MAX_COPIES) return;
+      if (full || !ids.length || countBy(d, isTransclusionNode) >= MAX_COPIES) return;
       const o = buildInDocCopyAttrs(d, pick(rnd, ids));
       if (!o.ok || !o.attrs) return;
       view.dispatch(view.state.tr.insert(pick(rnd, insertPositions(d)), createTransclusionNode(schema, o.attrs, o.content)));
@@ -216,9 +229,10 @@ function op(rnd: () => number, view: EditorView): void {
       view.dispatch(view.state.tr.replaceRange(at, at + node.nodeSize, detachSlice(node)));
     } else if (roll < 0.63) {
       const ss = nodePositions(d, isSelfRef);
-      if (!ss.length) return;
+      if (full || !ss.length) return;
       const at = pick(rnd, ss);
       const proj = resolveSelfProjection(d, String(d.nodeAt(at)!.attrs['source_heading_id'] ?? ''));
+      if (proj.content.size > MAX_SPLICE_NODESIZE) return;
       // Freeze to cards (mirror unlink): drop the atom, splice the projection.
       view.dispatch(view.state.tr.replaceWith(at, at + 1, proj.content));
     } else if (roll < 0.69) {

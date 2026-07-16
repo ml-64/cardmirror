@@ -5293,6 +5293,33 @@ function buildMaxTextWidthEditor(): HTMLElement {
   cb.addEventListener('change', () => {
     settings.set('maxTextWidthPx', cb.checked ? lastOnValue : 0);
   });
+
+  // Column position: centered, or pinned to an edge. Rendered under the
+  // width row; inert (like the width) while the cap is off.
+  const posRow = document.createElement('div');
+  posRow.className = 'pmd-style-alignments-row';
+  const posLbl = document.createElement('span');
+  posLbl.className = 'pmd-style-alignments-label';
+  posLbl.textContent = 'Column position';
+  posRow.appendChild(posLbl);
+  const posGroup = document.createElement('div');
+  posGroup.className = 'pmd-theme-editor';
+  const positions: { value: 'left' | 'center' | 'right'; label: string }[] = [
+    { value: 'left', label: 'Left' },
+    { value: 'center', label: 'Center' },
+    { value: 'right', label: 'Right' },
+  ];
+  for (const o of positions) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pmd-theme-editor-btn';
+    btn.textContent = o.label;
+    btn.dataset['value'] = o.value;
+    btn.addEventListener('click', () => settings.set('maxTextWidthAlign', o.value));
+    posGroup.appendChild(btn);
+  }
+  posRow.appendChild(posGroup);
+  wrap.appendChild(posRow);
   input.addEventListener('change', () => {
     const n = Math.round(Number(input.value));
     if (Number.isFinite(n) && n >= 400 && n <= 3000) {
@@ -5310,6 +5337,11 @@ function buildMaxTextWidthEditor(): HTMLElement {
       input.value = String(v);
     } else if (!input.value) {
       input.value = String(lastOnValue);
+    }
+    const align = settings.get('maxTextWidthAlign');
+    for (const btn of posGroup.querySelectorAll<HTMLButtonElement>('.pmd-theme-editor-btn')) {
+      btn.setAttribute('aria-pressed', btn.dataset['value'] === align ? 'true' : 'false');
+      btn.disabled = v <= 0;
     }
   }
   refresh();

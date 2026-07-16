@@ -818,10 +818,13 @@ export interface Settings {
    *  Applied as CSS custom properties; see StyleAlignments. */
   styleAlignments: StyleAlignments;
   /** Maximum text-column width in px, 0 = off (default). Caps the
-   *  ProseMirror content column and centers it, so reading long lines
-   *  doesn't require sweeping the eyes across a wide screen
-   *  (accessibility). Display-only. */
+   *  ProseMirror content column, so reading long lines doesn't require
+   *  sweeping the eyes across a wide screen (accessibility).
+   *  Display-only. */
   maxTextWidthPx: number;
+  /** Where the capped column sits in the editor: centered (default),
+   *  or pinned to the left / right edge. Inert while the cap is off. */
+  maxTextWidthAlign: 'center' | 'left' | 'right';
   /**
    * Per-style display colors. See DisplayColors. Each becomes a CSS
    * custom property on `:root`.
@@ -1531,6 +1534,7 @@ const DEFAULTS: Settings = {
   displayTypography: { ...DEFAULT_DISPLAY_TYPOGRAPHY },
   styleAlignments: { ...DEFAULT_STYLE_ALIGNMENTS },
   maxTextWidthPx: 0,
+  maxTextWidthAlign: 'center',
   displayColors: { ...DEFAULT_DISPLAY_COLORS },
   bodyFont: 'Times New Roman',
   uiFont: '',
@@ -2180,7 +2184,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'maxTextWidthPx',
     label: 'Maximum text width',
     description:
-      "Cap how wide the document text column can get, and center it — long lines stop stretching across the whole screen, so reading doesn't require sweeping your eyes edge to edge. Off by default; when on, the width is in pixels (400–3000).",
+      "Cap how wide the document text column can get — long lines stop stretching across the whole screen, so reading doesn't require sweeping your eyes edge to edge. Off by default; when on, the width is in pixels (400–3000) and the column can sit centered or pinned to the left or right edge.",
     kind: 'maxTextWidth',
     category: 'accessibility',
     section: 'Text width',
@@ -3894,6 +3898,10 @@ function sanitize(s: Settings): Settings {
       Number.isFinite(s.maxTextWidthPx) && s.maxTextWidthPx > 0
         ? clamp(Math.round(s.maxTextWidthPx), 400, 3000)
         : 0,
+    maxTextWidthAlign:
+      s.maxTextWidthAlign === 'left' || s.maxTextWidthAlign === 'right'
+        ? s.maxTextWidthAlign
+        : 'center',
     displayColors: sanitizeDisplayColors(s.displayColors, s.customColorOverrides),
     bodyFont: sanitizeBodyFont(s.bodyFont),
     uiFont: sanitizeUiFont(s.uiFont),

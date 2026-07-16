@@ -10,9 +10,10 @@ see `DETAILED_CHANGELOG.md`.
 ### Added
 
 - **Maximum text width** (Settings → Accessibility → Text width). Cap
-  how wide the document text column gets — the column centers itself
-  and long lines stop stretching edge to edge, so reading doesn't
-  require sweeping your eyes across the whole screen. Off by default.
+  how wide the document text column gets — long lines stop stretching
+  edge to edge, so reading doesn't require sweeping your eyes across
+  the whole screen. Off by default; when on, choose whether the column
+  sits centered or pinned to the left or right edge.
 
 - **Text alignment per style** (Settings → Accessibility → Text
   alignment). Center or fully justify text for tags, plain paragraphs,

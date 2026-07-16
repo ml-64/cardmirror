@@ -12,11 +12,16 @@ in each release, see `CHANGELOG.md`.
   `settings-ui.ts`, `style.css`). Caps + centers the ProseMirror
   content column via a `--pmd-max-text-width` var (removed entirely
   when off — the everyday layout is the pre-feature CSS;
-  `margin-inline: auto` is inert at full width). Applying a cap
-  changes the width cards lay out into, so `applyMaxTextWidth`
-  explicitly re-schedules the content-visibility intrinsic-width
-  measurement. UI: enable checkbox + px input; enabling restores the
-  last width (or 800).
+  `margin-inline: auto` is inert at full width). `maxTextWidthAlign`
+  (center default / left / right) drives a `--pmd-max-text-margin`
+  margin-inline pair so the capped column can pin to either edge.
+  Applying a cap changes the width cards lay out into, so
+  `applyMaxTextWidth` explicitly re-schedules the content-visibility
+  intrinsic-width measurement. UI: enable checkbox + px input +
+  Left/Center/Right position group; enabling restores the last width
+  (or 800). The boot-time apply also surfaced the index.ts TDZ trap —
+  the intrinsic-width sync state now lives above the module-level
+  apply calls.
 
 - **Per-style text alignment (accessibility)** (`styleAlignments` in
   `settings.ts`; `index.ts`, `settings-ui.ts`, `style.css`). Seven

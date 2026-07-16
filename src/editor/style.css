@@ -2642,7 +2642,9 @@ code {
    its scroller. */
 :is(#editor, .pmd-pane-editor) .ProseMirror {
   max-width: var(--pmd-max-text-width, none);
-  margin-inline: auto;
+  /* Column position while capped: auto = centered (also the everyday
+     fallback, inert at full width); '0 auto' / 'auto 0' pin left/right. */
+  margin-inline: var(--pmd-max-text-margin, auto);
 }
 
 /* Cite paragraphs render their bold-13pt cite text at single line

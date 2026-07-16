@@ -2920,10 +2920,18 @@ let cardIntrinsicWidthInstalled = false;
  *  text width"). 0 = off → the var is removed and layout is exactly
  *  the pre-feature CSS. Changing the cap changes the width cards lay
  *  out into, so the content-visibility intrinsic-width re-measures. */
-function applyMaxTextWidth(px: number): void {
+function applyMaxTextWidth(px: number, align: 'center' | 'left' | 'right'): void {
+  // margin-inline pair per column position; 'auto' (center) is also the
+  // CSS fallback, inert while the cap is off.
+  const margin = align === 'left' ? '0 auto' : align === 'right' ? 'auto 0' : 'auto';
   for (const el of [editorEl, document.documentElement]) {
-    if (px > 0) el.style.setProperty('--pmd-max-text-width', `${px}px`);
-    else el.style.removeProperty('--pmd-max-text-width');
+    if (px > 0) {
+      el.style.setProperty('--pmd-max-text-width', `${px}px`);
+      el.style.setProperty('--pmd-max-text-margin', margin);
+    } else {
+      el.style.removeProperty('--pmd-max-text-width');
+      el.style.removeProperty('--pmd-max-text-margin');
+    }
   }
   scheduleSyncCardIntrinsicWidth();
 }
@@ -3320,7 +3328,7 @@ settings.subscribe((s) => {
   applyDisplaySizes(s.displaySizes);
   applyDisplayTypography(s.displayTypography);
   applyStyleAlignments(s.styleAlignments);
-  applyMaxTextWidth(s.maxTextWidthPx);
+  applyMaxTextWidth(s.maxTextWidthPx, s.maxTextWidthAlign);
   applyDisplayColors(s.displayColors);
   applyHighlightShadingOverride(
     s.overrideHighlightColor,
@@ -3656,7 +3664,7 @@ applyChromeScale(settings.get('chromeScalePct'));
 applyDisplaySizes(settings.get('displaySizes'));
 applyDisplayTypography(settings.get('displayTypography'));
 applyStyleAlignments(settings.get('styleAlignments'));
-applyMaxTextWidth(settings.get('maxTextWidthPx'));
+applyMaxTextWidth(settings.get('maxTextWidthPx'), settings.get('maxTextWidthAlign'));
 applyDisplayColors(settings.get('displayColors'));
 applyHighlightShadingOverride(
   settings.get('overrideHighlightColor'),

@@ -208,6 +208,19 @@ describe('convertWordHtml — marks and runs', () => {
     expect(halfPoints).toBe(16);
   });
 
+  it('haku conventions do NOT apply to Word pastes: bold+underline and 12pt sizes import verbatim', () => {
+    const doc = convertWordHtml(
+      wordDoc(
+        `<h4>Tag</h4><p class=MsoNormal><b><u>bold underlined</u></b> and <span style='font-size:12.0pt'><u>sized kept text</u></span></p>`,
+      ),
+    )!;
+    const bu = marksAt(doc, 'bold underlined');
+    expect(bu).toContain('bold');
+    expect(bu).toContain('underline_mark');
+    expect(bu).not.toContain('emphasis_mark');
+    expect(marksAt(doc, 'sized kept text')).toContain('font_size');
+  });
+
   it('strips XML-illegal control characters at entry', () => {
     const doc = convertWordHtml(
       wordDoc(`<h4>Tag</h4><p class=MsoNormal>groupseparator</p>`),

@@ -60,6 +60,31 @@ in each release, see `CHANGELOG.md`.
   indistinguishable from body text and import as card_body
   paragraphs.
 
+- **haku paste conventions: emphasis reconstruction + font-size
+  cleanup** (`applyHakuBodyConventions` in `import/html-paste.ts`;
+  field-tested rules specified 2026-07-16). haku's search-copy run
+  model is `{bold, italic, underline, highlight, sz_half}` — no box
+  concept (original Emphasis was flattened at their ingestion) and
+  `sz_half` is the source document's per-run size passed through
+  verbatim (only when haku's "variable font size" mode is on; unsized
+  runs fall back to the card's minimum size). Two per-card passes on
+  haku pastes only: (1) bold+underline → emphasis_mark, with the bold
+  dropped — UNLESS exactly 100% of the card's underlined text is bold,
+  the signature of a pre-modern-Verbatim file whose underline style
+  WAS bold+underline; those keep plain underline (bold dropped),
+  matching how the docx importer treats the legacy
+  `StyleBoldUnderline`. Composes with highlights (haku wraps every
+  highlighted run in `<u>`, so bold-inside-highlight becomes
+  emphasis+highlight). (2) A `font_size` mark survives only when the
+  run is under 10pt (real shrinking, including haku's min-size
+  fallback on unsized runs) or when a kept (underlined/emphasized) run
+  is strictly larger than the card's kept-text baseline — the
+  char-weighted modal kept size, ties to larger, unmarked runs
+  counting as 11pt — i.e. a deliberately enlarged phrase. A uniform
+  12pt-base file pastes clean. Word pastes are deliberately untouched
+  by both passes: there the sizes and bold+underline combinations are
+  the user's own formatting (guarded by test).
+
 - **Word paste no longer inserts a picture of the copied text**
   (`paste-plugin.ts` `handlePaste`; tests in
   `tests/editor/paste-image-precedence.test.ts`). Word (and other

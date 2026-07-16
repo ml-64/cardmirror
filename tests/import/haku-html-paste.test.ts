@@ -66,12 +66,14 @@ describe('convertHakuHtml', () => {
     expect(marksAt(doc, 'Professor of Things').size).toBe(0);
   });
 
-  it('kept text: underline + yellow highlight + 12pt size; no font_color from the tool contrast stamp', () => {
+  it('kept text: underline + yellow highlight; baseline 12pt size destroyed; no font_color from the tool contrast stamp', () => {
     const doc = convertHakuHtml(HAKU_CARD)!;
     const kept = marksAt(doc, 'cause extinction');
     expect(kept.has('underline_mark')).toBe(true); // <u> promoted in body
     expect(kept.get('highlight')?.['color']).toBe('yellow');
-    expect(kept.get('font_size')?.['halfPoints']).toBe(24);
+    // The 12.00pt on kept text is the card's kept baseline — haku noise,
+    // not a user choice — so it must not survive as a font_size mark.
+    expect(kept.has('font_size')).toBe(false);
     expect(kept.has('font_color')).toBe(false); // color:#1b1b1c is haku's, not the user's
   });
 
@@ -102,6 +104,47 @@ describe('convertHakuHtml', () => {
     const types: string[] = [];
     doc.forEach((n) => types.push(n.type.name));
     expect(types).toEqual(['pocket', 'hat', 'card']);
+  });
+
+  it('bold+underline becomes emphasis when it is the minority of underlined text', () => {
+    const html = `<div style="${CAL}"><h4 style="font-weight:700;font-size:13pt;">Tag</h4><p style="font-size:11pt;"><u>plain kept text that runs long</u> then <b><u>the emphasized bit</u></b> and <u>more plain kept</u></p></div>`;
+    const doc = convertHakuHtml(html)!;
+    const emph = marksAt(doc, 'the emphasized bit');
+    expect(emph.has('emphasis_mark')).toBe(true);
+    expect(emph.has('bold')).toBe(false);
+    expect(emph.has('underline_mark')).toBe(false);
+    expect(marksAt(doc, 'plain kept text').has('underline_mark')).toBe(true);
+  });
+
+  it('legacy files (exactly 100% of underlining bold) keep plain underline, bold dropped', () => {
+    const html = `<div style="${CAL}"><h4 style="font-weight:700;font-size:13pt;">Tag</h4><p style="font-size:11pt;"><b><u>every kept run</u></b> filler <b><u>is bold underlined</u></b></p></div>`;
+    const doc = convertHakuHtml(html)!;
+    for (const text of ['every kept run', 'is bold underlined']) {
+      const m = marksAt(doc, text);
+      expect(m.has('underline_mark')).toBe(true);
+      expect(m.has('emphasis_mark')).toBe(false);
+      expect(m.has('bold')).toBe(false);
+    }
+  });
+
+  it('bold inside a highlight (haku wraps highlights in <u>) becomes emphasis + highlight', () => {
+    const html = `<div style="${CAL}"><h4 style="font-weight:700;font-size:13pt;">Tag</h4><p style="font-size:11pt;"><u>plain kept context here</u> <span style="background:yellow;mso-highlight:yellow;box-decoration-break:clone"><b><u>hot take</u></b></span></p></div>`;
+    const doc = convertHakuHtml(html)!;
+    const m = marksAt(doc, 'hot take');
+    expect(m.has('emphasis_mark')).toBe(true);
+    expect(m.get('highlight')?.['color']).toBe('yellow');
+    expect(m.has('bold')).toBe(false);
+  });
+
+  it('font sizes: baseline kept size and unread ≥10pt sizes destroyed; <10pt shrink and above-baseline kept sizes survive', () => {
+    const html = `<div style="${CAL}"><h4 style="font-weight:700;font-size:13pt;">Tag</h4><p style="font-size:12pt;"><span style="font-size:12.00pt;"><u>the kept baseline text of this card runs long</u></span><span style="font-size:12.00pt;"> unread at twelve </span><span style="font-size:16.00pt;"><u>BLOWN UP</u></span><span style="font-size:8.00pt;"> shrunk bit </span><span style="font-size:9.50pt;"> nine and a half </span><span style="font-size:10.00pt;"> exactly ten </span></p></div>`;
+    const doc = convertHakuHtml(html)!;
+    expect(marksAt(doc, 'kept baseline text').has('font_size')).toBe(false); // baseline → destroyed
+    expect(marksAt(doc, 'unread at twelve').has('font_size')).toBe(false); // ≥10, not kept → destroyed
+    expect(marksAt(doc, 'BLOWN UP').get('font_size')?.['halfPoints']).toBe(32); // kept, above baseline → survives
+    expect(marksAt(doc, 'shrunk bit').get('font_size')?.['halfPoints']).toBe(16); // <10 → survives
+    expect(marksAt(doc, 'nine and a half').get('font_size')?.['halfPoints']).toBe(19); // <10 → survives
+    expect(marksAt(doc, 'exactly ten').has('font_size')).toBe(false); // 10 is not "smaller than 10"
   });
 
   it('source-file breadcrumb paragraphs import as body text (documented quirk)', () => {

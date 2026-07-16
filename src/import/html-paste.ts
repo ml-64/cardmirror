@@ -621,11 +621,169 @@ export function convertWordHtml(html: string): PMNode | null {
  * lead span, `<u>` underlines, mso-highlight spans, small-pt shrunk
  * runs, 26/22pt `h1`/`h2` case headings) — exactly the visual-rules
  * path of the shared pipeline, with the class dictionary a natural
- * no-op. Known quirk, accepted for now: the source-file breadcrumb
+ * no-op. On top of that, `applyHakuBodyConventions` translates haku's
+ * flattened data model back into CardMirror semantics (see its doc
+ * comment). Known quirk, accepted for now: the source-file breadcrumb
  * paragraphs haku includes between cite and body (plain 11pt lines
  * naming the original pocket/hat/block) are indistinguishable from
  * body text and import as card_body paragraphs.
  */
 export function convertHakuHtml(html: string): PMNode | null {
-  return convertViaImporter(html);
+  const doc = convertViaImporter(html);
+  return doc ? applyHakuBodyConventions(doc) : null;
+}
+
+// ─── haku body conventions ───────────────────────────────────────────────────
+//
+// haku's search-copy run model is {bold, italic, underline, highlight,
+// sz_half} — no named styles, no box concept, and sz_half is the SOURCE
+// document's per-run size passed through (emitted only when haku's
+// "variable font size" mode is on; unsized runs fall back to the card's
+// minimum size). Field-tested rules (2026-07-16, user-specified) for
+// translating that back into CardMirror semantics, applied per card:
+//
+//  1. bold+underline → emphasis_mark (debaters' hand-emphasis, and what
+//     haku's ingestion left of original Emphasis) — UNLESS exactly 100%
+//     of the card's underlined text is bold, which is the signature of
+//     a pre-modern-Verbatim file whose underline STYLE was
+//     bold+underline ("Style Bold Underline"); those keep plain
+//     underline, matching how the docx importer maps that legacy style.
+//     The dropped bold matches the docx path too: the bold was the
+//     style's rendering, not user formatting.
+//  2. Font sizes are noise unless meaningful: a font_size mark survives
+//     only when the run is under 10pt (real shrinking — including
+//     haku's min-size fallback stamping unsized runs) or when a KEPT
+//     (underlined/emphasized) run is strictly larger than the card's
+//     kept-text baseline (a deliberately enlarged phrase). The baseline
+//     is the char-weighted modal size of kept runs (ties to the larger
+//     size, mirroring haku's own bodyContainerFontPt), unmarked runs
+//     counting as the 11pt default. A uniform 12pt-base file therefore
+//     pastes clean, while genuinely blown-up fragments keep their size.
+//
+// Word pastes are deliberately untouched: there the sizes and the
+// bold+underline combinations are the user's own formatting.
+
+const HAKU_SCOPE_CONTAINERS = new Set(['card', 'analytic_unit']);
+const HAKU_BODY_BLOCKS = new Set(['card_body', 'paragraph']);
+
+function applyHakuBodyConventions(doc: PMNode): PMNode {
+  const outKids: PMNode[] = [];
+  doc.forEach((child) => {
+    if (HAKU_SCOPE_CONTAINERS.has(child.type.name)) {
+      outKids.push(rebuildHakuUnit(child));
+    } else if (HAKU_BODY_BLOCKS.has(child.type.name)) {
+      outKids.push(rebuildHakuBlocks([child])[0]!);
+    } else {
+      outKids.push(child);
+    }
+  });
+  try {
+    return schema.nodes['doc']!.createChecked(null, outKids);
+  } catch (_e) {
+    return doc; // never let a convention pass break a valid conversion
+  }
+}
+
+/** One card / analytic_unit = one scope: its body blocks are judged
+ *  together (the legacy-file test and the size baseline are per-card
+ *  properties, not per-paragraph). */
+function rebuildHakuUnit(unit: PMNode): PMNode {
+  const kids: PMNode[] = [];
+  unit.forEach((c) => kids.push(c));
+  const rebuilt = rebuildHakuBlocks(kids.filter((c) => HAKU_BODY_BLOCKS.has(c.type.name)));
+  let i = 0;
+  const newKids = kids.map((c) => (HAKU_BODY_BLOCKS.has(c.type.name) ? rebuilt[i++]! : c));
+  try {
+    return unit.type.createChecked(unit.attrs, newKids);
+  } catch (_e) {
+    return unit;
+  }
+}
+
+const nonWsLen = (s: string): number => s.replace(/\s+/g, '').length;
+
+function rebuildHakuBlocks(blocks: PMNode[]): PMNode[] {
+  // Rule 1 statistics: is ALL underlined text in this scope bold?
+  let underChars = 0;
+  let boldUnderChars = 0;
+  for (const b of blocks) {
+    b.forEach((n) => {
+      if (!n.isText || !n.text) return;
+      const len = nonWsLen(n.text);
+      if (!len || !n.marks.some((m) => m.type.name === 'underline_mark')) return;
+      underChars += len;
+      if (n.marks.some((m) => m.type.name === 'bold')) boldUnderChars += len;
+    });
+  }
+  const legacyAllBold = underChars > 0 && boldUnderChars === underChars;
+
+  // Rule 1 application.
+  const afterEmphasis = blocks.map((b) => {
+    const inlines: PMNode[] = [];
+    b.forEach((n) => {
+      if (!n.isText || !n.text) {
+        inlines.push(n);
+        return;
+      }
+      const hasU = n.marks.some((m) => m.type.name === 'underline_mark');
+      const hasB = n.marks.some((m) => m.type.name === 'bold');
+      if (hasU && hasB) {
+        let marks: readonly Mark[] = n.marks.filter((m) => m.type.name !== 'bold');
+        if (!legacyAllBold) {
+          marks = marks.filter((m) => m.type.name !== 'underline_mark');
+          marks = schema.marks['emphasis_mark']!.create().addToSet(marks);
+        }
+        inlines.push(schema.text(n.text, marks));
+      } else {
+        inlines.push(n);
+      }
+    });
+    return b.type.create(b.attrs, inlines, b.marks);
+  });
+
+  // Rule 2 baseline: char-weighted modal size of KEPT runs (ties → larger).
+  const isKept = (n: PMNode): boolean =>
+    n.marks.some((m) => m.type.name === 'underline_mark' || m.type.name === 'emphasis_mark');
+  const runPt = (n: PMNode): number => {
+    const fs = n.marks.find((m) => m.type.name === 'font_size');
+    return fs ? Number(fs.attrs['halfPoints']) / 2 : 11;
+  };
+  const charsByPt = new Map<number, number>();
+  for (const b of afterEmphasis) {
+    b.forEach((n) => {
+      if (!n.isText || !n.text || !isKept(n)) return;
+      const len = nonWsLen(n.text);
+      if (!len) return;
+      const pt = runPt(n);
+      charsByPt.set(pt, (charsByPt.get(pt) ?? 0) + len);
+    });
+  }
+  let baseline = 11;
+  let bestChars = -1;
+  for (const [pt, chars] of charsByPt) {
+    if (chars > bestChars || (chars === bestChars && pt > baseline)) {
+      bestChars = chars;
+      baseline = pt;
+    }
+  }
+
+  // Rule 2 application.
+  return afterEmphasis.map((b) => {
+    const inlines: PMNode[] = [];
+    b.forEach((n) => {
+      if (!n.isText || !n.text) {
+        inlines.push(n);
+        return;
+      }
+      const fs = n.marks.find((m) => m.type.name === 'font_size');
+      if (!fs) {
+        inlines.push(n);
+        return;
+      }
+      const pt = Number(fs.attrs['halfPoints']) / 2;
+      const keep = pt < 10 || (isKept(n) && pt > baseline);
+      inlines.push(keep ? n : schema.text(n.text, fs.removeFromSet(n.marks)));
+    });
+    return b.type.create(b.attrs, inlines, b.marks);
+  });
 }

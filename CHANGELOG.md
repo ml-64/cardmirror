@@ -5,7 +5,7 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
-## 0.1.0-beta.15 — 2026-07-16
+## 0.1.0-beta.15 — 2026-07-17
 
 ### Added
 
@@ -74,6 +74,13 @@ see `DETAILED_CHANGELOG.md`.
   style's size to its default in one click.
 
 ### Changed
+
+- **Jumping around large documents is now even faster.** Outline-pane
+  jumps have always landed instantly, but on very large files a burst
+  of rapid jumps could briefly bog the interface down right afterward.
+  Cards now give the browser an accurate size hint before they're
+  first rendered, so navigation stays smooth no matter how fast you
+  click.
 
 - **Copy Previous Cite now copies only the nearest cite.** Copy
   Previous Cite (Alt-F8) used to copy every cite paragraph under the

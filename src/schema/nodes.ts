@@ -21,7 +21,7 @@
  *   ARCHITECTURE.md §4 and §12.
  */
 
-import type { NodeSpec } from 'prosemirror-model';
+import type { NodeSpec, Node as PMNode } from 'prosemirror-model';
 import { newHeadingId } from './ids.js';
 
 /** Paragraph-level left indent in OOXML dxa (twentieths of a point;
@@ -112,6 +112,37 @@ function readIndentFromStyle(dom: HTMLElement): number {
   const m = v.match(/^(\d+(?:\.\d+)?)px$/);
   if (!m) return 0;
   return Math.max(0, Math.round(parseFloat(m[1]!) * 15));
+}
+
+/**
+ * Per-card `contain-intrinsic-height` estimate, emitted as an inline
+ * style by the `card` / `analytic_unit` toDOM.
+ *
+ * Cards carry `content-visibility: auto` (style.css), so a card that
+ * has never been on screen is laid out as a placeholder box whose
+ * height comes from `contain-intrinsic-size`. With the stylesheet's
+ * one-size-fits-all 200px fallback, a nav jump into unvisited
+ * territory runs its scroll math on guesses that are wrong by up to a
+ * screenful per card — and the browser then spends SECONDS of main
+ * thread correcting layout card-by-card as each materialization
+ * replaces a guess with a real height and shifts everything below
+ * (measured: 8 nav jumps on a ~1MB doc = ~1.8s of 60–250ms stalls;
+ * with per-card estimates ~0.3s).
+ *
+ * The estimate only has to beat "200px for everything": the `auto`
+ * keyword means the browser memoizes a card's REAL height after its
+ * first render and ignores this value from then on. Calibrated for
+ * default typography (11pt body ≈ 21px line at the editor's default
+ * width, ~95 chars/line) — zoom, narrow multi-pane slots, images and
+ * tables all make it drift, which is fine; it stays far closer to
+ * truth than the fixed fallback. Deliberately reads only textContent
+ * and childCount: toDOM must never touch layout.
+ */
+function intrinsicHeightStyle(node: PMNode): string {
+  const chars = node.textContent.length;
+  const paras = node.childCount;
+  const est = Math.max(40, Math.round((chars / 95) * 21 + paras * 8 + 24));
+  return `contain-intrinsic-height: auto ${est}px`;
 }
 
 /**
@@ -631,7 +662,10 @@ export const nodes: { [name: string]: NodeSpec } = {
       },
     }],
     toDOM: (node) => {
-      const attrs: Record<string, string> = { class: 'pmd-card' };
+      const attrs: Record<string, string> = {
+        class: 'pmd-card',
+        style: intrinsicHeightStyle(node),
+      };
       const role = node.attrs['numRole'];
       if (role && role !== 'none') attrs['data-num-role'] = String(role);
       if (node.attrs['numRestart'] === true) attrs['data-num-restart'] = 'true';
@@ -743,7 +777,10 @@ export const nodes: { [name: string]: NodeSpec } = {
       },
     }],
     toDOM: (node) => {
-      const attrs: Record<string, string> = { class: 'pmd-analytic-unit' };
+      const attrs: Record<string, string> = {
+        class: 'pmd-analytic-unit',
+        style: intrinsicHeightStyle(node),
+      };
       const role = node.attrs['numRole'];
       if (role && role !== 'none') attrs['data-num-role'] = String(role);
       if (node.attrs['numRestart'] === true) attrs['data-num-restart'] = 'true';

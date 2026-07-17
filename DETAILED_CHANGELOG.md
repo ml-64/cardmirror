@@ -5,7 +5,33 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
-## 0.1.0-beta.15 — 2026-07-16
+## 0.1.0-beta.15 — 2026-07-17
+
+- **Per-card `contain-intrinsic-height` estimates — fixes the
+  rapid-nav-click freeze on very large documents** (`intrinsicHeightStyle`
+  in `src/schema/nodes.ts`, emitted by the `card` / `analytic_unit`
+  toDOM; field report 2026-07-16). Cards carry
+  `content-visibility: auto`, so never-rendered cards are laid out as
+  placeholder boxes sized by `contain-intrinsic-size` — previously a
+  flat `auto 200px` for every card. On documents whose card heights
+  vary widely, a nav jump into unvisited territory ran its scroll math
+  on guesses wrong by up to a screenful per card; Chromium then spent
+  seconds of main thread correcting layout card-by-card as each
+  materialization replaced a guess and shifted everything below it.
+  The jump itself landed instantly (which is why the first click in a
+  burst always felt fine), but the correction wave from click N landed
+  on clicks N+1…, freezing the interface — including outline-pane
+  scrolling — under rapid successive clicks. Measured live on a real
+  ~1MB tournament file: 8 cold jumps = 18 long tasks totaling ~1.8s
+  stock, ~0.3s with estimates, ~2.3s again after reverting. The
+  estimate is a pure content heuristic (chars-per-line × line height +
+  per-paragraph margins, floor 40px) computed in toDOM with no layout
+  reads; the `auto` keyword still memoizes each card's real height
+  after first render, so the estimate only governs cards that have
+  never been on screen. Latent since content-visibility landed
+  (pre-beta.14) — surfaced on files large and height-varied enough to
+  make the correction wave visible. Regression-tested in
+  `tests/schema/intrinsic-height.test.ts`.
 
 - **Explicit document icons for the file associations**
   (`apps/desktop/scripts/generate-doc-icons.py` → `build/docx.icns` /

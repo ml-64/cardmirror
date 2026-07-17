@@ -17,7 +17,13 @@ import {
   macBundleSelfUpdatable,
 } from '../../apps/desktop/src/mac-swap-update.js';
 
-describe('bundlePathFromExe', () => {
+// The module is darwin-only. POSIX assertions hold on the mac and linux
+// CI legs; Windows can't represent them (path.resolve maps /Applications
+// to a drive letter, and chmod is a no-op so the writability rejection
+// can't be exercised).
+const describePosix = describe.skipIf(process.platform === 'win32');
+
+describePosix('bundlePathFromExe', () => {
   it('resolves the .app bundle from the executable path', () => {
     expect(bundlePathFromExe('/Applications/CardMirror.app/Contents/MacOS/cardmirror')).toBe(
       '/Applications/CardMirror.app',
@@ -29,7 +35,7 @@ describe('bundlePathFromExe', () => {
   });
 });
 
-describe('macBundleSelfUpdatable', () => {
+describePosix('macBundleSelfUpdatable', () => {
   it('rejects Gatekeeper-translocated copies', () => {
     expect(
       macBundleSelfUpdatable(
@@ -57,7 +63,7 @@ describe('macBundleSelfUpdatable', () => {
   });
 });
 
-describe('buildSwapScript', () => {
+describePosix('buildSwapScript', () => {
   const script = buildSwapScript({
     pid: 4242,
     zipPath: "/tmp/it's a test/CardMirror-1.0-universal-mac.zip",

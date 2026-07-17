@@ -16,9 +16,10 @@
     "dev": "npm run build:native && npm run build:main && concurrently --kill-others-on-fail --names \"vite,electron\" --prefix-colors \"cyan,magenta\" \"npm:start:web\" \"npm:start:electron\"",
     "fetch:voice": "node scripts/fetch-voice-assets.cjs",
     "build:native": "node scripts/build-ax-suppress.cjs",
-    "pack": "npm run fetch:voice && npm run build:native && npm run build:renderer && npm run build:main && electron-builder --dir",
-    "dist": "npm run fetch:voice && npm run build:native && npm run build:renderer && npm run build:main && electron-builder",
-    "release": "npm run fetch:voice && npm run build:native && npm run build:renderer && npm run build:main && electron-builder --publish always"
+    "pack": "npm run fetch:voice && npm run fetch:koffi-cross && npm run build:native && npm run build:renderer && npm run build:main && electron-builder --dir",
+    "dist": "npm run fetch:voice && npm run fetch:koffi-cross && npm run build:native && npm run build:renderer && npm run build:main && electron-builder",
+    "release": "npm run fetch:voice && npm run fetch:koffi-cross && npm run build:native && npm run build:renderer && npm run build:main && electron-builder --publish always",
+    "fetch:koffi-cross": "bash scripts/fetch-koffi-cross.sh"
   },
   "build": {
     "appId": "com.cardmirror.app",

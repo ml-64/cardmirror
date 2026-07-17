@@ -20,6 +20,23 @@ in each release, see `CHANGELOG.md`.
   fixed the About section's stale "macOS can't self-install" toast —
   all platforms stage in the background since the swap updater.
 
+- **Cross-built Windows/Linux artifacts: koffi natives guaranteed**
+  (`apps/desktop/scripts/fetch-koffi-cross.sh`, wired into
+  pack/dist/release before the build steps). koffi resolves its native
+  module from per-platform `@koromix/koffi-*` optionalDependencies,
+  and npm installs — and on every subsequent `npm install`, PRUNES —
+  only the host platform's package. A Windows exe cross-built on the
+  mac after such a prune shipped without its native module and crashed
+  at startup ("Cannot find the native Koffi module", via main.ts's
+  top-level ax-suppress import chain; caught in the Parallels
+  update-flow rehearsal, 2026-07-16). Published releases were
+  unaffected (the beta.14 exe verifiably contains the win32 prebuild —
+  the prune happened after that cut), but every future cut was one
+  `npm install` away from shipping broken Windows/Linux builds. The
+  script fetches the win32-x64 + linux-x64 prebuilds via `npm pack`
+  (which has no platform gate), pinned to the installed koffi version,
+  idempotently.
+
 - **Update flow overhaul: install-on-confirm chip, universal mac
   build, mac self-update, stable signing** (modeled on ebb's update UX
   after a comparative review, 2026-07-16; verified against a local

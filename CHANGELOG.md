@@ -101,6 +101,38 @@ see `DETAILED_CHANGELOG.md`.
   now change the current document only — previously a level click
   quietly became the default for every future document.
 
+### Fixed
+
+- Pasting from Word no longer inserts a picture of the copied text.
+  Word puts a rendered image of the selection on the clipboard
+  alongside the actual text, and CardMirror preferred the image; the
+  real text now wins whenever it's present. Screenshots and copied
+  images still paste as images.
+
+- Saving to Word no longer produces a corrupted file when the document
+  contains invisible control characters (most often picked up by
+  pasting from a PDF). Word refuses to open an XML file containing
+  them; CardMirror now strips them at export. Thanks to J.Li for the
+  precise report.
+
+- Rapid back-to-back saves into a Dropbox (or antivirus-watched)
+  folder on Windows no longer fail with a scary EPERM error. Dropbox
+  briefly locks a freshly-saved file to sync it, and Windows refuses
+  to replace a locked file — CardMirror now retries for a moment,
+  which absorbs nearly all of these, and if the file stays locked the
+  message plainly says what happened and to try again in a few
+  seconds. Thanks to Max U. for the report.
+
+- Turning a numbered tag into an analytic (or an analytic back into a
+  tag) no longer clears the card's numbering or restart flag — the
+  number carries across the swap.
+
+- CardMirror now ships real document icons for `.docx` and `.cmir`
+  files instead of letting the system derive one from the app icon —
+  fixing the corrupted-looking file icons some users saw in Finder and
+  third-party file managers after making CardMirror their default
+  .docx app.
+
 ## 0.1.0-beta.14 — 2026-07-13
 
 ### Added
@@ -166,36 +198,6 @@ see `DETAILED_CHANGELOG.md`.
   you drag.
 
 ### Fixed
-
-- CardMirror now ships real document icons for `.docx` and `.cmir`
-  files instead of letting the system derive one from the app icon —
-  fixing the corrupted-looking file icons some users saw in Finder and
-  third-party file managers after making CardMirror their default
-  .docx app.
-
-- Rapid back-to-back saves into a Dropbox (or antivirus-watched)
-  folder on Windows no longer fail with a scary EPERM error. Dropbox
-  briefly locks a freshly-saved file to sync it, and Windows refuses
-  to replace a locked file — CardMirror now retries for a moment,
-  which absorbs nearly all of these, and if the file stays locked the
-  message plainly says what happened and to try again in a few
-  seconds. Thanks to Max U. for the report.
-
-- Pasting from Word no longer inserts a picture of the copied text.
-  Word puts a rendered image of the selection on the clipboard
-  alongside the actual text, and CardMirror preferred the image; the
-  real text now wins whenever it's present. Screenshots and copied
-  images still paste as images.
-
-- Saving to Word no longer produces a corrupted file when the document
-  contains invisible control characters (most often picked up by
-  pasting from a PDF). Word refuses to open an XML file containing
-  them; CardMirror now strips them at export. Thanks to J.Li for the
-  precise report.
-
-- Turning a numbered tag into an analytic (or an analytic back into a
-  tag) no longer clears the card's numbering or restart flag — the
-  number carries across the swap.
 
 - Keystrokes typed in the moment a save was still writing to disk are no
   longer marked as saved — the document correctly stays "unsaved" until

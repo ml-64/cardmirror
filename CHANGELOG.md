@@ -119,8 +119,7 @@ see `DETAILED_CHANGELOG.md`.
 - Saving to Word no longer produces a corrupted file when the document
   contains invisible control characters (most often picked up by
   pasting from a PDF). Word refuses to open an XML file containing
-  them; CardMirror now strips them at export. Thanks to J.Li for the
-  precise report.
+  them; CardMirror now strips them at export.
 
 - Rapid back-to-back saves into a Dropbox (or antivirus-watched)
   folder on Windows no longer fail with a scary EPERM error. Dropbox
@@ -128,7 +127,7 @@ see `DETAILED_CHANGELOG.md`.
   to replace a locked file — CardMirror now retries for a moment,
   which absorbs nearly all of these, and if the file stays locked the
   message plainly says what happened and to try again in a few
-  seconds. Thanks to Max U. for the report.
+  seconds.
 
 - Turning a numbered tag into an analytic (or an analytic back into a
   tag) no longer clears the card's numbering or restart flag — the

@@ -56,7 +56,7 @@ in each release, see `CHANGELOG.md`.
   `fileLockedMessage` in `error-surface.ts`; tests in
   `tests/desktop/doc-writes.test.ts` +
   `tests/editor/error-surface.test.ts`; field report 2026-07-16,
-  Max U., Windows + Dropbox). Windows refuses `rename` over a file
+  Windows + Dropbox). Windows refuses `rename` over a file
   another process holds open (POSIX doesn't care), and Dropbox /
   antivirus grab a freshly-saved file within milliseconds to
   sync/scan it — so the SECOND of two quick saves hit EPERM renaming
@@ -384,8 +384,8 @@ in each release, see `CHANGELOG.md`.
   synthetic position sequences.
 
 - **XML-illegal characters stripped at export** (`ooxml/xml.ts`; tests
-  in `tests/export/xml-illegal-chars.test.ts`). Field report (J.Li,
-  Baylor): a shared .docx wouldn't open — `word/document.xml` carried a
+  in `tests/export/xml-illegal-chars.test.ts`). Field report: a shared
+  .docx wouldn't open — `word/document.xml` carried a
   U+001D. `escText`/`escAttr` only entity-escaped `&<>"`; characters
   XML 1.0 cannot represent AT ALL (C0 controls besides tab/LF/CR, the
   noncharacters U+FFFE/U+FFFF, lone surrogate halves — typically pasted

@@ -979,13 +979,32 @@ get a selection's read time on demand.
 
 The ribbon's **timer** button shows or hides a compact timer panel for running
 speeches and prep in a round. Left to right it holds **Reset** (↻, which resets
-every clock), the big **time display**, **Start / Pause** (▶), three **speech
-preset** buttons, and the **Aff** and **Neg** prep clocks.
+every clock) stacked over **Pop out** (⇱, desktop only), the big **time
+display**, **Start / Pause** (▶), three **speech preset** buttons, and the
+**Aff** and **Neg** prep clocks.
 
 - **Speech timer.** Click a preset to load that length — the presets come from
   the active timer profile (College, High School, or Pomodoro) — then Start /
-  Pause to run it down. It can flash red near the end (Settings → Appearance →
-  "Flash timer when countdown is low").
+  Pause to run it down. As the clock crosses each configured **alert point**
+  (Settings → Appearance → Timer display; e.g. "60, 30, 5, 3, 1" seconds
+  remaining) it can flash red, play a short beep, or both — see the Audible
+  alerts bullet below.
+
+- **Pop the timer out** *(desktop)*. The **⇱** button moves the timer into a
+  small floating window that stays on top of every app — handy for keeping
+  speech and prep time in view while reading a speech doc or anything else.
+  While popped out, the timer leaves the CardMirror ribbon entirely (it is
+  never in both places); the float drives the same shared clocks, and its **⇲**
+  button — or closing the float, or hiding the timer from any window — pops it
+  back in. Drag anywhere on the float to move it. The timer always starts a
+  fresh launch inside the app; pop it back out when you need it.
+
+- **Audible alerts** *(off by default; Settings → Appearance → Timer display)*.
+  An accessibility option that plays a short beep at each alert point and a
+  distinct double beep when time runs out. Exactly one sound plays no matter
+  how many windows are open — the popped-out timer included — and the beeps
+  stay on time even when CardMirror is buried behind other apps. Volume is
+  adjustable.
 
 - **Prep clocks.** Click **Aff** or **Neg** to run that side's prep; each keeps
   its own remaining balance and only counts down while it's the running clock, so
@@ -2032,10 +2051,18 @@ How things look. None of these change the file — only your view (see
   panel sits on when shown: the far left (default) or the far right.
 - **Prep button label style** — how the Aff / Neg prep buttons are
   marked: text (A: / N:), color, or both.
-- **Compact timer layout** — drop the 9 / 6 / 3 presets and tuck Reset
-  under Start / Pause.
-- **Flash timer when countdown is low** — flash the speech timer red at
-  the configured thresholds.
+- **Compact timer layout** — drop the 9 / 6 / 3 presets and collapse the
+  two prep clocks into one (with a ⇄ side-switch), keeping Reset and
+  Pop-out stacked on the left.
+- **Flash timer when countdown is low** — flash the timer display red as
+  remaining time crosses each alert point.
+- **Alert points (seconds remaining)** — the comma-separated
+  seconds-remaining values (default 5, 3, 1) at which the flash and the
+  audible alert fire.
+- **Audible timer alerts** — play a short beep at each alert point and a
+  double beep when time runs out; exactly one sound plays regardless of
+  how many windows are open. Off by default.
+- **Alert volume** — loudness of the timer beeps, 0–100.
 
 **Card numbering** *(see §2 — all display-only)*
 

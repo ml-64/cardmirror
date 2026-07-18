@@ -18,6 +18,7 @@ import type { Mark } from 'prosemirror-model';
 import { schema } from '../schema/index.js';
 import { promptForText } from './text-prompt.js';
 import { showToast } from './toast.js';
+import { writeClipboardText } from './clipboard-write.js';
 import { getElectronHost } from './host/index.js';
 
 export const linkContextMenuPlugin: Plugin = new Plugin({
@@ -225,29 +226,11 @@ function openLinkExternally(href: string): void {
 }
 
 function copyToClipboard(text: string): void {
-  if (navigator.clipboard?.writeText) {
-    void navigator.clipboard.writeText(text).then(
-      () => showToast('Link copied.'),
-      () => showToast('Copy failed.'),
-    );
-    return;
-  }
-  // Legacy fallback — execCommand is deprecated but still works in
-  // most browsers we care about. Failure is silent.
-  const ta = document.createElement('textarea');
-  ta.value = text;
-  ta.style.position = 'fixed';
-  ta.style.left = '-1000px';
-  document.body.appendChild(ta);
-  ta.select();
-  try {
-    document.execCommand('copy');
-    showToast('Link copied.');
-  } catch {
-    showToast('Copy failed.');
-  } finally {
-    document.body.removeChild(ta);
-  }
+  // Shared host-first / retrying path (clipboard-write.ts); it owns
+  // the execCommand fallback too.
+  void writeClipboardText(text).then((ok) =>
+    showToast(ok ? 'Link copied.' : 'Copy failed.'),
+  );
 }
 
 async function editLink(view: EditorView, hit: LinkHit): Promise<void> {

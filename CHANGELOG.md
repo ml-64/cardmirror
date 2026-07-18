@@ -43,16 +43,20 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Fixed
 
-- **Create Reference no longer needs several clicks next to Word.**
-  The clipboard write behind Create Reference could fail transiently —
-  Windows briefly locks the clipboard for whichever app copied last,
-  and the browser engine refuses writes at unlucky focus moments — and
-  the failure was completely silent, so the button just seemed dead
-  until a lucky click. The desktop app now writes through a native
-  clipboard path that doesn't have these problems, retries the rare
-  transient failure automatically, and — if something still goes
-  wrong — says so instead of doing nothing. A cursor outside a card
-  now also gets a clear message instead of silence.
+- **Copying to the clipboard no longer randomly needs several
+  clicks.** Clipboard writes could fail transiently — Windows briefly
+  locks the clipboard for whichever app copied last (Word, most of
+  all), and the browser engine refuses writes at unlucky focus
+  moments — and several copy features swallowed the failure silently,
+  so the button just seemed dead until a lucky click (reported
+  against Create Reference as "requires me to click the button like
+  5 times"). Every copy path — Create Reference, the outline's
+  copy-heading command, Copy Current Heading, translation, and link
+  copying — now writes through a native clipboard path on desktop
+  that doesn't have these problems, retries the rare transient
+  failure automatically, and says so if something still goes wrong
+  instead of doing nothing. Create Reference with the cursor outside
+  a card also gets a clear message instead of silence.
 
 - **Drag-to-reorder in the outline no longer goes dead after
   rearranging panes.** In the three-pane workspace, rearranging panes

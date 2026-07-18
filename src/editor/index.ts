@@ -47,6 +47,7 @@ import { promptForText, promptForRouteChoice, alertDialog, confirmDialog } from 
 import { openDocMenu } from './doc-menu-ui.js';
 import { createReference } from './create-reference.js';
 import { showToast } from './toast.js';
+import { CLIPBOARD_BUSY_MESSAGE, writeClipboardHtml } from './clipboard-write.js';
 import { suppressGuiSelectAll } from './editable-target.js';
 import { openSelectSpeechDocModal } from './select-speech-doc-ui.js';
 import { dropzoneStore, deriveDropzoneLabel } from './dropzone-store.js';
@@ -546,20 +547,10 @@ async function copyCurrentHeadingIn(sourceView: EditorView): Promise<void> {
   tmp.appendChild(serializer.serializeFragment(slice.content));
   const html = tmp.innerHTML;
   const text = slice.content.textBetween(0, slice.content.size, '\n', '\n');
-  try {
-    if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
-      await navigator.clipboard.write([
-        new ClipboardItem({
-          'text/html': new Blob([html], { type: 'text/html' }),
-          'text/plain': new Blob([text], { type: 'text/plain' }),
-        }),
-      ]);
-    } else {
-      await navigator.clipboard.writeText(text);
-    }
-  } catch (err) {
-    console.error('copy current heading failed:', err);
-  }
+  // Shared host-first / retrying path — and every outcome surfaces
+  // (see clipboard-write.ts for the silent-failure history).
+  if (await writeClipboardHtml(html, text)) showToast('Copied!');
+  else showToast(CLIPBOARD_BUSY_MESSAGE);
 }
 
 /** Single-doc new-speech-document. Verbatim's `NewSpeech` prompts
@@ -1386,7 +1377,7 @@ const ribbonContext: RibbonContext = {
       if (result === 'copied') showToast('Copied!');
       else if (result === 'invalid-selection')
         showToast('Create Reference: select body text inside a single card first.');
-      else showToast("Couldn't copy — the clipboard was busy. Try again.");
+      else showToast(CLIPBOARD_BUSY_MESSAGE);
     });
   },
   openWordCountDialog: () => {

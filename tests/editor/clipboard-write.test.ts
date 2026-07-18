@@ -1,12 +1,13 @@
 /**
- * Create Reference's clipboard write retries transient failures —
+ * The shared clipboard writer retries transient failures —
  * Windows' clipboard is a global lock briefly held by whatever app
  * copied last (Word, clipboard managers), and Chromium rejects
  * writes from an unfocused document. Field report 2026-07-17: the
- * silent version taught a user the button "needs five clicks".
+ * silent one-shot version taught a user Create Reference "needs
+ * five clicks".
  */
 import { describe, it, expect } from 'vitest';
-import { writeClipboardWithRetry } from '../../src/editor/create-reference.js';
+import { writeClipboardWithRetry } from '../../src/editor/clipboard-write.js';
 
 const failing = (failures: number) => {
   let calls = 0;

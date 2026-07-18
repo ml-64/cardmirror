@@ -31,7 +31,7 @@
  */
 
 import { DOMSerializer, Fragment, type Mark, type Node as PMNode } from 'prosemirror-model';
-import { getElectronHost } from './host/index.js';
+import { writeClipboardHtml } from './clipboard-write.js';
 import type { Command, EditorState } from 'prosemirror-state';
 import { schema } from '../schema/index.js';
 import { collectCiteText } from './headings.js';
@@ -268,30 +268,6 @@ export function buildReferenceNodes(
 
 export type CreateReferenceResult = 'copied' | 'invalid-selection' | 'clipboard-failed';
 
-/** Run `write`, retrying on rejection after each of `delays` ms.
- *  Clipboard writes fail TRANSIENTLY — Windows' clipboard is a
- *  global lock briefly held by whatever app copied last (Word,
- *  clipboard managers), and Chromium rejects writes from an
- *  unfocused document — so one failure usually just means "a beat
- *  too early". Exported for tests. */
-export async function writeClipboardWithRetry(
-  write: () => Promise<void>,
-  delays: readonly number[] = [100, 250, 500],
-): Promise<boolean> {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      await write();
-      return true;
-    } catch (err) {
-      if (attempt >= delays.length) {
-        console.error('Create Reference: clipboard write failed after retries', err);
-        return false;
-      }
-      await new Promise((r) => setTimeout(r, delays[attempt]));
-    }
-  }
-}
-
 export async function createReference(
   state: EditorState,
   effectivePtForNode: EffectivePtForNode,
@@ -313,27 +289,10 @@ export async function createReference(
   // Plain-text fallback: paragraphs joined by blank lines.
   const plain = outNodes.map((n) => n.textContent).join('\n\n');
 
-  // 5. Write to the clipboard. Desktop goes through the MAIN
-  // process (Electron's native clipboard needs no renderer focus
-  // and shrugs off the Win32 clipboard-lock contention that made
-  // the renderer path fail one-click-in-five next to Word); the
-  // web edition keeps the navigator path, wrapped in the same
-  // retry either way.
-  const host = getElectronHost();
-  const ok = await writeClipboardWithRetry(async () => {
-    if (host?.clipboardWriteHtml) {
-      const wrote = await host.clipboardWriteHtml(html, plain);
-      if (wrote) return;
-      // Old packaged shell without the API — fall through to the
-      // renderer clipboard below.
-    }
-    await navigator.clipboard.write([
-      new ClipboardItem({
-        'text/html': new Blob([html], { type: 'text/html' }),
-        'text/plain': new Blob([plain], { type: 'text/plain' }),
-      }),
-    ]);
-  });
+  // 5. Write to the clipboard via the shared host-first / retrying
+  // path (see clipboard-write.ts for why one-shot renderer writes
+  // fail one-click-in-N next to Word).
+  const ok = await writeClipboardHtml(html, plain);
   return ok ? 'copied' : 'clipboard-failed';
 }
 

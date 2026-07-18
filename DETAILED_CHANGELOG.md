@@ -83,10 +83,12 @@ in each release, see `CHANGELOG.md`.
   thresholds" since the feature shipped while no UI existed to
   configure them.
 
-- **Create Reference: transient clipboard failures retried, surfaced,
-  and routed around** (`create-reference.ts` `writeClipboardWithRetry`
-  + `CreateReferenceResult`; `host:clipboard-write-html` IPC; field
-  report 2026-07-17: "requires me to click the button like 5 times").
+- **All clipboard writes: transient failures retried, surfaced, and
+  routed around** (new `src/editor/clipboard-write.ts` —
+  `writeClipboardHtml` / `writeClipboardText` /
+  `writeClipboardWithRetry`; `host:clipboard-write-html` IPC; field
+  report 2026-07-17 against Create Reference: "requires me to click
+  the button like 5 times").
   `navigator.clipboard.write` fails TRANSIENTLY — Win32's clipboard is
   a global lock briefly held by whatever app copied last (Word,
   clipboard managers; the exact app a references workflow alternates
@@ -102,7 +104,13 @@ in each release, see `CHANGELOG.md`.
   `tests/editor/create-reference-retry.test.ts`), (3) every outcome
   toasts — 'copied' / 'invalid-selection' (select body text inside a
   single card) / 'clipboard-failed' are now distinct results instead
-  of one silent boolean.
+  of one silent boolean. A sweep found the same silent one-shot
+  pattern in the outline's copy-heading-and-contents, Copy Current
+  Heading, and the translate copy (which toasted "copied to
+  clipboard" even when the write had failed); all now route through
+  the shared module with success/busy toasts, and the link context
+  menu (already honest) switched to it for the retry + host path.
+  Retry ladder tested in `tests/editor/clipboard-write.test.ts`.
 
 - **Nav drag scroll-gate cache validated against re-parenting**
   (`findNavScrollGate` in `src/editor/nav-panel.ts`; field report

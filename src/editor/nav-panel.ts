@@ -15,6 +15,8 @@ import { type Node as PMNode, DOMSerializer } from 'prosemirror-model';
 import { NodeSelection, TextSelection } from 'prosemirror-state';
 import { type Mappable } from 'prosemirror-transform';
 import { settings, SETTINGS_DEFAULTS } from './settings.js';
+import { CLIPBOARD_BUSY_MESSAGE, writeClipboardHtml } from './clipboard-write.js';
+import { showToast } from './toast.js';
 import { registerOpenContextMenu, clearOpenContextMenu } from './context-menu-registry.js';
 import { dragController, type DragItem, type DragSurface } from './drag-controller.js';
 import { isTransclusionNode, zoneIdentity } from './transclusion.js';
@@ -2039,20 +2041,11 @@ export class NavigationPanel {
     const html = tmp.innerHTML;
     const text = slice.content.textBetween(0, slice.content.size, '\n', '\n');
 
-    try {
-      if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
-        await navigator.clipboard.write([
-          new ClipboardItem({
-            'text/html': new Blob([html], { type: 'text/html' }),
-            'text/plain': new Blob([text], { type: 'text/plain' }),
-          }),
-        ]);
-      } else {
-        await navigator.clipboard.writeText(text);
-      }
-    } catch (err) {
-      console.error('copy heading failed:', err);
-    }
+    // Shared host-first / retrying path; every outcome surfaces —
+    // the silent version of this taught a user that copy buttons
+    // "need five clicks" (see clipboard-write.ts).
+    if (await writeClipboardHtml(html, text)) showToast('Copied!');
+    else showToast(CLIPBOARD_BUSY_MESSAGE);
   }
 
   /**

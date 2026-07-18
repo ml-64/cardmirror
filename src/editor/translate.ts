@@ -25,6 +25,7 @@ import type { EditorView } from 'prosemirror-view';
 import { settings, condenseWarningCloseFor } from './settings.js';
 import { callLlm, LlmError, resolveAiModel, activeApiKey, aiConfigured } from './ai/llm.js';
 import { showToast } from './toast.js';
+import { CLIPBOARD_BUSY_MESSAGE, writeClipboardText } from './clipboard-write.js';
 
 /** Languages offered in the source / target pickers. ISO 639-1 codes —
  *  the format MyMemory, Google, and tinyld all speak. Not exhaustive
@@ -322,27 +323,9 @@ export function chunkText(text: string, max: number): string[] {
 
 // --------------------------- command ----------------------------
 
-async function copyToClipboard(text: string): Promise<void> {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      return;
-    }
-  } catch {
-    // fall through to the legacy path
-  }
-  const ta = document.createElement('textarea');
-  ta.value = text;
-  ta.style.position = 'fixed';
-  ta.style.opacity = '0';
-  document.body.appendChild(ta);
-  ta.select();
-  try {
-    document.execCommand('copy');
-  } finally {
-    ta.remove();
-  }
-}
+// Clipboard writes go through the shared host-first / retrying path
+// (clipboard-write.ts); the caller checks the result — the old
+// version toasted "copied to clipboard" even when the write failed.
 
 /** Entry point — fires on the `translate` ribbon command. Translates the
  *  current selection and copies the result to the clipboard. */
@@ -370,7 +353,10 @@ export function runTranslate(view: EditorView): void {
         // translation can't be pasted without notice, toast or no toast.
         output += '\n[TRANSLATION INCOMPLETE — OUTPUT LENGTH LIMIT REACHED]';
       }
-      await copyToClipboard(output);
+      if (!(await writeClipboardText(output))) {
+        showToast(CLIPBOARD_BUSY_MESSAGE);
+        return;
+      }
       showToast(
         truncated
           ? `Translation hit the output length limit and was CUT OFF — the copied text is incomplete. Translate a smaller selection.`

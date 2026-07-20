@@ -21,6 +21,7 @@
     "test:watch": "vitest",
     "test:bench": "vitest bench --run",
     "typecheck": "tsc --noEmit",
+    "check:links": "node scripts/check-doc-links.mjs",
     "round-trip": "tsx bin/round-trip.ts",
     "gen:new-template": "tsx scripts/gen-new-template.ts",
     "desktop:install": "npm --prefix apps/desktop install",

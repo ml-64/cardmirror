@@ -237,7 +237,7 @@ import {
   enterAtZoneStart,
 } from './tag-keymap.js';
 import { enterWithConfiguredStyle } from './enter-style.js';
-import { keepCursorInLeadingBlockOnBlockedMerge } from './boundary-cursor-keymap.js';
+import { keepCursorInLeadingBlockOnBlockedMerge, blockBackspaceNodeSelect, blockDeleteNodeSelect } from './boundary-cursor-keymap.js';
 import { indentParagraph, outdentParagraph } from './indent-keymap.js';
 import {
   registerRibbonTooltip,
@@ -4812,11 +4812,16 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
       Backspace: (state, dispatch, view) =>
         backspaceAtTagStart(state, dispatch, view) ||
         backspaceAtFirstBodyStart(state, dispatch, view) ||
-        keepCursorInLeadingBlockOnBlockedMerge(state, dispatch, view),
+        keepCursorInLeadingBlockOnBlockedMerge(state, dispatch, view) ||
+        // Last: never let baseKeymap's selectNodeBackward node-select a
+        // whole card / body at a card-adjacent boundary.
+        blockBackspaceNodeSelect(state, dispatch, view),
       Delete: (state, dispatch, view) =>
         deleteAtTagEnd(state, dispatch, view) ||
         deleteAtContainerEnd(state, dispatch, view) ||
-        keepCursorInLeadingBlockOnBlockedMerge(state, dispatch, view),
+        keepCursorInLeadingBlockOnBlockedMerge(state, dispatch, view) ||
+        // Mirror of the Backspace guard: never forward-node-select a card/body.
+        blockDeleteNodeSelect(state, dispatch, view),
       Enter: (state, dispatch, view) =>
         // "New paragraph on Enter" settings run first: returns false
         // (untouched pipeline) unless the cursor is at the end of a

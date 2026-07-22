@@ -35,7 +35,8 @@
 
 import { Selection, TextSelection } from 'prosemirror-state';
 import type { Command, EditorState, Transaction } from 'prosemirror-state';
-import type { Node as PMNode } from 'prosemirror-model';
+import type { Node as PMNode, ResolvedPos } from 'prosemirror-model';
+import { joinBackward, joinForward } from 'prosemirror-commands';
 
 /** True when the selection's end grabs a trailing paragraph break: it sits
  *  at offset 0 of a textblock that the selection started before. */
@@ -100,4 +101,129 @@ export const keepCursorInLeadingBlockOnBlockedMerge: Command = (
   if (!dispatch) return true;
   dispatch(deleteSelectionKeepingLeadingCursor(state));
   return true;
+};
+
+/** prosemirror-commands' `findCutBefore` (not exported): the position a
+ *  backward / forward delete would cut at, or null when an isolating wall
+ *  blocks it. Reimplemented because prosemirror-commands doesn't export them. */
+function findCutBefore($pos: ResolvedPos): ResolvedPos | null {
+  if (!$pos.parent.type.spec.isolating) {
+    for (let d = $pos.depth - 1; d >= 0; d--) {
+      if ($pos.index(d) > 0) return $pos.doc.resolve($pos.before(d + 1));
+      if ($pos.node(d).type.spec.isolating) break;
+    }
+  }
+  return null;
+}
+function findCutAfter($pos: ResolvedPos): ResolvedPos | null {
+  if (!$pos.parent.type.spec.isolating) {
+    for (let d = $pos.depth - 1; d >= 0; d--) {
+      const parent = $pos.node(d);
+      if ($pos.index(d) + 1 < parent.childCount) return $pos.doc.resolve($pos.after(d + 1));
+      if (parent.type.spec.isolating) break;
+    }
+  }
+  return null;
+}
+
+/**
+ * Backspace/Delete pressed while the caret sits at a GAP it shouldn't rest at
+ * — e.g. a click that landed just past the last card, so `$head.parent` is the
+ * doc/card rather than a textblock. The default would node-select the adjacent
+ * body, and a bare swallow leaves the key dead (it only "works" after an arrow
+ * round-trip normalizes the caret into the body). Instead, jump into the
+ * adjacent body and delete there, so the key edits it immediately — exactly
+ * what the user expected from where they clicked. `dir` -1 = Backspace (the
+ * node before), +1 = Delete (the node after).
+ */
+function editAdjacentBodyFromGap(
+  state: EditorState,
+  dispatch: ((tr: Transaction) => void) | undefined,
+  dir: -1 | 1,
+): boolean {
+  const near = Selection.near(state.doc.resolve(state.selection.$head.pos), dir);
+  if (!(near instanceof TextSelection)) return false;
+  if (!dispatch) return true;
+  const at = near.$head.pos;
+  const $at = state.doc.resolve(at);
+  if (dir < 0 && $at.parentOffset > 0) {
+    // Non-empty body: delete the char before its end (native Backspace there).
+    const tr = state.tr.delete(at - 1, at);
+    tr.setSelection(TextSelection.create(tr.doc, at - 1));
+    dispatch(tr.scrollIntoView());
+  } else if (dir > 0 && $at.parentOffset < $at.parent.content.size) {
+    // Non-empty body: delete the char at its start (native Delete there).
+    const tr = state.tr.delete(at, at + 1);
+    tr.setSelection(TextSelection.create(tr.doc, at));
+    dispatch(tr.scrollIntoView());
+  } else {
+    // Empty target block — nothing to delete; just move the caret inside so
+    // the next keystroke edits it.
+    dispatch(state.tr.setSelection(near).scrollIntoView());
+  }
+  return true;
+}
+
+/**
+ * Stop Backspace from NODE-SELECTING a whole block or container.
+ *
+ * baseKeymap's Backspace chain ends in `selectNodeBackward`: at a backward
+ * boundary where `joinBackward` can't merge — the caret at the start of a
+ * block after an isolating card, or at a gap after the last card — it selects
+ * the node before as a `NodeSelection`. So one Backspace selects the entire
+ * card / card_body and the next deletes it, a jarring two-step that should
+ * never happen for structural nodes.
+ *
+ * Sits at the END of the custom Backspace chain, ahead of baseKeymap:
+ *   - at a GAP (caret not in a textblock): redirect into the body and delete
+ *     there (see `editAdjacentBodyFromGap`) rather than node-select or die;
+ *   - at a textblock start-edge after a card: swallow, but ONLY when no real
+ *     merge is available (queried via `joinBackward`) and the target is a
+ *     NON-ATOM. Atom node-selection (an image, where select-to-delete is the
+ *     point) and every merge path are left untouched.
+ * The target node is computed exactly as `selectNodeBackward` does.
+ */
+export const blockBackspaceNodeSelect: Command = (state, dispatch, view) => {
+  const sel = state.selection;
+  if (!sel.empty) return false;
+  const $head = sel.$head;
+  if (!$head.parent.isTextblock) {
+    const node = $head.nodeBefore;
+    if (!node || node.isAtom) return false;
+    return editAdjacentBodyFromGap(state, dispatch, -1);
+  }
+  const atStartEdge = view
+    ? view.endOfTextblock('backward', state)
+    : $head.parentOffset === 0;
+  if (!atStartEdge) return false; // mid-text: browser deletes a char natively
+  const $cut = findCutBefore($head);
+  const node = $cut?.nodeBefore;
+  if (!node) return false;
+  if (joinBackward(state, undefined, view)) return false; // a real merge — allow it
+  return !node.isAtom; // swallow node-selection of a block/container
+};
+
+/**
+ * Mirror of {@link blockBackspaceNodeSelect} for Delete (`selectNodeForward`).
+ * Caret at the end of a block before an isolating card, or a gap before a
+ * card, would otherwise forward-node-select the whole card/body.
+ */
+export const blockDeleteNodeSelect: Command = (state, dispatch, view) => {
+  const sel = state.selection;
+  if (!sel.empty) return false;
+  const $head = sel.$head;
+  if (!$head.parent.isTextblock) {
+    const node = $head.nodeAfter;
+    if (!node || node.isAtom) return false;
+    return editAdjacentBodyFromGap(state, dispatch, 1);
+  }
+  const atEndEdge = view
+    ? view.endOfTextblock('forward', state)
+    : $head.parentOffset === $head.parent.content.size;
+  if (!atEndEdge) return false;
+  const $cut = findCutAfter($head);
+  const node = $cut?.nodeAfter;
+  if (!node) return false;
+  if (joinForward(state, undefined, view)) return false;
+  return !node.isAtom;
 };

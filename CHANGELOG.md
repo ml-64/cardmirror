@@ -7,7 +7,60 @@ see `DETAILED_CHANGELOG.md`.
 
 ## Unreleased
 
+### Added
+
+- **Name new speech documents your way.** New Speech Document used to
+  name every file "Speech 1NC 4-12 7-05PM" style, with only the speech
+  name under your control. The whole pattern is now a setting (Settings
+  → Files → New documents): literal text plus `{speech}` (the name you
+  type at the prompt) and `{date:...}` (date/time written with familiar
+  tokens — `{date:YYYY-MM-DD}` gives 2026-04-12), with a live preview
+  as you type. The default matches the old naming exactly, so nothing
+  changes unless you want it to. (PR #20, thanks to
+  [Shreeram Modi](https://github.com/shreerammodi).)
+
+- **A Browse… button on each file search folder.** If a search folder
+  gets renamed or moved, you can now repoint that row in place —
+  same picker as the other folder settings — instead of removing the
+  folder and adding it back. (PR #19, thanks to
+  [Shreeram Modi](https://github.com/shreerammodi).)
+
+- **Password-protected Word files open now.** Opening a `.docx` that
+  Word encrypted with a password used to fail with a cryptic error.
+  CardMirror now asks for the password and opens the file (a wrong
+  password just asks again). Saving writes a normal, unencrypted file —
+  CardMirror doesn't re-apply the password.
+
+- **A fourth timer preset** (off by default; Settings → General →
+  Timer). For events whose speeches come in four distinct lengths.
+  Preset 4 takes the Start/Pause cell so the presets form a 2×2 block,
+  Start/Pause becomes a full-height button beside the display, and a
+  fourth duration field appears in the profile durations row. Expanded
+  timer layout only.
+
+- **Choose your underline thickness** (Settings → Appearance →
+  Typography). Same family as the emphasis and pocket box thickness
+  controls; blank keeps the font's automatic weight. Applies to
+  underlines, emphasis, and underlined cites.
+
+- **Cites without the bold** (Settings → Appearance → Accessibility).
+  An option to render cite-marked text at normal weight, for readers
+  who find dense bold runs visually crowding. Display-only — exports
+  and collaborators still see the standard bold cite.
+
 ### Changed
+
+- **The timer stays red after time runs out.** When the countdown hits
+  zero the display turns solid red — the same red as the low-time
+  warnings — and stays that way until you re-arm the clock (load a
+  preset, hit Reset, or type a new time). Pausing or switching clocks
+  doesn't dismiss it, so a glance always tells you that time expired.
+  The sound, if on, is still a single double beep, never repeated.
+
+- **Every AI-backed command now says (AI).** Commands that send text to
+  the AI provider are labeled uniformly — Format cite from selection,
+  Repair OCR/PDF text, Translate, and friends — so it's always clear
+  before you run a command whether it uses AI.
 
 - **Privacy policy updated for the optional account link.** The policy
   still said "no accounts" outright; it now accurately describes the
@@ -16,6 +69,47 @@ see `DETAILED_CHANGELOG.md`.
   association, never your email or name), that it's required for
   nothing during the beta, and how to unlink or have the server-side
   record deleted.
+
+### Fixed
+
+- **A leftover recovery draft can no longer silently overwrite newer
+  work.** The reported disaster: a launch offered old crash-recovery
+  drafts, and clicking Save wrote them straight over files that had
+  been edited and saved in the sessions since — destroying the newer
+  work. Now, whenever a recovered draft is older than the file it
+  would save over, CardMirror stops and asks — keep the newer file,
+  save the draft elsewhere (keeping both), or explicitly replace the
+  file — with the safe choice as the default. Autosave also leaves a
+  recovered draft alone until you've saved it once by hand, and the
+  protection survives restarts and layout switches. Recovering
+  normally (your unsaved edits are newer than the file) never triggers
+  the extra question.
+
+- **Backspace can no longer swallow a whole card.** At certain card
+  boundaries — most easily at the very end of the document — Backspace
+  silently selected an entire card body, so the next keystroke deleted
+  it wholesale. Backspace and Delete now move into the neighboring
+  card and edit normally instead.
+
+- **Highlighting across an emphasis box no longer leaves a white gap**
+  in the three-pane workspace. The single-document editor was already
+  right; the workspace's copy of the style hadn't kept up.
+
+- **Shift-F3 case cycling keeps your selection.** Cycling a selection's
+  case used to drop the selection when it started or ended mid-word,
+  so you couldn't cycle again or apply another mark without
+  re-selecting.
+
+- **Boxes no longer cut through images.** Applying emphasis (or any
+  boxed style) across an inline image drew a text-height box straight
+  through the picture. Images now stay clean — and documents saved
+  with the old marks heal themselves on open. (Word output was never
+  affected.)
+
+- **Each document remembers its own scroll position in the three-pane
+  workspace.** Switching between the documents stacked in a pane now
+  returns each one to where you left it, and a freshly opened document
+  starts at the top instead of inheriting the previous one's scroll.
 
 ## 0.1.0-beta.16 — 2026-07-17
 

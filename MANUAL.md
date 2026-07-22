@@ -1789,8 +1789,20 @@ apply to both the Save As preset buttons and the one-keystroke Save Send Doc /
 ### Crash recovery
 
 **(Desktop only.)** CardMirror journals your work as you go, so if it's
-killed mid-edit it offers to recover the unsaved document the next time
-you launch.
+killed mid-edit it offers to recover the unsaved documents the next time
+you launch: each draft in the recovery list can be opened for a look,
+saved, or discarded.
+
+One safety check to know about: if a recovered draft is **older than the
+file it would save over** — typically a leftover draft from a crash long
+ago, surfacing after you've already edited and saved that same file in
+later sessions — Save stops and asks. You can keep the newer file,
+save the draft elsewhere (keeping both), or explicitly replace the file
+with the older draft; the safe choice is the default. Until a recovered
+draft has been saved once by hand, autosave also leaves it alone, so a
+stale draft never overwrites newer work silently. Recovering normally —
+your unsaved edits from the crashed session are newer than the file —
+never triggers the extra question.
 
 ### Updates
 
@@ -1911,6 +1923,14 @@ file search scans.
 - **Default format for new speech documents** — `.docx`
   (Verbatim-compatible) or `.cmir` (native, and the only format that
   supports autosave).
+- **Speech document filename** — the name New Speech Document gives a
+  new file: literal text plus two fields. `{speech}` is the name you
+  type at the prompt (1NC, 2AC, …); `{date:...}` writes the current
+  date/time with familiar tokens (`{date:YYYY-MM-DD}` → 2026-04-12;
+  double a token to zero-pad it; inside the date block letters are
+  tokens, so wrap a literal word in brackets: `{date:h-mmA [on] MMM D}`).
+  The row previews the result as you type. Default:
+  `Speech {speech} {date:M-D h-mmA}`.
 - **Default file format for new documents** — the format the Save As
   dialog defaults to for a doc you haven't saved yet. Existing files
   always re-save in their own format.
@@ -1940,7 +1960,9 @@ file search scans.
 **File search**
 
 - **File search folders** *(desktop)* — the roots scanned for the palette's
-  file search (the `f` prefix). Empty disables file search (see
+  file search (the `f` prefix). Each folder row has a **Browse…** button, so
+  a folder that gets renamed or moved can be repointed in place instead of
+  removed and re-added. Empty disables file search (see
   [The Search Everything palette](#the-search-everything-palette-mod-shift-space)).
 - **File search: file formats to list** *(desktop)* — which document
   formats appear in results: both `.cmir` and `.docx`, or just one.

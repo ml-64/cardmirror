@@ -5,6 +5,170 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## Unreleased
+
+- **Custom speech-document filename template**
+  (`speechDocFilenameTemplate`; `src/editor/speech-filename.ts` +
+  `speech-filename-default.ts`; PR #20, thanks to
+  [Shreeram Modi](https://github.com/shreerammodi)). The hardcoded
+  "Speech &lt;name&gt; M-D h-mmA" pattern became a template setting:
+  literal text plus `{speech}` (the prompt answer — renamed from the
+  PR's `{round}` before release, since the prompt asks "Which speech?"
+  and the answers are 1NC / 2AC) and `{date:...}` with day.js-style
+  tokens. Letters are tokens only *inside* the date block, so literal
+  words there need brackets (`{date:h-mmA [on] MMM D}`) while text
+  outside the block never does. The settings row live-previews the
+  rendered name against a fixed sample date, and setting descriptions
+  gained multi-line rendering (`white-space: pre-line`) to fit the
+  token reference. Hardening on merge (a643e74): rendered names are
+  sanitized (a template could otherwise inject path traversal into the
+  write path) and collisions with an existing file report and fall
+  back to the native save dialog instead of overwriting. The default
+  template's output is byte-identical to the old naming.
+
+- **File-search folder rows: repoint in place**
+  (`src/editor/settings-ui.ts`; PR #19, thanks to
+  [Shreeram Modi](https://github.com/shreerammodi)). Each folder in
+  the file-search list gains the same Browse…/Clear pair as the
+  single-folder settings, so a renamed or moved root is repointed in
+  place instead of removed and re-added. Merge follow-ups (c65e4b6,
+  40731a9): the repoint used the row's index captured before the
+  native picker opened, which goes stale if the list re-renders while
+  the picker is up — resolution now re-derives the target from the
+  current list, extracted into a pure helper and pinned with tests.
+
+- **Password-protected Word files: open support**
+  (`src/ooxml/sha512.ts` / `aes.ts` / `decrypt-docx.ts`,
+  `src/editor/open-encrypted.ts`). A password-encrypted `.docx` is an
+  OLE/CFB container holding the real zip encrypted under ECMA-376
+  Agile encryption; CardMirror previously fed the container to the zip
+  reader and died with a cryptic error. Opening one now detects the
+  container, prompts for the password (wrong password re-prompts;
+  cancel aborts the open), derives the key (SHA-512 spin, 100k
+  iterations), verifies it against the stored verifier, decrypts
+  (AES-256-CBC, per-segment IVs), and routes the plaintext zip into
+  the normal import. Hash and cipher are small pure-TS
+  implementations, verified against a real Word-encrypted fixture
+  (`tests/ooxml/fixtures/agile-encrypted.docx`). Deliberate scope:
+  open-only — saving writes plain files; the legacy pre-2007
+  "standard" scheme gets a clear re-save-in-modern-Word message
+  instead of support.
+
+- **Stale recovery draft: overwrite guard, autosave hold-off, durable
+  provenance** (`src/editor/journal-staleness.ts`, `host.statFile`
+  across both hosts + desktop IPC; `recoveredFromSavedAt` on
+  `JournalEntry` and the spawn payload). The reported data loss:
+  crash-recovery journals are keyed by session doc-uid, not file path,
+  so a journal from an old crashed session lingers while later
+  sessions edit and save the same file under fresh uids — and on a
+  later launch, its recovery-sidebar Save wrote the old bytes straight
+  over the newer file. The changed-on-disk guard can't see it (a fresh
+  launch has no disk baseline for the path). Now every recovery save
+  path compares the journal's `savedAt` against the file's mtime (5s
+  tolerance; unparseable timestamps fail open) and a meaningfully
+  newer file raises a route-style confirmation whose safe choice is
+  the default: keep the file on disk, save the draft elsewhere (the
+  Save-As modal / flow, keeping both), or explicitly replace. Guarded
+  paths: the sidebar's Save, and open-then-first-Ctrl-S via a
+  uid-keyed mark set when a draft opens from the sidebar. The mark
+  also blocks BOTH layouts' autosaves until the first manual save
+  lands — three-pane re-arms autosave from the per-path preference the
+  moment a draft opens, so without the hold-off a stale draft opened
+  "just to look" would silently overwrite the newer file one keystroke
+  later. Because editing a recovered draft re-journals it with
+  `savedAt` = now (which would launder the staleness across a
+  crash-relaunch or a workspace mode switch), journals now carry the
+  ORIGINAL draft's timestamp in `recoveredFromSavedAt` while the mark
+  is live; every staleness check reads provenance-first, mode-switch
+  reopen paths re-mark from the field, and the panes→windows respawn
+  ferries it in the spawn payload. The web edition's sidebar in-place
+  save, which dead-ended on non-string handles (reserialize, then
+  silently return false), now routes to the Save-As modal instead.
+
+- **Backspace/Delete node-selection of whole cards blocked**
+  (`src/editor/boundary-cursor-keymap.ts` — `blockBackspaceNodeSelect`
+  / `blockDeleteNodeSelect`). At card-adjacent boundaries (easiest at
+  the very end of the document) the base keymap's
+  `selectNodeBackward` / `selectNodeForward` fallbacks node-selected
+  an entire card or card body, so the next keystroke deleted it
+  wholesale. The guards run ahead of the base keymap and block the
+  node-selection; at a GAP position (caret clicked past the last card)
+  they instead redirect the caret into the adjacent card body and
+  perform the deletion there, so the first Backspace acts immediately
+  rather than after an arrow-key nudge. Real block merges still work
+  (the guards query `joinBackward` / `joinForward` first) and atom
+  nodes (images) stay selectable. Both directions, both layouts;
+  tests in `tests/editor/backspace-node-select.test.ts`.
+
+- **Fourth timer preset** (`timerShowFourthPreset`; off by default;
+  General → Timer). For four-length events. Preset 4 takes the
+  Start/Pause cell so the block reads P1 P2 / P3 P4, Start/Pause
+  becomes a full-height one-wide button in its own column beside the
+  display, and the profile durations row gains a fourth field.
+  Expanded layout only — compact drops all presets.
+
+- **Timer holds red after expiry** (`expiredMode` latch in
+  `src/editor/timer-state.ts`). At 0:00 the display latches solid
+  warning-red until the clock is re-armed — load a preset, Reset, or
+  type a new time; pausing or switching clocks doesn't dismiss it.
+  The latch rides the shared timer state, so every window and the
+  popped-out float agree, and the expiry sound stays a single double
+  beep.
+
+- **Underline thickness control** (Appearance → Typography). Same
+  row family as emphasis/pocket box thickness; blank keeps the font's
+  automatic weight. Applies to underline, emphasis, and underlined
+  cites.
+
+- **Cites at normal weight** (accessibility). Renders cite-marked text
+  unbolded for readers who find dense bold runs visually crowding.
+  Display-only — serialization and export never change, so
+  collaborators and Word output still see the standard bold cite.
+  Deliberately lives ONLY under accessibility: there's no
+  non-accessibility reason to turn it on.
+
+- **(AI) labels on every AI-backed command.** An audit found several
+  commands that call the AI provider without the (AI) suffix — Format
+  cite from selection, most visibly. Every AI-backed command now
+  carries the label in the ribbon, palette, and shortcut tables, so
+  the user knows before invoking.
+
+- **Shift-F3 case cycling preserves a mid-node selection.**
+  `toggleCase` replaced each touched text node whole, and a
+  ReplaceStep maps positions strictly inside its range to the range's
+  edge — so a selection that started or ended mid-node collapsed to a
+  caret and repeating Shift-F3 went dead. Each edit is now bounded by
+  the selection itself: from/to sit on edit boundaries where the
+  mapping is exact, and the re-selected range survives every cycle.
+  (Selections spanning whole text nodes were never affected, which is
+  why the existing preserve-selection test missed this.)
+
+- **Visual marks stripped from inline images** (#18; invariant 3 of
+  the named-style normalizer + a `stripImageVisualMarks` load-time
+  pass in `parseNative`). Emphasis applied across an image drew a
+  text-height box through it — a mark span's height comes from font
+  metrics, not its image child. The marks were also dead weight
+  beyond display (the importer never creates them; `emitImageRun`
+  writes no run styling, so Word showed nothing either way). Images
+  now carry only functional marks (`comment_range`, link) as a live
+  normalizer invariant, and docs saved with marked images heal on
+  open.
+
+- **Emphasis-box padding fix ported to three-pane**
+  (`src/editor/style.css`). Highlighting crossing an emphasis box
+  showed a white sliver inside the box in the three-pane workspace:
+  the single-doc rule had already dropped the box's horizontal
+  padding, but the workspace's parallel rule still carried
+  `padding: 0 0.1em`. The two rules now match.
+
+- **Per-doc scroll position in the three-pane workspace**
+  (`savedScrollTop` on `DocRecord`). The scroller is the slot's
+  shared pane body, which clamps to 0 the moment a doc's editor
+  detaches — so scroll was effectively per-pane and switching stacked
+  docs landed wherever the pane happened to be. The viewport now
+  rides each DocRecord: captured on detach, reapplied on mount, 0 for
+  fresh docs (a doc opened on top of another starts at the top).
+
 ## 0.1.0-beta.16 — 2026-07-17
 
 - **Floating always-on-top timer pop-out** (desktop;

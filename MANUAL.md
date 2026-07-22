@@ -2348,10 +2348,10 @@ these to extend the selection.
 | Mod-P / Mod-Alt-P | Insert most recently received card at cursor / at end of doc |
 | Mod-Shift-N | Add note to selection |
 | Mod-Shift-Q | Ask AI about selection |
-| Mod-Shift-X | Format cite from selection |
-| Mod-Shift-R | Repair OCR/PDF text in selection |
-| Mod-Alt-R | Repair Formatting in selection |
-| Mod-Shift-T | Translate selection (to clipboard) |
+| Mod-Shift-X | Format cite from selection (AI) |
+| Mod-Shift-R | Repair OCR/PDF text in selection (AI) |
+| Mod-Alt-R | Repair Formatting in selection (AI) |
+| Mod-Shift-T | Translate selection to clipboard (AI) |
 | Mod-Shift-D | Toggle a reading-position marker (Space / Enter also work in read mode) |
 
 ### Files and view

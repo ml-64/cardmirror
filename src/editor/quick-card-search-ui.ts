@@ -387,7 +387,7 @@ function commandKeyDisplay(id: RibbonCommandId): string {
 
 /** Word-equivalence groups for command search: if a command's label contains
  *  any word in a group, queries phrased with the OTHER words in that group also
- *  match it (e.g. "Repair OCR/PDF Text" via "fix" / "restore"; "Remove
+ *  match it (e.g. "Repair OCR/PDF Text (AI)" via "fix" / "restore"; "Remove
  *  Hyperlinks" via "delete"; "Delete Row" via "remove"). Command-search only;
  *  add a group to extend. */
 const SYNONYM_GROUPS: readonly (readonly string[])[] = [

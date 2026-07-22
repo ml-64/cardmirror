@@ -11701,9 +11701,12 @@ html.pmd-emphasis-italic .pmd-pane-editor .pmd-emphasis {
   font-style: italic;
 }
 html.pmd-emphasis-box .pmd-pane-editor .pmd-emphasis {
-  border: var(--pmd-emphasis-box-size) solid currentColor;
-  padding: 0 0.1em;
-  border-radius: 1px;
+  /* Identical to the single-doc `#editor.pmd-emphasis-box` box: a
+     hugging border with NO padding. The `padding: 0 0.1em` this copy
+     carried left a white sliver between the border and a crossing
+     highlight — the pre-3be68c6 bug fixed for single-doc but never
+     mirrored to the multi-pane rule. */
+  border: var(--pmd-emphasis-box-size) solid var(--pmd-c-emphasis-box);
 }
 
 /* Read-mode mirrors for `#editor.pmd-read-mode` rules. Read mode in

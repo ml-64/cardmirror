@@ -3905,14 +3905,14 @@ function buildSpeechFilenameTemplateEditor(): HTMLElement {
 
   // A fixed sample, not the real clock: the preview must not shift
   // under the user while they type.
-  const SAMPLE_ROUND = '1NC';
+  const SAMPLE_SPEECH = '1NC';
   const SAMPLE_DATE = new Date(2026, 3, 12, 19, 5, 7);
 
   const refresh = () => {
     const template = input.value.trim() || DEFAULT_SPEECH_FILENAME_TEMPLATE;
     preview.textContent = `Example: ${renderSpeechFilename(
       template,
-      SAMPLE_ROUND,
+      SAMPLE_SPEECH,
       settings.get('defaultSpeechDocFormat'),
       SAMPLE_DATE,
     )}`;

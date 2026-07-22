@@ -59,18 +59,18 @@ describe('formatDate tokens', () => {
 });
 
 describe('renderSpeechName', () => {
-  it('substitutes {round} and {date:...}', () => {
+  it('substitutes {speech} and {date:...}', () => {
     expect(
-      renderSpeechName('Speech {round} {date:M-D h-mmA}', '1NC', AT),
+      renderSpeechName('Speech {speech} {date:M-D h-mmA}', '1NC', AT),
     ).toBe('Speech 1NC 4-12 7-05PM');
   });
 
   it('leaves an unknown field literal', () => {
-    expect(renderSpeechName('{round} {bogus}', '1NC', AT)).toBe('1NC {bogus}');
+    expect(renderSpeechName('{speech} {bogus}', '1NC', AT)).toBe('1NC {bogus}');
   });
 
   it('supports a template with no date field at all', () => {
-    expect(renderSpeechName('Speech {round}', '2AC', AT)).toBe('Speech 2AC');
+    expect(renderSpeechName('Speech {speech}', '2AC', AT)).toBe('Speech 2AC');
   });
 });
 
@@ -138,14 +138,14 @@ describe('renderSpeechFilename', () => {
   });
 
   it('appends the extension from the format, never from the template', () => {
-    expect(renderSpeechFilename('Speech {round}', '1NC', 'cmir', AT)).toBe(
+    expect(renderSpeechFilename('Speech {speech}', '1NC', 'cmir', AT)).toBe(
       'Speech 1NC.cmir',
     );
   });
 
   it('sanitizes after rendering, so a hostile round name is defused', () => {
     expect(
-      renderSpeechFilename('Speech {round}', '../../evil', 'docx', AT),
+      renderSpeechFilename('Speech {speech}', '../../evil', 'docx', AT),
     ).toBe('Speech ..-..-evil.docx');
   });
 

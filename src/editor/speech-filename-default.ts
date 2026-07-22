@@ -5,4 +5,4 @@
  *  `formatSpeechFilename` wrapper). Byte-identical output to the
  *  pre-template implementation, so an existing user sees no change. */
 export const DEFAULT_SPEECH_FILENAME_TEMPLATE =
-  'Speech {round} {date:M-D h-mmA}';
+  'Speech {speech} {date:M-D h-mmA}';

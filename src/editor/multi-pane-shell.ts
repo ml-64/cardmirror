@@ -2558,13 +2558,13 @@ class MultiPaneShell {
   async createNewSpeechDocument(): Promise<void> {
     // Electron disables window.prompt(); route through the in-
     // renderer modal so the desktop edition works too.
-    const roundName = await promptForText({
+    const speechName = await promptForText({
       message: 'Which speech? (e.g. 1NC, 2AC Round 3 vs Hogwarts)',
       placeholder: '1NC',
       okLabel: 'Create',
     });
-    if (!roundName) return;
-    const trimmed = roundName;
+    if (!speechName) return;
+    const trimmed = speechName;
     const target = await this.promptForSlot(`Speech ${trimmed}`);
     if (!target) return;
     const format = settings.get('defaultSpeechDocFormat');

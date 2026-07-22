@@ -77,17 +77,18 @@ export function formatDate(fmt: string, d: Date): string {
   );
 }
 
-/** Substitute the template fields. `{round}` is the text the user
- *  typed at the prompt; `{date:FMT}` is a token-formatted date. An
- *  unknown field stays literal, so a typo is visible in the settings
- *  preview instead of silently eating part of the name. */
+/** Substitute the template fields. `{speech}` is the text the user
+ *  typed at the "Which speech?" prompt (1NC, 2AC vs Hogwarts…);
+ *  `{date:FMT}` is a token-formatted date. An unknown field stays
+ *  literal, so a typo is visible in the settings preview instead of
+ *  silently eating part of the name. */
 export function renderSpeechName(
   template: string,
-  round: string,
+  speech: string,
   now: Date,
 ): string {
-  return template.replace(/\{(round|date:[^}]*)\}/g, (_whole, body: string) =>
-    body === 'round' ? round : formatDate(body.slice('date:'.length), now),
+  return template.replace(/\{(speech|date:[^}]*)\}/g, (_whole, body: string) =>
+    body === 'speech' ? speech : formatDate(body.slice('date:'.length), now),
   );
 }
 
@@ -95,7 +96,7 @@ export function renderSpeechName(
  *
  *  This is a trust boundary, not cosmetics. The result flows into
  *  `joinSpeechDocPath` and then straight to a filesystem write with
- *  no further checks, so a round name of `1NC/../../evil` would
+ *  no further checks, so a speech name of `1NC/../../evil` would
  *  otherwise write outside the user's chosen folder. */
 export function sanitizeFilename(name: string): string {
   const cleaned = name
@@ -120,7 +121,7 @@ export function sanitizeFilename(name: string): string {
   // Windows refuses the DOS device names as a basename regardless of
   // extension (CON.docx is as unwritable as CON). Not hypothetical
   // here: "Con" is the negative side's name in Public Forum, so a
-  // template of just {round} produces exactly this. Prefix rather
+  // template of just {speech} produces exactly this. Prefix rather
   // than drop, so the name stays recognizable.
   if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(cleaned)) {
     return `_${cleaned}`;
@@ -132,23 +133,23 @@ export function sanitizeFilename(name: string): string {
  *  the creation call sites and the settings preview both use. */
 export function renderSpeechFilename(
   template: string,
-  round: string,
+  speech: string,
   format: 'cmir' | 'docx',
   now: Date,
 ): string {
-  return `${sanitizeFilename(renderSpeechName(template, round, now))}.${format}`;
+  return `${sanitizeFilename(renderSpeechName(template, speech, now))}.${format}`;
 }
 
 /** The wrapper the creation call sites use: reads the template and
  *  the format setting, stamps the current time. Same signature as
  *  the two per-file copies it replaces, so no call site changes. */
 export function formatSpeechFilename(
-  round: string,
+  speech: string,
   format: 'cmir' | 'docx',
 ): string {
   return renderSpeechFilename(
     settings.get('speechDocFilenameTemplate'),
-    round,
+    speech,
     format,
     new Date(),
   );

@@ -579,14 +579,14 @@ async function runNewSpeechDocumentSingleDoc(): Promise<void> {
   }
   // Electron disables window.prompt(); use an in-renderer modal
   // instead. Trims the result for us and returns null on cancel.
-  const roundName = await promptForText({
+  const speechName = await promptForText({
     message: 'Which speech? (e.g. 1NC, 2AC Round 3 vs Hogwarts)',
     placeholder: '1NC',
     okLabel: 'Create',
   });
-  if (roundName == null) return;
-  if (!roundName) return;
-  const trimmed = roundName;
+  if (speechName == null) return;
+  if (!speechName) return;
+  const trimmed = speechName;
 
   const format = settings.get('defaultSpeechDocFormat');
   const initialFilename = formatSpeechFilename(trimmed, format);
@@ -6334,18 +6334,18 @@ async function openRecentInPlace(recent: RecentFile): Promise<void> {
 }
 
 /** Build + mount a new speech doc in THIS window (home-screen
- *  flow). Prompts for the round name like the ribbon's New Speech,
+ *  flow). Prompts for the speech name like the ribbon's New Speech,
  *  but mounts in-place rather than spawning a window. Returns true
  *  when a doc was created (false on cancel). */
 async function createSpeechDocInPlace(): Promise<boolean> {
-  const roundName = await promptForText({
+  const speechName = await promptForText({
     message: 'Which speech? (e.g. 1NC, 2AC Round 3 vs Hogwarts)',
     placeholder: '1NC',
     okLabel: 'Create',
   });
-  if (!roundName) return false;
+  if (!speechName) return false;
   const format = settings.get('defaultSpeechDocFormat');
-  const filename = formatSpeechFilename(roundName, format);
+  const filename = formatSpeechFilename(speechName, format);
   const docNode = settings.get('includeSpeechDocPocket')
     ? makeSpeechBlankDoc(filename.replace(/\.(cmir|docx)$/i, ''))
     : makeNewDocBody();

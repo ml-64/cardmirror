@@ -372,7 +372,7 @@ export interface Settings {
    *  expensive to run on a debounce). */
   defaultSpeechDocFormat: 'cmir' | 'docx';
   /** Template for the filename of a doc created by "New Speech
-   *  Document". Fields: `{round}` is the name typed at the prompt,
+   *  Document". Fields: `{speech}` is the name typed at the prompt,
    *  `{date:FMT}` is a date in day.js-style tokens (`YYYY-MM-DD`,
    *  `h-mmA`). The extension is not part of the template —
    *  `defaultSpeechDocFormat` owns it. */
@@ -2056,7 +2056,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       // Rendered with white-space: pre-line, so a \n is a line break
       // but leading indentation collapses. Keep every line flush left.
       'The name New Speech Document gives a new file.\n' +
-      '{round} is the name you type at the prompt.\n' +
+      '{speech} is the name you type at the prompt.\n' +
       '{date:...} is a date. Double a token to zero-pad it:\n' +
       'year - YYYY 2026, YY 26\n' +
       'month - M 4, MM 04, MMM Apr, MMMM April\n' +

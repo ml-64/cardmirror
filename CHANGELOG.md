@@ -43,10 +43,11 @@ see `DETAILED_CHANGELOG.md`.
   controls; blank keeps the font's automatic weight. Applies to
   underlines, emphasis, and underlined cites.
 
-- **Cites without the bold** (Settings → Appearance → Accessibility).
-  An option to render cite-marked text at normal weight, for readers
-  who find dense bold runs visually crowding. Display-only — exports
-  and collaborators still see the standard bold cite.
+- **An option to unbold your cites** (Settings → Appearance →
+  Accessibility). An option to render cite-marked text at normal
+  weight, for readers who find dense bold runs visually crowding.
+  Display-only — exports and collaborators still see the standard
+  bold cite.
 
 ### Changed
 
@@ -55,7 +56,7 @@ see `DETAILED_CHANGELOG.md`.
   warnings — and stays that way until you re-arm the clock (load a
   preset, hit Reset, or type a new time). Pausing or switching clocks
   doesn't dismiss it, so a glance always tells you that time expired.
-  The sound, if on, is still a single double beep, never repeated.
+  The sound, if on, is still a single double beep.
 
 - **Every AI-backed command now says (AI).** Commands that send text to
   the AI provider are labeled uniformly — Format cite from selection,
@@ -73,23 +74,19 @@ see `DETAILED_CHANGELOG.md`.
 ### Fixed
 
 - **A leftover recovery draft can no longer silently overwrite newer
-  work.** The reported disaster: a launch offered old crash-recovery
-  drafts, and clicking Save wrote them straight over files that had
-  been edited and saved in the sessions since — destroying the newer
-  work. Now, whenever a recovered draft is older than the file it
-  would save over, CardMirror stops and asks — keep the newer file,
-  save the draft elsewhere (keeping both), or explicitly replace the
-  file — with the safe choice as the default. Autosave also leaves a
-  recovered draft alone until you've saved it once by hand, and the
-  protection survives restarts and layout switches. Recovering
-  normally (your unsaved edits are newer than the file) never triggers
-  the extra question.
+  work.** Whenever a recovered draft is older than the file it would
+  save over, CardMirror stops and asks — keep the newer file, save
+  the draft elsewhere (keeping both), or explicitly replace the file —
+  with the safe choice as the default. Autosave also leaves a
+  recovered draft alone until you've saved it once by hand. Recovering
+  normally (your unsaved edits are newer than the file) works the same
+  as before.
 
 - **Backspace can no longer swallow a whole card.** At certain card
   boundaries — most easily at the very end of the document — Backspace
-  silently selected an entire card body, so the next keystroke deleted
-  it wholesale. Backspace and Delete now move into the neighboring
-  card and edit normally instead.
+  could select an entire card body, so the next keystroke deleted it
+  completely. Backspace and Delete now work normally in that situation
+  instead.
 
 - **Highlighting across an emphasis box no longer leaves a white gap**
   in the three-pane workspace. The single-document editor was already
@@ -102,9 +99,7 @@ see `DETAILED_CHANGELOG.md`.
 
 - **Boxes no longer cut through images.** Applying emphasis (or any
   boxed style) across an inline image drew a text-height box straight
-  through the picture. Images now stay clean — and documents saved
-  with the old marks heal themselves on open. (Word output was never
-  affected.)
+  through the picture. Images no longer show formatting marks.
 
 - **Each document remembers its own scroll position in the three-pane
   workspace.** Switching between the documents stacked in a pane now

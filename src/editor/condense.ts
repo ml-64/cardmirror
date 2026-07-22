@@ -1003,8 +1003,19 @@ export function toggleCase(): Command {
       const localFrom = Math.max(nodeStart, from) - nodeStart;
       const localTo = Math.min(nodeEnd, to) - nodeStart;
       if (localTo <= localFrom) return true;
-      const newText = t.slice(0, localFrom) + caseSeg(t.slice(localFrom, localTo)) + t.slice(localTo);
-      edits.push({ from: nodeStart, to: nodeEnd, node: schema.text(newText, node.marks) });
+      // Replace ONLY the cased slice, never the whole text node: a
+      // ReplaceStep maps positions strictly INSIDE its range to the
+      // range's edge, so any edit wider than the selection collapses
+      // a mid-node selection end to the node boundary — which breaks
+      // the re-select below, and repeat Shift-F3 needs the selection
+      // to survive. Bounding the edit by the selection puts from/to
+      // on edit boundaries, where mapping is exact. Marks are uniform
+      // within a text node, so the slice carries them unchanged.
+      edits.push({
+        from: nodeStart + localFrom,
+        to: nodeStart + localTo,
+        node: schema.text(caseSeg(t.slice(localFrom, localTo)), node.marks),
+      });
       return true;
     });
 

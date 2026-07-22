@@ -597,6 +597,30 @@ describe('toggleCase', () => {
     expect(caseStateOf(after!.doc, 'Hello')).toBe('Hello World');
   });
 
+  it('keeps a MID-NODE selection through repeated cycles (Shift-F3 held)', () => {
+    // The 0e33690 regression: selecting a word INSIDE a longer text
+    // node. Whole-node replacement mapped both selection ends to the
+    // node's end — the caret jumped past the word and a second
+    // Shift-F3 was a no-op. (The test above misses it because its
+    // selection spans the text node exactly edge-to-edge.)
+    const doc = makeDoc([paragraph('alpha bravo charlie')]);
+    const state = setSelectionRange(doc, 'bravo', 0, 'bravo', 5);
+    const next = apply(state, toggleCase());
+    expect(caseStateOf(next!.doc, 'BRAVO')).toBe('alpha BRAVO charlie');
+    expect(
+      next!.doc.textBetween(next!.selection.from, next!.selection.to, '', ''),
+    ).toBe('BRAVO');
+    // Two more presses straight off the returned selections: the full
+    // cycle lands back where it started, neighbors untouched.
+    const second = apply(next!, toggleCase());
+    expect(caseStateOf(second!.doc, 'Bravo')).toBe('alpha Bravo charlie');
+    const third = apply(second!, toggleCase());
+    expect(caseStateOf(third!.doc, 'bravo')).toBe('alpha bravo charlie');
+    expect(
+      third!.doc.textBetween(third!.selection.from, third!.selection.to, '', ''),
+    ).toBe('bravo');
+  });
+
   it('handles length-growing case maps without eating characters (ß→SS)', () => {
     const doc = makeDoc([paragraph('die straße nach berlin bleibt offen')]);
     const state = setSelectionRange(doc, 'die', 0, 'offen', 5);

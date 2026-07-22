@@ -1965,16 +1965,6 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'general',
     section: 'Editor behavior',
   },
-  {
-    key: 'markUnreadAfterMarker',
-    label: 'Turn text after a mark red',
-    description:
-      "When on, all card body text after a mark turns red, which visually denotes portions you didn't read. This is bounded per card, and is preserved in exported versions of the document. Its color follows the reading-marker Style color.",
-    kind: 'toggle',
-    category: 'appearance',
-    section: 'Document typography',
-    aliases: ['reading marker', 'unread', 'red text', 'marked'],
-  },
   // ─── General ────────────────────────────────────────────────────
   {
     key: 'readers',
@@ -2581,6 +2571,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'appearance',
     section: 'Document typography',
     aliases: ['dot grid', 'shading cue', 'background color cue', 'dotted background'],
+  },
+  {
+    key: 'markUnreadAfterMarker',
+    label: 'Turn text after a mark red',
+    description:
+      "When on, all card body text after a mark turns red, which visually denotes portions you didn't read. This is bounded per card, and is preserved in exported versions of the document. Its color follows the reading-marker Style color.",
+    kind: 'toggle',
+    category: 'appearance',
+    section: 'Document typography',
+    aliases: ['reading marker', 'unread', 'red text', 'marked'],
   },
   {
     key: 'showCharacterStyles',

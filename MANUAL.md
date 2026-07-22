@@ -1670,6 +1670,12 @@ home screen — to open it, exactly like File → Open (including the unsaved-ch
 prompt, and focusing a copy that's already open). Other file types are ignored,
 and dragging cards around inside the editor is unaffected.
 
+**Password-protected Word files.** If you open a `.docx` that Word encrypted
+with a password, CardMirror asks for the password and opens it. Saving writes
+a normal, unencrypted file — CardMirror doesn't re-apply the password. (Only
+the modern Word encryption is supported; a file from very old Office versions
+will ask you to re-save it in a current Word first.)
+
 ### Two formats
 
 - **`.cmir`** — CardMirror's native format. Lossless, and required for

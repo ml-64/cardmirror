@@ -46,6 +46,12 @@ export interface TextPromptOptions {
   /** Render a `<textarea>` (multi-line) instead of `<input type=text>`.
    *  In multiline mode, Enter inserts a newline; Ctrl/Cmd+Enter submits. */
   multiline?: boolean;
+  /** Mask the input (`type="password"`) and DON'T trim the result —
+   *  a password's own leading/trailing spaces are significant. */
+  password?: boolean;
+  /** Optional second line under the message — context or an error
+   *  (e.g. "Incorrect password — try again"). Rendered read-only. */
+  detail?: string;
 }
 
 export function promptForText(opts: TextPromptOptions): Promise<string | null> {
@@ -61,10 +67,17 @@ export function promptForText(opts: TextPromptOptions): Promise<string | null> {
     header.textContent = opts.message;
     dialog.appendChild(header);
 
+    if (opts.detail) {
+      const detail = document.createElement('div');
+      detail.className = 'pmd-text-prompt-detail';
+      detail.textContent = opts.detail;
+      dialog.appendChild(detail);
+    }
+
     const input: HTMLInputElement | HTMLTextAreaElement = opts.multiline
       ? document.createElement('textarea')
       : document.createElement('input');
-    if (input instanceof HTMLInputElement) input.type = 'text';
+    if (input instanceof HTMLInputElement) input.type = opts.password ? 'password' : 'text';
     input.className = 'pmd-text-prompt-input';
     input.value = opts.initial ?? '';
     if (opts.placeholder) input.placeholder = opts.placeholder;
@@ -97,7 +110,7 @@ export function promptForText(opts: TextPromptOptions): Promise<string | null> {
     okBtn.textContent = opts.okLabel ?? 'OK';
     okBtn.addEventListener('click', () => {
       cleanup();
-      resolve(input.value.trim());
+      resolve(opts.password ? input.value : input.value.trim());
     });
     buttons.appendChild(okBtn);
 
@@ -122,7 +135,7 @@ export function promptForText(opts: TextPromptOptions): Promise<string | null> {
         if (opts.multiline && !(e.ctrlKey || e.metaKey)) return;
         e.preventDefault();
         cleanup();
-        resolve(input.value.trim());
+        resolve(opts.password ? input.value : input.value.trim());
       }
     };
     document.addEventListener('keydown', onKey);

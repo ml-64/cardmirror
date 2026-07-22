@@ -11166,6 +11166,14 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
 .pmd-text-prompt-dialog {
   min-width: 420px;
 }
+/* Optional second line under the prompt message — context or an error
+   (e.g. the password-prompt's "Incorrect password — try again"). */
+.pmd-text-prompt-detail {
+  margin: 0.15rem 0 0.5rem;
+  font-size: 0.85rem;
+  color: var(--pmd-c-text-muted);
+  line-height: 1.4;
+}
 .pmd-text-prompt-input {
   width: 100%;
   padding: 0.45rem 0.6rem;

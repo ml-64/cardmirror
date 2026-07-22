@@ -47,6 +47,7 @@ import { promptForText, promptForRouteChoice, alertDialog, confirmDialog } from 
 import { openDocMenu } from './doc-menu-ui.js';
 import { createReference } from './create-reference.js';
 import { showToast } from './toast.js';
+import { maybeDecryptForOpen, OpenCancelledError, UnsupportedEncryptionError } from './open-encrypted.js';
 import { CLIPBOARD_BUSY_MESSAGE, writeClipboardHtml } from './clipboard-write.js';
 import { suppressGuiSelectAll } from './editable-target.js';
 import { openSelectSpeechDocModal } from './select-speech-doc-ui.js';
@@ -5705,17 +5706,27 @@ async function routeOpenedFile(opened: OpenedFile): Promise<void> {
     }
     return;
   }
+  // Password-protected .docx arrives as a compound file, not a zip;
+  // decrypt to real .docx bytes (or pass through) before parsing.
+  let openBytes: Uint8Array;
+  try {
+    openBytes = await maybeDecryptForOpen(src.bytes, src.name);
+  } catch (err) {
+    if (err instanceof OpenCancelledError) return;
+    void alertDialog(err instanceof Error ? err.message : String(err));
+    return;
+  }
   try {
     let docNode: PMNode;
     let docThreads: Thread[] | undefined;
     let docId: string | null = null;
-    if (!bytesLookLikeDocx(src.bytes)) {
-      const parsed = parseNative(src.bytes);
+    if (!bytesLookLikeDocx(openBytes)) {
+      const parsed = parseNative(openBytes);
       docNode = parsed.doc;
       docThreads = parsed.threads.length > 0 ? parsed.threads : undefined;
       docId = parsed.docId;
     } else {
-      const result = await fromDocxFull(src.bytes);
+      const result = await fromDocxFull(openBytes);
       docNode = result.doc;
       docThreads = result.threads;
       docId = result.docId;
@@ -5769,16 +5780,21 @@ async function loadFileInPlace(file: {
   /** A recovered (.cmir-journal) doc: mount dirty, don't record a recent. */
   recovered?: boolean;
 }): Promise<void> {
+  // Decrypt a password-protected .docx (a compound file, not a zip)
+  // before parsing; passes through for a normal file. Throws
+  // OpenCancelledError / UnsupportedEncryptionError, handled by the
+  // callers' catch.
+  const openBytes = await maybeDecryptForOpen(file.bytes, file.filename);
   let docNode: PMNode;
   let docThreads: Thread[] | undefined;
   let docId: string | null = null;
-  if (!bytesLookLikeDocx(file.bytes)) {
-    const parsed = parseNative(file.bytes);
+  if (!bytesLookLikeDocx(openBytes)) {
+    const parsed = parseNative(openBytes);
     docNode = parsed.doc;
     docThreads = parsed.threads.length > 0 ? parsed.threads : undefined;
     docId = parsed.docId;
   } else {
-    const result = await fromDocxFull(file.bytes);
+    const result = await fromDocxFull(openBytes);
     docNode = result.doc;
     docThreads = result.threads;
     docId = result.docId;
@@ -6030,7 +6046,12 @@ async function pickAndLoadInPlace(): Promise<boolean> {
     });
     return true;
   } catch (err) {
-    void alertDialog(`Failed to load: ${err instanceof Error ? err.message : err}`);
+    if (err instanceof OpenCancelledError) return false; // user dismissed the password box
+    void alertDialog(
+      err instanceof UnsupportedEncryptionError
+        ? err.message
+        : `Failed to load: ${err instanceof Error ? err.message : err}`,
+    );
     return false;
   }
 }
@@ -6342,7 +6363,12 @@ async function openRecentInPlace(recent: RecentFile): Promise<void> {
       format: file.format,
     });
   } catch (err) {
-    void alertDialog(`Failed to load: ${err instanceof Error ? err.message : err}`);
+    if (err instanceof OpenCancelledError) return; // user dismissed the password box
+    void alertDialog(
+      err instanceof UnsupportedEncryptionError
+        ? err.message
+        : `Failed to load: ${err instanceof Error ? err.message : err}`,
+    );
   }
 }
 
@@ -8243,18 +8269,29 @@ async function mountFromSpawnPayload(
   payload: Awaited<ReturnType<ReturnType<typeof getHost>['getInitialDoc']>>,
 ): Promise<void> {
   if (!payload) return;
+  // Initial-doc / file-association opens land here without passing
+  // through routeOpenedFile, so a password-protected file must be
+  // handled at this parse point too.
+  let openBytes: Uint8Array;
+  try {
+    openBytes = await maybeDecryptForOpen(payload.bytes, payload.filename);
+  } catch (err) {
+    if (err instanceof OpenCancelledError) return;
+    void alertDialog(err instanceof Error ? err.message : String(err));
+    return;
+  }
   try {
     let docNode: PMNode;
     let docThreads: Thread[] | undefined;
     let docId: string | null;
     const format = payload.format ?? formatFromFilename(payload.filename) ?? 'docx';
-    if (!bytesLookLikeDocx(payload.bytes)) {
-      const parsed = parseNative(payload.bytes);
+    if (!bytesLookLikeDocx(openBytes)) {
+      const parsed = parseNative(openBytes);
       docNode = parsed.doc;
       docThreads = parsed.threads.length > 0 ? parsed.threads : undefined;
       docId = parsed.docId;
     } else {
-      const result = await fromDocxFull(payload.bytes);
+      const result = await fromDocxFull(openBytes);
       docNode = result.doc;
       docThreads = result.threads;
       docId = result.docId;

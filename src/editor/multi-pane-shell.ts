@@ -69,6 +69,7 @@ import { selfRefSelectionPos } from './self-transclusion-commands.js';
 import { transclusionDivergenceKey } from './transclusion-divergence-plugin.js';
 import { promptForText, alertDialog } from './text-prompt.js';
 import { showToast } from './toast.js';
+import { maybeDecryptForOpen, OpenCancelledError } from './open-encrypted.js';
 import {
   buildEditorPlugins,
   enableMultiDocMode,
@@ -2467,6 +2468,18 @@ class MultiPaneShell {
     // shows, so we don't pester the user with a slot prompt for a
     // doc they already have open.
     const format = formatFromFilename(opened.name) ?? 'docx';
+    // Password-protected .docx (a compound file, not a zip) → prompt +
+    // decrypt to real .docx bytes before parsing; passes through
+    // otherwise. Cancel aborts silently; an unsupported scheme shows
+    // its own message.
+    let openBytes: Uint8Array;
+    try {
+      openBytes = await maybeDecryptForOpen(opened.bytes, opened.name);
+    } catch (err) {
+      if (err instanceof OpenCancelledError) return;
+      void alertDialog(err instanceof Error ? err.message : String(err));
+      return;
+    }
     let doc: PMNode;
     let threads: Thread[];
     let docId: string | null;
@@ -2475,11 +2488,11 @@ class MultiPaneShell {
     // under a docx name/format. A .docx is a 'PK' zip; cmir never is. (`format`
     // above stays the SAVE format.)
     const isDocxBytes =
-      opened.bytes.length >= 2 && opened.bytes[0] === 0x50 && opened.bytes[1] === 0x4b;
+      openBytes.length >= 2 && openBytes[0] === 0x50 && openBytes[1] === 0x4b;
     if (!isDocxBytes) {
-      ({ doc, threads, docId } = parseNative(opened.bytes));
+      ({ doc, threads, docId } = parseNative(openBytes));
     } else {
-      ({ doc, threads, docId } = await fromDocxFull(opened.bytes));
+      ({ doc, threads, docId } = await fromDocxFull(openBytes));
     }
     const slot = this.slots[target];
     const record = buildDocRecord(opened.name, doc, slot, {

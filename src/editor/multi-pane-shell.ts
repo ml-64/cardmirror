@@ -271,9 +271,13 @@ function scheduleAutosaveForRecord(record: DocRecord): void {
 
 /**
  * One loaded document inside a slot's stack. Owns a live EditorView
- * (so swapping back to this record in the stack restores selection /
- * scroll / history without a re-mount), the per-doc nav surface, and
- * the per-doc editor drag surface.
+ * (so swapping back to this record in the stack restores selection
+ * and undo history without a re-mount — they live in the retained
+ * view), the per-doc nav surface, and the per-doc editor drag
+ * surface. Scroll does NOT live in the retained view: the scroller
+ * is the slot's shared `.pmd-pane-body`, which clamps to 0 the
+ * moment the editor detaches — so the viewport is carried per-doc
+ * via `savedScrollTop` across detach / mount instead.
  */
 interface DocRecord {
   uid: string;
@@ -293,6 +297,11 @@ interface DocRecord {
   /** Root element holding `view.dom`. Mounted into / detached from
    *  the slot's body when this record becomes / stops being visible. */
   editorEl: HTMLElement;
+  /** The pane scroller's `scrollTop` while this doc was last
+   *  visible — captured on detach, reapplied on mount (the browser
+   *  clamps it against the doc's height). 0 for fresh docs, so a
+   *  doc opened on top of another starts at the top. */
+  savedScrollTop: number;
   navPanel: NavigationPanel;
   /** The slot this record currently lives in — maintained by
    *  `Slot.push`. The record's dispatchTransaction refreshes THIS
@@ -1006,6 +1015,9 @@ class Slot {
     const rec = this.visible;
     if (!rec) return;
     if (rec.editorEl.parentElement === this.bodyEl) {
+      // Capture BEFORE removeChild — detaching collapses the
+      // scroller's content and the browser clamps scrollTop to 0.
+      rec.savedScrollTop = this.bodyEl.scrollTop;
       this.bodyEl.removeChild(rec.editorEl);
     }
     if (rec.navEl.parentElement === this.navBodyEl) {
@@ -1024,6 +1036,9 @@ class Slot {
     const rec = this.visible;
     if (!rec) return;
     this.bodyEl.appendChild(rec.editorEl);
+    // After the append, so the restored content height is what the
+    // browser clamps against.
+    this.bodyEl.scrollTop = rec.savedScrollTop;
     this.navBodyEl.appendChild(rec.navEl);
     this.chipNameEl.textContent = rec.filename;
     this.refreshChip();
@@ -3016,6 +3031,7 @@ function buildDocRecord(
     navEl,
     dragSurface,
     owner: slot, // re-pointed by Slot.push on every move
+    savedScrollTop: 0,
 
     heavyUpdateTimer: null,
     journalTimer: null,

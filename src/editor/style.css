@@ -11926,7 +11926,10 @@ html.pmd-timer-right #timer-panel {
    mirrors the base rules it overrides: the id-pair preset positions
    need the panel-class prefix to win, and button-height overrides
    carry `button.` to beat the (1,1,1) base button rule. */
-#timer-preset-4-btn {
+/* Hidden by default. Needs the panel prefix: the base
+   `#ribbon .pmd-timer-panel button` rule sets display:flex at
+   (1,1,1), which outranks a bare id selector. */
+:is(#ribbon, body.pmd-timer-popout-page) .pmd-timer-panel #timer-preset-4-btn {
   display: none;
 }
 :is(#ribbon, body.pmd-timer-popout-page)

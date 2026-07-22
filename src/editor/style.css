@@ -11917,6 +11917,62 @@ html.pmd-timer-right #timer-panel {
   box-shadow: inset 0 0 0 1px currentColor;
 }
 
+/* Fourth speech preset (timerShowFourthPreset; expanded layout only —
+   compact hides every preset). Preset 4 takes Start/Pause's old cell,
+   and Start/Pause becomes a full-height column between reset and the
+   display (same shape as reset); the display, preset block, and prep
+   column each shift one column right. Selector specificity mirrors
+   the base rules it overrides: the id-pair preset positions need the
+   panel-class prefix to win, and button-height overrides carry
+   `button.` to beat the (1,1,1) base button rule. */
+#timer-preset-4-btn {
+  display: none;
+}
+:is(#ribbon, body.pmd-timer-popout-page)
+  .pmd-timer-panel.pmd-timer-four:not(.pmd-timer-compact)
+  button.pmd-timer-start {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  height: auto;
+  align-self: stretch;
+}
+:is(#ribbon, body.pmd-timer-popout-page)
+  .pmd-timer-panel.pmd-timer-four:not(.pmd-timer-compact)
+  .pmd-timer-display {
+  grid-column: 3;
+}
+:is(#ribbon, body.pmd-timer-popout-page)
+  .pmd-timer-panel.pmd-timer-four:not(.pmd-timer-compact)
+  #timer-preset-4-btn {
+  display: flex;
+}
+#ribbon .pmd-timer-panel.pmd-timer-four:not(.pmd-timer-compact) #timer-preset-4-btn {
+  grid-column: 4;
+  grid-row: 1;
+}
+#ribbon .pmd-timer-panel.pmd-timer-four:not(.pmd-timer-compact) #timer-preset-1-btn {
+  grid-column: 5;
+  grid-row: 1;
+}
+#ribbon .pmd-timer-panel.pmd-timer-four:not(.pmd-timer-compact) #timer-preset-2-btn {
+  grid-column: 4;
+  grid-row: 2;
+}
+#ribbon .pmd-timer-panel.pmd-timer-four:not(.pmd-timer-compact) #timer-preset-3-btn {
+  grid-column: 5;
+  grid-row: 2;
+}
+:is(#ribbon, body.pmd-timer-popout-page)
+  .pmd-timer-panel.pmd-timer-four:not(.pmd-timer-compact)
+  button.pmd-timer-aff {
+  grid-column: 6;
+}
+:is(#ribbon, body.pmd-timer-popout-page)
+  .pmd-timer-panel.pmd-timer-four:not(.pmd-timer-compact)
+  button.pmd-timer-neg {
+  grid-column: 6;
+}
+
 /* Timer-durations editor in Settings → Appearance: a horizontal
    row of small number inputs, one per speech preset + one for
    prep. Each input is labeled "Speech 1 / 2 / 3" or "Prep" with

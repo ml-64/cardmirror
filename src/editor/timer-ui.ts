@@ -116,6 +116,8 @@ export function mountTimerUI(opts?: { popout?: boolean }): void {
             data-preset-index="1"></button>
     <button id="timer-preset-3-btn" class="pmd-timer-preset" type="button"
             data-preset-index="2"></button>
+    <button id="timer-preset-4-btn" class="pmd-timer-preset" type="button"
+            data-preset-index="3"></button>
     <button id="timer-aff-btn" class="pmd-timer-prep pmd-timer-aff" type="button"
             aria-label="Affirmative prep"><span class="pmd-timer-prep-prefix">A:</span><span class="pmd-timer-prep-time" id="timer-aff-time">10:00</span></button>
     <button id="timer-neg-btn" class="pmd-timer-prep pmd-timer-neg" type="button"
@@ -184,7 +186,7 @@ export function mountTimerUI(opts?: { popout?: boolean }): void {
   const prepSinglePrefix = prepSingleBtn.querySelector('.pmd-timer-prep-prefix') as HTMLSpanElement;
   const prepSwitchBtn = document.getElementById('timer-prep-switch-btn') as HTMLButtonElement;
   const presetBtns: HTMLButtonElement[] = [];
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 4; i++) {
     const b = document.getElementById(`timer-preset-${i + 1}-btn`) as HTMLButtonElement;
     presetBtns.push(b);
   }
@@ -352,6 +354,9 @@ export function mountTimerUI(opts?: { popout?: boolean }): void {
   // and resync on every settings change.
   function applyChrome(): void {
     panel.classList.toggle('pmd-timer-compact', settings.get('timerCompact'));
+    // Fourth speech preset (expanded only — compact hides all
+    // presets); the CSS re-flows Start/Pause into its own column.
+    panel.classList.toggle('pmd-timer-four', settings.get('timerShowFourthPreset'));
     // CSS rules key on `data-prep-label` to show / hide the
     // A: / N: prefix and the blue / red color treatment.
     panel.setAttribute('data-prep-label', settings.get('timerPrepLabel'));

@@ -603,21 +603,29 @@ export interface Settings {
    *  profile's saved slot. */
   timerProfile: 'highSchool' | 'college' | 'pomodoro';
   /** Per-profile saved durations. Picking a profile loads its
-   *  speech-preset triple + prep total into the live settings
+   *  speech presets + prep total into the live settings
    *  (`timerSpeechPresets` / `timerPrepMinutes`); editing a
    *  value updates BOTH the live setting AND the active
-   *  profile's saved slot here. Defaults match each profile's
-   *  conventional values: High school 3/5/8 + 8 prep, College
-   *  3/6/9 + 10 prep, Pomodoro 25/15/5 + 0 prep. */
+   *  profile's saved slot here. Four preset slots — the panel
+   *  shows the fourth only under `timerShowFourthPreset`.
+   *  Defaults match each profile's conventional values: High
+   *  school 3/5/8 + 8 prep, College 3/6/9 + 10 prep, Pomodoro
+   *  25/15/5 + 0 prep. */
   timerProfiles: Record<'highSchool' | 'college' | 'pomodoro', {
     speechPresets: number[];
     prepMinutes: number;
   }>;
-  /** The active profile's speech-preset triple, lifted to the
-   *  top level so the timer state + UI read it from one
+  /** The active profile's speech presets (four slots), lifted to
+   *  the top level so the timer state + UI read it from one
    *  predictable spot instead of indexing into
    *  `timerProfiles[timerProfile]`. */
   timerSpeechPresets: number[];
+  /** Show a fourth speech-preset button (expanded layout only —
+   *  compact drops all presets). Preset 4 takes the Start/Pause
+   *  cell and Start/Pause becomes a full-height column beside the
+   *  display. For events whose speeches come in four distinct
+   *  lengths. */
+  timerShowFourthPreset: boolean;
   /** Per-side prep total in minutes. Reset refills both prep
    *  clocks to this value. */
   timerPrepMinutes: number;
@@ -1519,11 +1527,12 @@ const DEFAULTS: Settings = {
   formatNavPaneByType: true,
   timerProfile: 'college',
   timerProfiles: {
-    highSchool: { speechPresets: [3, 5, 8], prepMinutes: 8 },
-    college: { speechPresets: [3, 6, 9], prepMinutes: 10 },
-    pomodoro: { speechPresets: [25, 15, 5], prepMinutes: 0 },
+    highSchool: { speechPresets: [3, 5, 8, 10], prepMinutes: 8 },
+    college: { speechPresets: [3, 6, 9, 12], prepMinutes: 10 },
+    pomodoro: { speechPresets: [25, 15, 5, 45], prepMinutes: 0 },
   },
-  timerSpeechPresets: [3, 6, 9],
+  timerSpeechPresets: [3, 6, 9, 12],
+  timerShowFourthPreset: false,
   timerPrepMinutes: 10,
   timerFlashEnabled: true,
   timerFlashSeconds: [5, 3, 1],
@@ -2740,6 +2749,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     section: 'Timer display',
   },
   {
+    key: 'timerShowFourthPreset',
+    label: 'Show a fourth speech preset',
+    description:
+      'Adds a fourth preset button for events whose speeches come in four distinct lengths. Preset 4 takes the Start/Pause cell, and Start/Pause becomes a full-height button beside the display. Expanded layout only — the compact layout drops all presets.',
+    kind: 'toggle',
+    category: 'appearance',
+    section: 'Timer display',
+    aliases: ['fourth preset', 'four presets', 'preset 4'],
+  },
+  {
     key: 'timerFlashEnabled',
     label: 'Flash timer when countdown is low',
     description:
@@ -3944,7 +3963,8 @@ function sanitize(s: Settings): Settings {
         ? s.timerProfile
         : 'college',
     timerProfiles: sanitizeTimerProfiles(s.timerProfiles),
-    timerSpeechPresets: sanitizeNumberTriple(s.timerSpeechPresets, [3, 6, 9]),
+    timerSpeechPresets: sanitizeSpeechPresets(s.timerSpeechPresets, [3, 6, 9, 12]),
+    timerShowFourthPreset: !!s.timerShowFourthPreset,
     timerPrepMinutes:
       typeof s.timerPrepMinutes === 'number' && s.timerPrepMinutes > 0 && s.timerPrepMinutes <= 99
         ? Math.floor(s.timerPrepMinutes)
@@ -4556,13 +4576,14 @@ export const CUSTOM_OVERRIDE_TOKEN_NAMES: readonly string[] = CUSTOMIZABLE_COLOR
   .filter((t) => !(t.name in DISPLAY_COLOR_TOKEN_TO_KEY))
   .map((t) => t.name);
 
-/** Validate a 3-tuple of positive integer minutes for the
- *  timer's speech presets. Fills missing / invalid entries with
- *  the fallback. */
-function sanitizeNumberTriple(raw: unknown, fallback: number[]): number[] {
+/** Validate the timer's speech presets: four positive integer
+ *  minutes. Fills missing / invalid entries with the fallback —
+ *  which is how a stored 3-slot array (from before the fourth
+ *  preset existed) gains its fourth slot on load. */
+function sanitizeSpeechPresets(raw: unknown, fallback: number[]): number[] {
   const out = [...fallback];
   if (!Array.isArray(raw)) return out;
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 4; i++) {
     const v = raw[i];
     if (typeof v === 'number' && Number.isFinite(v) && v > 0 && v <= 99) {
       out[i] = Math.floor(v);
@@ -4579,9 +4600,9 @@ function sanitizeTimerProfiles(
   raw: unknown,
 ): Settings['timerProfiles'] {
   const defaults: Settings['timerProfiles'] = {
-    highSchool: { speechPresets: [3, 5, 8], prepMinutes: 8 },
-    college: { speechPresets: [3, 6, 9], prepMinutes: 10 },
-    pomodoro: { speechPresets: [25, 15, 5], prepMinutes: 0 },
+    highSchool: { speechPresets: [3, 5, 8, 10], prepMinutes: 8 },
+    college: { speechPresets: [3, 6, 9, 12], prepMinutes: 10 },
+    pomodoro: { speechPresets: [25, 15, 5, 45], prepMinutes: 0 },
   };
   if (!raw || typeof raw !== 'object') return defaults;
   const src = raw as Record<string, unknown>;
@@ -4595,7 +4616,7 @@ function sanitizeTimerProfiles(
     if (!entry || typeof entry !== 'object') continue;
     const e = entry as Record<string, unknown>;
     out[id] = {
-      speechPresets: sanitizeNumberTriple(e['speechPresets'], defaults[id].speechPresets),
+      speechPresets: sanitizeSpeechPresets(e['speechPresets'], defaults[id].speechPresets),
       prepMinutes:
         typeof e['prepMinutes'] === 'number' &&
         e['prepMinutes'] >= 0 &&

@@ -19,9 +19,9 @@ const MIN = 60 * 1000;
  *  shipped defaults. */
 function seedProfiles(): void {
   settings.set('timerProfiles', {
-    highSchool: { speechPresets: [3, 5, 8], prepMinutes: 8 },
-    college: { speechPresets: [3, 6, 9], prepMinutes: 10 },
-    pomodoro: { speechPresets: [25, 15, 5], prepMinutes: 0 },
+    highSchool: { speechPresets: [3, 5, 8, 10], prepMinutes: 8 },
+    college: { speechPresets: [3, 6, 9, 12], prepMinutes: 10 },
+    pomodoro: { speechPresets: [25, 15, 5, 45], prepMinutes: 0 },
   } as never);
 }
 
@@ -32,15 +32,15 @@ describe('timer profile cycling', () => {
 
     expect(cycleTimerProfile()).toBe('highSchool');
     expect(settings.get('timerProfile')).toBe('highSchool');
-    expect(settings.get('timerSpeechPresets')).toEqual([3, 5, 8]);
+    expect(settings.get('timerSpeechPresets')).toEqual([3, 5, 8, 10]);
     expect(settings.get('timerPrepMinutes')).toBe(8);
 
     expect(cycleTimerProfile()).toBe('pomodoro');
-    expect(settings.get('timerSpeechPresets')).toEqual([25, 15, 5]);
+    expect(settings.get('timerSpeechPresets')).toEqual([25, 15, 5, 45]);
     expect(settings.get('timerPrepMinutes')).toBe(0);
 
     expect(cycleTimerProfile()).toBe('college'); // wraps
-    expect(settings.get('timerSpeechPresets')).toEqual([3, 6, 9]);
+    expect(settings.get('timerSpeechPresets')).toEqual([3, 6, 9, 12]);
     expect(settings.get('timerPrepMinutes')).toBe(10);
   });
 

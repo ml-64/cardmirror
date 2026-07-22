@@ -4272,8 +4272,12 @@ function buildTimerProfileDurationsEditor(): HTMLElement {
     const active = settings.get('timerProfile');
     const profileCfg = settings.get('timerProfiles')[active];
     const presets = profileCfg.speechPresets;
-    for (let i = 0; i < 3; i++) {
-      const labels = ['Preset 1', 'Preset 2', 'Preset 3'];
+    // The fourth field appears only while the fourth preset button is
+    // enabled — an input for a button that isn't shown would read as
+    // broken.
+    const presetCount = settings.get('timerShowFourthPreset') ? 4 : 3;
+    for (let i = 0; i < presetCount; i++) {
+      const labels = ['Preset 1', 'Preset 2', 'Preset 3', 'Preset 4'];
       const field = makeField(
         labels[i]!,
         () => presets[i] ?? 0,
@@ -4313,10 +4317,16 @@ function buildTimerProfileDurationsEditor(): HTMLElement {
   // input mid-entry (you couldn't type past one digit). Same-profile value
   // edits already display what the user typed, so no rebuild is needed.
   let lastProfile = settings.get('timerProfile');
+  let lastFourth = settings.get('timerShowFourthPreset');
   const unsub = settings.subscribe(() => {
     const active = settings.get('timerProfile');
-    if (active === lastProfile) return;
+    const fourth = settings.get('timerShowFourthPreset');
+    // The fourth-preset toggle also re-fields the row (it's a
+    // checkbox elsewhere in the modal, never the focused input, so
+    // the destroy-while-typing hazard above doesn't apply to it).
+    if (active === lastProfile && fourth === lastFourth) return;
     lastProfile = active;
+    lastFourth = fourth;
     buildFields();
   });
   registerRowCleanup(wrap, () => unsub());

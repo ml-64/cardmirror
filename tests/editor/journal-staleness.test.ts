@@ -8,6 +8,10 @@ import { describe, expect, it } from 'vitest';
 import {
   journalPredatesFile,
   STALE_JOURNAL_TOLERANCE_MS,
+  markRecoveredDraft,
+  recoveredDraftJournalSavedAt,
+  clearRecoveredDraftMark,
+  autosaveBlockedForRecoveredDraft,
 } from '../../src/editor/journal-staleness.js';
 
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -44,5 +48,42 @@ describe('journalPredatesFile', () => {
   it('respects a custom tolerance', () => {
     expect(journalPredatesFile(iso(T), T + 1000, 2000)).toBe(false);
     expect(journalPredatesFile(iso(T), T + 3000, 2000)).toBe(true);
+  });
+});
+
+/** Both autosave paths (single-doc runAutosaveAttempt, three-pane
+ *  runAutosaveForRecord) gate on this registry: a recovered draft must not
+ *  autosave before its first MANUAL save, because only the manual path runs
+ *  the stale-overwrite confirmation. Regression for the hole where three-pane
+ *  re-armed autosave from the per-path preference on a recovered stale draft
+ *  and silently overwrote the newer file. */
+describe('recovered-draft marks', () => {
+  it('blocks autosave for a marked draft and unblocks once the mark clears', () => {
+    const uid = 'mark-test-autosave';
+    expect(autosaveBlockedForRecoveredDraft(uid)).toBe(false);
+    markRecoveredDraft(uid, iso(T));
+    expect(autosaveBlockedForRecoveredDraft(uid)).toBe(true);
+    clearRecoveredDraftMark(uid);
+    expect(autosaveBlockedForRecoveredDraft(uid)).toBe(false);
+  });
+
+  it('stores the journal savedAt for the save-flow guard, per uid', () => {
+    const a = 'mark-test-savedat-a';
+    const b = 'mark-test-savedat-b';
+    markRecoveredDraft(a, iso(T));
+    markRecoveredDraft(b, iso(T + 1000));
+    expect(recoveredDraftJournalSavedAt(a)).toBe(iso(T));
+    expect(recoveredDraftJournalSavedAt(b)).toBe(iso(T + 1000));
+    clearRecoveredDraftMark(a);
+    expect(recoveredDraftJournalSavedAt(a)).toBeUndefined();
+    expect(recoveredDraftJournalSavedAt(b)).toBe(iso(T + 1000));
+    clearRecoveredDraftMark(b);
+  });
+
+  it('never blocks a doc that was not recovered (unknown uid)', () => {
+    expect(autosaveBlockedForRecoveredDraft('never-marked')).toBe(false);
+    expect(recoveredDraftJournalSavedAt('never-marked')).toBeUndefined();
+    // Clearing an unknown uid is a harmless no-op.
+    clearRecoveredDraftMark('never-marked');
   });
 });

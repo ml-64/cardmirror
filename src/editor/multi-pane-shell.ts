@@ -61,6 +61,7 @@ import { isBenchmarkActive } from './benchmark-state.js';
 import { countReadAloudWords, formatReadTime, formatNumber } from './word-count.js';
 import { openWordCount } from './word-count-ui.js';
 import { isAutosaveOnForPath, setAutosaveForPath } from './autosave-prefs-store.js';
+import { autosaveBlockedForRecoveredDraft } from './journal-staleness.js';
 import { captureCleanToken } from './save-clean-token.js';
 import { scheduleIdle, cancelIdle, type IdleHandle } from './idle-scheduler.js';
 import { getSpeechDocResolver } from './speech-doc-registry.js';
@@ -221,6 +222,12 @@ async function runAutosaveForRecord(record: DocRecord): Promise<void> {
   if (typeof record.handle !== 'string' || !record.handle) return;
   const host = getHost();
   if (!host.supportsInPlaceSave) return;
+  // A recovered draft may only be written by a MANUAL save until its first
+  // one lands — the stale-overwrite confirmation lives on the manual path,
+  // and `buildDocRecord` re-arms autosave from the per-path preference, so
+  // without this gate a stale draft opened for inspection would silently
+  // overwrite the newer file on the first keystroke.
+  if (autosaveBlockedForRecoveredDraft(record.uid)) return;
   try {
     // Capture before serializing — keystrokes during the write are not
     // in the saved bytes and must keep the record dirty + journaled.

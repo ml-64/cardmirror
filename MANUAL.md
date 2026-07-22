@@ -1875,8 +1875,13 @@ headers shown inside each tab.
 
 - **Timer profile** — which duration set the timer runs: High school,
   College, or Pomodoro. Each remembers its own edits.
-- **Timer durations** — the active profile's three speech presets (the
-  9 / 6 / 3 buttons) and per-side prep total.
+- **Timer durations** — the active profile's speech presets (the
+  preset buttons) and per-side prep total.
+- **Show a fourth speech preset** — for events whose speeches come in
+  four distinct lengths. Preset 4 takes the Start/Pause cell, and
+  Start/Pause becomes a full-height button beside the display (a fourth
+  duration field appears above). Expanded layout only — compact drops
+  all presets. Off by default.
 
 **Integrations**
 
@@ -2020,11 +2025,6 @@ How things look. None of these change the file — only your view (see
 - **Compact timer layout** — drop the 9 / 6 / 3 presets and collapse the
   two prep clocks into one (with a ⇄ side-switch), keeping Reset and
   Pop-out stacked on the left.
-- **Show a fourth speech preset** — for events whose speeches come in
-  four distinct lengths. Preset 4 takes the Start/Pause cell, and
-  Start/Pause becomes a full-height button beside the display (a fourth
-  duration field appears in the profile durations row above). Expanded
-  layout only — compact drops all presets. Off by default.
 - **Flash timer when countdown is low** — flash the timer display red as
   remaining time crosses each alert point.
 - **Alert points (seconds remaining)** — the comma-separated

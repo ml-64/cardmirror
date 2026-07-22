@@ -2027,10 +2027,20 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'timerProfiles',
     label: 'Timer durations',
     description:
-      "Edit the active profile's three preset durations (in minutes, biggest first — these become the top-right 9 / 6 / 3 buttons on the panel) and the per-side prep total. Changes save into the currently-selected profile only.",
+      "Edit the active profile's preset durations (in minutes — these become the preset buttons on the panel; a fourth field appears when the fourth preset is enabled below) and the per-side prep total. Changes save into the currently-selected profile only.",
     kind: 'timerProfileDurations',
     category: 'general',
     section: 'Timer',
+  },
+  {
+    key: 'timerShowFourthPreset',
+    label: 'Show a fourth speech preset',
+    description:
+      'Adds a fourth preset button for events whose speeches come in four distinct lengths (and a fourth duration field above). Preset 4 takes the Start/Pause cell, and Start/Pause becomes a full-height button beside the display. Expanded layout only — the compact layout drops all presets.',
+    kind: 'toggle',
+    category: 'general',
+    section: 'Timer',
+    aliases: ['fourth preset', 'four presets', 'preset 4'],
   },
   {
     key: 'flowHostOnLaunch',
@@ -2747,16 +2757,6 @@ export const SETTING_METADATA: SettingMeta[] = [
     kind: 'toggle',
     category: 'appearance',
     section: 'Timer display',
-  },
-  {
-    key: 'timerShowFourthPreset',
-    label: 'Show a fourth speech preset',
-    description:
-      'Adds a fourth preset button for events whose speeches come in four distinct lengths. Preset 4 takes the Start/Pause cell, and Start/Pause becomes a full-height button beside the display. Expanded layout only — the compact layout drops all presets.',
-    kind: 'toggle',
-    category: 'appearance',
-    section: 'Timer display',
-    aliases: ['fourth preset', 'four presets', 'preset 4'],
   },
   {
     key: 'timerFlashEnabled',
